@@ -48,6 +48,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'Admin Faskes',
     isActive: true,
     roleLevel: 2,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: 'ce5bc0f9-b342-45d1-b08a-b626c6026a7f',
@@ -56,6 +57,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'Admin Kalibrator',
     isActive: true,
     roleLevel: 2,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: '752e324a-e426-4cc9-ae2d-639b1a7a2785',
@@ -64,6 +66,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'Teknisi',
     isActive: true,
     roleLevel: 1,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: '137404e9-c995-4437-be17-d1af64ab3c30',
@@ -72,6 +75,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'Penyelia',
     isActive: true,
     roleLevel: 1,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: '74101285-c256-4cb9-951d-24ed6547a9cb',
@@ -80,6 +84,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'Manajer Teknik',
     isActive: true,
     roleLevel: 1,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: 'b85b324b-9b80-4c36-85b8-46db21872bdf',
@@ -88,6 +93,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'Teknisi Faskes',
     isActive: true,
     roleLevel: 1,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: '5e724805-02ba-498f-a7f0-6b415c8f69fe',
@@ -96,6 +102,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'IPSRS',
     isActive: true,
     roleLevel: 1,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: 'e50b664b-451c-45a9-8c83-f65b94a8afdf',
@@ -104,6 +111,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'Gudang',
     isActive: true,
     roleLevel: 1,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: '6fdd1212-9c4f-45d5-b3bf-5335892be7c0',
@@ -112,6 +120,7 @@ const APPLICATION_ROLES = [
     nameToShow: 'User Ruangan',
     isActive: true,
     roleLevel: 1,
+    permissionIds: [], // Will be populated during seeding
   },
 ];
 
@@ -275,6 +284,7 @@ const DEFAULT_ROLES = [
     nameToShow: 'Super Admin',
     isActive: true,
     roleLevel: 3,
+    permissionIds: [], // Super admin gets all permissions implicitly
   },
   {
     id: ROLE_IDS.TENANT_ADMIN,
@@ -283,6 +293,7 @@ const DEFAULT_ROLES = [
     nameToShow: 'Tenant Admin',
     isActive: true,
     roleLevel: 2,
+    permissionIds: [], // Will be populated during seeding
   },
   {
     id: ROLE_IDS.USER,
@@ -291,6 +302,7 @@ const DEFAULT_ROLES = [
     nameToShow: 'User',
     isActive: true,
     roleLevel: 1,
+    permissionIds: [], // Will be populated during seeding
   },
 ];
 
@@ -352,27 +364,33 @@ const getPermissionIdByName = (permissionName, permissionMap) => {
 async function seedDefaultRoles() {
   const result = {
     rolesCreated: 0,
-    rolesUpdated: 0,
+    rolesSkipped: 0,
+    permissionsAssigned: 0,
     errors: [],
   };
 
   try {
     for (const role of DEFAULT_ROLES) {
       try {
-        const [roleInstance, created] = await Roles.findOrCreate({
-          where: { id: role.id },
-          defaults: role,
+        const roleInstance = await Roles.findOne({
+          where: { name: role.name },
         });
 
-        if (!created) {
-          const changed = roleInstance.changed();
-          if (changed.length > 0) {
-            await roleInstance.update(role);
-          }
-          result.rolesUpdated++;
-        } else {
-          result.rolesCreated++;
+        if (roleInstance) {
+          result.rolesSkipped++;
+          continue;
         }
+
+        const { permissionIds, ...roleData } = role;
+        const newRole = await Roles.create(roleData);
+
+        // Assign permissions if specified
+        if (permissionIds && permissionIds.length > 0) {
+          await newRole.setPermissions(permissionIds);
+          result.permissionsAssigned += permissionIds.length;
+        }
+
+        result.rolesCreated++;
       } catch (error) {
         result.errors.push(`Error seeding role ${role.name}: ${error.message}`);
       }
@@ -394,27 +412,33 @@ async function seedDefaultRoles() {
 async function seedApplicationRoles() {
   const result = {
     rolesCreated: 0,
-    rolesUpdated: 0,
+    rolesSkipped: 0,
+    permissionsAssigned: 0,
     errors: [],
   };
 
   try {
     for (const role of APPLICATION_ROLES) {
       try {
-        const [roleInstance, created] = await Roles.findOrCreate({
-          where: { id: role.id },
-          defaults: role,
+        const roleInstance = await Roles.findOne({
+          where: { name: role.name },
         });
 
-        if (!created) {
-          const changed = roleInstance.changed();
-          if (changed.length > 0) {
-            await roleInstance.update(role);
-          }
-          result.rolesUpdated++;
-        } else {
-          result.rolesCreated++;
+        if (roleInstance) {
+          result.rolesSkipped++;
+          continue;
         }
+
+        const { permissionIds, ...roleData } = role;
+        const newRole = await Roles.create(roleData);
+
+        // Assign permissions if specified
+        if (permissionIds && permissionIds.length > 0) {
+          await newRole.setPermissions(permissionIds);
+          result.permissionsAssigned += permissionIds.length;
+        }
+
+        result.rolesCreated++;
       } catch (error) {
         result.errors.push(`Error seeding role ${role.name}: ${error.message}`);
       }
@@ -440,8 +464,11 @@ async function seedAllRoles() {
   return {
     rolesCreated:
       defaultRolesResult.rolesCreated + applicationRolesResult.rolesCreated,
-    rolesUpdated:
-      defaultRolesResult.rolesUpdated + applicationRolesResult.rolesUpdated,
+    rolesSkipped:
+      defaultRolesResult.rolesSkipped + applicationRolesResult.rolesSkipped,
+    permissionsAssigned:
+      defaultRolesResult.permissionsAssigned +
+      applicationRolesResult.permissionsAssigned,
     errors: [...defaultRolesResult.errors, ...applicationRolesResult.errors],
   };
 }
@@ -457,7 +484,7 @@ async function seedAllRoles() {
 async function seedPermissions() {
   const result = {
     permissionsCreated: 0,
-    permissionsUpdated: 0,
+    permissionsSkipped: 0,
     errors: [],
   };
 
@@ -465,17 +492,17 @@ async function seedPermissions() {
     // Seed user module permissions
     for (const perm of USER_MODULE_PERMISSIONS) {
       try {
-        const [permInstance, created] = await Permissions.findOrCreate({
+        const permInstance = await Permissions.findOne({
           where: { name: perm.name },
-          defaults: perm,
         });
 
-        if (!created) {
-          await permInstance.update(perm);
-          result.permissionsUpdated++;
-        } else {
-          result.permissionsCreated++;
+        if (permInstance) {
+          result.permissionsSkipped++;
+          continue;
         }
+
+        await Permissions.create(perm);
+        result.permissionsCreated++;
       } catch (error) {
         result.errors.push(
           `Error seeding permission ${perm.name}: ${error.message}`,
@@ -486,17 +513,17 @@ async function seedPermissions() {
     // Seed tenant module permissions
     for (const perm of TENANT_MODULE_PERMISSIONS) {
       try {
-        const [permInstance, created] = await Permissions.findOrCreate({
+        const permInstance = await Permissions.findOne({
           where: { name: perm.name },
-          defaults: perm,
         });
 
-        if (!created) {
-          await permInstance.update(perm);
-          result.permissionsUpdated++;
-        } else {
-          result.permissionsCreated++;
+        if (permInstance) {
+          result.permissionsSkipped++;
+          continue;
         }
+
+        await Permissions.create(perm);
+        result.permissionsCreated++;
       } catch (error) {
         result.errors.push(
           `Error seeding permission ${perm.name}: ${error.message}`,
@@ -526,6 +553,7 @@ async function seedRolesPermissions() {
   const result = {
     tenantAdminPermissionsGranted: 0,
     userPermissionsGranted: 0,
+    permissionsSkipped: 0,
     errors: [],
   };
 
@@ -546,8 +574,23 @@ async function seedRolesPermissions() {
         .map((name) => getPermissionIdByName(name, permissionMap))
         .filter(Boolean);
 
-      await tenantAdminRole.setPermissions(permissionIds);
-      result.tenantAdminPermissionsGranted = permissionIds.length;
+      // Check which permissions are already assigned
+      const existingPermissions = await tenantAdminRole.getPermissions();
+      const existingPermissionIds = existingPermissions.map((p) => p.id);
+
+      const newPermissionIds = permissionIds.filter(
+        (id) => !existingPermissionIds.includes(id),
+      );
+
+      if (newPermissionIds.length > 0) {
+        await tenantAdminRole.setPermissions([
+          ...existingPermissionIds,
+          ...newPermissionIds,
+        ]);
+        result.tenantAdminPermissionsGranted += newPermissionIds.length;
+      } else {
+        result.permissionsSkipped += permissionIds.length;
+      }
     }
 
     // Grant permissions to USER role
@@ -559,8 +602,23 @@ async function seedRolesPermissions() {
         .map((name) => getPermissionIdByName(name, permissionMap))
         .filter(Boolean);
 
-      await userRole.setPermissions(permissionIds);
-      result.userPermissionsGranted = permissionIds.length;
+      // Check which permissions are already assigned
+      const existingPermissions = await userRole.getPermissions();
+      const existingPermissionIds = existingPermissions.map((p) => p.id);
+
+      const newPermissionIds = permissionIds.filter(
+        (id) => !existingPermissionIds.includes(id),
+      );
+
+      if (newPermissionIds.length > 0) {
+        await userRole.setPermissions([
+          ...existingPermissionIds,
+          ...newPermissionIds,
+        ]);
+        result.userPermissionsGranted += newPermissionIds.length;
+      } else {
+        result.permissionsSkipped += permissionIds.length;
+      }
     }
 
     // SUPER_ADMIN gets all permissions implicitly (handled in middleware)
@@ -593,7 +651,7 @@ const assignTablePermissionToRole = async (
   });
 
   if (existing) {
-    await existing.update({ isGranted });
+    return; // Skip existing role permissions
   } else {
     await RolePermission.create({ roleId, tablePermissionId, isGranted });
   }
@@ -609,33 +667,31 @@ async function seedTablePermissions() {
       `[INFO] ${new Date().toISOString()} - Starting table permissions seed...`,
     );
 
-    // 1. Create models
+    // 1. Create models and track their definitions
     console.log(`[INFO] ${new Date().toISOString()} - Creating models...`);
     const createdModels = [];
+    const modelDefsMap = new Map();
 
     for (const modelDef of TABLE_PERMISSION_MODELS) {
-      let model = await Models.findOne({
+      const model = await Models.findOne({
         where: { modelName: modelDef.modelName },
       });
 
-      if (!model) {
-        model = await Models.create(modelDef);
+      if (model) {
         console.log(
-          `[INFO] ${new Date().toISOString()} -   Created model: ${modelDef.modelName}`,
+          `[INFO] ${new Date().toISOString()} -   Skipped existing model: ${modelDef.modelName}`,
         );
-      } else {
-        await model.update({
-          tableName: modelDef.tableName,
-          module: modelDef.module,
-          description: modelDef.description,
-          isActive: true,
-        });
-        console.log(
-          `[INFO] ${new Date().toISOString()} -   Updated model: ${modelDef.modelName}`,
-        );
+        createdModels.push(model);
+        modelDefsMap.set(modelDef.modelName, modelDef);
+        continue;
       }
 
-      createdModels.push(model);
+      await Models.create(modelDef);
+      console.log(
+        `[INFO] ${new Date().toISOString()} -   Created model: ${modelDef.modelName}`,
+      );
+      createdModels.push(modelDef);
+      modelDefsMap.set(modelDef.modelName, modelDef);
     }
 
     // 2. Create table permissions for each model
@@ -643,32 +699,38 @@ async function seedTablePermissions() {
       `[INFO] ${new Date().toISOString()} - Creating table permissions...`,
     );
 
-    for (const model of createdModels) {
-      for (const permDef of model.permissions || []) {
+    for (const modelDef of TABLE_PERMISSION_MODELS) {
+      const model = await Models.findOne({
+        where: { modelName: modelDef.modelName },
+      });
+
+      if (!model) continue;
+
+      for (const permDef of modelDef.permissions || []) {
         const { action, scope, attributes, abacRules, description } = permDef;
 
-        let tablePerm = await TablePermission.findOne({
+        const tablePerm = await TablePermission.findOne({
           where: { modelId: model.id, action },
         });
 
-        if (!tablePerm) {
-          tablePerm = await TablePermission.create({
-            modelId: model.id,
-            action,
-            scope,
-            attributes,
-            abacRules,
-            description,
-          });
+        if (tablePerm) {
           console.log(
-            `[INFO] ${new Date().toISOString()} -   Created permission: ${model.modelName}:${action}`,
+            `[INFO] ${new Date().toISOString()} -   Skipped existing permission: ${modelDef.modelName}:${action}`,
           );
-        } else {
-          await tablePerm.update({ scope, attributes, abacRules, description });
-          console.log(
-            `[INFO] ${new Date().toISOString()} -   Updated permission: ${model.modelName}:${action}`,
-          );
+          continue;
         }
+
+        await TablePermission.create({
+          modelId: model.id,
+          action,
+          scope,
+          attributes,
+          abacRules,
+          description,
+        });
+        console.log(
+          `[INFO] ${new Date().toISOString()} -   Created permission: ${modelDef.modelName}:${action}`,
+        );
       }
     }
 
@@ -771,20 +833,27 @@ async function seedTablePermissions() {
 async function seedUsers() {
   const result = {
     usersCreated: 0,
+    usersSkipped: 0,
     errors: [],
   };
 
   try {
     for (const userData of DEFAULT_SYSTEM_USERS) {
       try {
+        const userInstance = await Users.findOne({
+          where: { email: userData.email },
+        });
+
+        if (userInstance) {
+          result.usersSkipped++;
+          continue;
+        }
+
         const hashedPassword = await hashPassword(userData.password);
 
-        await Users.findOrCreate({
-          where: { email: userData.email },
-          defaults: {
-            ...userData,
-            password: hashedPassword,
-          },
+        await Users.create({
+          ...userData,
+          password: hashedPassword,
         });
 
         result.usersCreated++;
