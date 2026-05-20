@@ -442,8 +442,10 @@ exports.deleteTenant = async (tenantId, deletedBy) => {
       data: null,
     };
   } catch (error) {
-    if (!error.isAppError) {
-      await transaction.rollback();
+    if (transaction && !transaction.finished) {
+      await transaction.rollback().catch(() => {
+        // Ignore rollback errors if transaction is already finished
+      });
     }
     logger.error('Error deleting tenant', { error: error.message });
     throw error;
