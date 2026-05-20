@@ -19,9 +19,11 @@
 15. [Caching Standards](#15-caching-standards)
 16. [Message Queue Standards](#16-message-queue-standards)
 17. [Documentation Standards](#17-documentation-standards)
-18. [Environment Variables](#18-environment-variables)
-19. [Git & Deployment](#19-git--deployment)
-20. [Unit Testing Standards](#20-unit-testing-standards)
+18. [Constants Standards](#18-constants-standards)
+19. [Migration & Seeding Standards](#19-migration--seeding-standards)
+20. [Environment Variables](#20-environment-variables)
+21. [Git & Deployment](#21-git--deployment)
+22. [Unit Testing Standards](#22-unit-testing-standards)
 
 ---
 
@@ -44,7 +46,7 @@
 ### Project Structure
 
 ```
-boilerplate-pg-mysql/
+callibrator-be/
 ├── docs/
 │   ├── DOCUMENTATION.md          # Markdown documentation
 │   ├── DOCUMENTATION.html        # Generated HTML documentation
@@ -52,6 +54,7 @@ boilerplate-pg-mysql/
 │   └── illustrations/            # SVG diagrams
 ├── scripts/
 │   ├── generate-html-doc.js      # HTML doc generator
+│   ├── generate-coding-standards-html.js  # Coding standards HTML generator
 │   ├── generate-mermaid-svg.js   # SVG generator
 │   └── generate-pdf.js           # PDF generator
 ├── src/
@@ -59,6 +62,11 @@ boilerplate-pg-mysql/
 │   │   ├── index.js              # Main config export
 │   │   ├── connection.js         # DB connection setup
 │   │   └── migrate.js            # Migration utilities
+│   ├── constants/                # Centralized application constants
+│   │   ├── index.js              # Main constants export
+│   │   ├── appConstants.js       # App-wide constants (pagination, OTP, etc.)
+│   │   ├── roleConstants.js      # Role-related constants
+│   │   └── permissionConstants.js # Permission naming conventions
 │   ├── controllers/              # Request handlers
 │   ├── docs/                     # Swagger configuration
 │   ├── middlewares/              # Express middlewares
@@ -67,9 +75,16 @@ boilerplate-pg-mysql/
 │   │   ├── api/                  # Public API routes
 │   │   └── internal/             # Internal routes
 │   ├── services/                 # Business logic
+│   │   ├── migration.service.js  # Migration & seeding service
+│   │   ├── auth.service.js       # Authentication service
+│   │   ├── user.service.js       # User service
+│   │   └── ...                   # Other services
 │   ├── templates/                # Email HTML templates
 │   ├── tests/                    # Jest tests
 │   ├── utils/                    # Utility functions
+│   │   ├── constants.js          # Backward compatibility re-exports
+│   │   ├── seedPermissions.js    # Permission seeding utility
+│   │   └── seedTablePermissions.js # Table permissions seeding utility
 │   └── validators/               # Joi validation schemas
 ├── .env                          # Environment variables
 ├── local.env                     # Local development env
@@ -138,8 +153,8 @@ boilerplate-pg-mysql/
 
 ```javascript
 // service_name.service.js
-const { Model } = require("../models");
-const { helperFunction } = require("../utils/helper");
+const { Model } = require('../models');
+const { helperFunction } = require('../utils/helper');
 
 // ==========================================
 // VALIDATION HELPERS
@@ -168,7 +183,7 @@ exports.functionName = async (input) => {
     return {
       success: true,
       status: 200,
-      message: "Operation successful",
+      message: 'Operation successful',
       data: result,
     };
   } catch (error) {
@@ -185,9 +200,9 @@ exports.functionName = async (input) => {
 
 ```javascript
 // controller_name.controller.js
-const service = require("../services/service_name.service");
-const { asyncHandlerWithMapping } = require("../utils/controllerWrapper");
-const { success, badRequest, error } = require("../utils/response");
+const service = require('../services/service_name.service');
+const { asyncHandlerWithMapping } = require('../utils/controllerWrapper');
+const { success, badRequest, error } = require('../utils/response');
 
 // ==========================================
 // FUNCTION NAME
@@ -200,7 +215,7 @@ exports.functionName = asyncHandlerWithMapping(
   },
   {
     // Error message patterns mapped to status codes
-    "not found": 404,
+    'not found': 404,
     invalid: 400,
   },
 );
@@ -210,10 +225,10 @@ exports.functionName = asyncHandlerWithMapping(
 
 ```javascript
 // route_name.js
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { controller } = require("../../controllers/controller_name");
-const { auth } = require("../../middlewares/auth");
+const { controller } = require('../../controllers/controller_name');
+const { auth } = require('../../middlewares/auth');
 
 // ==========================================
 // ENDPOINT
@@ -226,7 +241,7 @@ const { auth } = require("../../middlewares/auth");
  * @route /api/v1/resource/action
  * @access Private
  */
-router.post("/action", auth, controller.functionName);
+router.post('/action', auth, controller.functionName);
 
 module.exports = router;
 ```
@@ -235,7 +250,7 @@ module.exports = router;
 
 ```javascript
 // validator_name.validator.js
-const Joi = require("joi");
+const Joi = require('joi');
 
 // ==========================================
 // COMMON SCHEMAS
@@ -271,7 +286,7 @@ exports.validate = (body, schema) => {
 
 exports.formatErrors = (details) => {
   return details.map((item) => ({
-    field: item.path.join("."),
+    field: item.path.join('.'),
     message: item.message,
   }));
 };
@@ -292,10 +307,10 @@ exports.formatErrors = (details) => {
 
 ```javascript
 // Success response
-success(res, data, "Message", statusCode);
+success(res, data, 'Message', statusCode);
 
 // Error thrown from service
-throw { status: 404, message: "Resource not found" };
+throw { status: 404, message: 'Resource not found' };
 ```
 
 ### Error Handling
@@ -342,7 +357,7 @@ try {
 
   await transaction.commit();
 
-  return { success: true, status: 200, message: "..." };
+  return { success: true, status: 200, message: '...' };
 } catch (error) {
   if (transaction) await transaction.rollback();
   throw { status: error.status || 500, message: error.message };
@@ -365,7 +380,7 @@ try {
 ```javascript
 throw {
   status: 400, // HTTP status code
-  message: "Error description",
+  message: 'Error description',
 };
 ```
 
@@ -391,7 +406,7 @@ await delPattern(`cache:resourceName:*`);
 // Acquire lock
 const lockId = await acquireLock(`lock:key`, ttlMs);
 if (!lockId) {
-  throw { status: 429, message: "Operation in progress" };
+  throw { status: 429, message: 'Operation in progress' };
 }
 
 try {
@@ -418,9 +433,9 @@ const record = await Model.findOne({
 queueEmail({
   email: user.email,
   firstName: user.firstName,
-  data: "...",
+  data: '...',
 }).catch((err) => {
-  console.error("Failed to queue email:", err.message);
+  console.error('Failed to queue email:', err.message);
 });
 ```
 
@@ -444,12 +459,12 @@ queueEmail({
 ### Route Structure
 
 ```javascript
-router.get("/all", auth, controller.getAll);
-router.post("/detail", auth, controller.getDetail);
-router.post("/create", auth, controller.create);
-router.patch("/edit", auth, controller.edit);
-router.delete("/delete", auth, controller.delete);
-router.post("/:id/action", auth, controller.action);
+router.get('/all', auth, controller.getAll);
+router.post('/detail', auth, controller.getDetail);
+router.post('/create', auth, controller.create);
+router.patch('/edit', auth, controller.edit);
+router.delete('/delete', auth, controller.delete);
+router.post('/:id/action', auth, controller.action);
 ```
 
 ---
@@ -503,7 +518,7 @@ exports.validate = (body, schema) => {
 
 exports.formatErrors = (details) => {
   return details.map((item) => ({
-    field: item.path.join("."),
+    field: item.path.join('.'),
     message: item.message,
   }));
 };
@@ -580,11 +595,11 @@ module.exports = {
 ### Model Definition
 
 ```javascript
-const { DataTypes } = require("sequelize");
+const { DataTypes } = require('sequelize');
 
 const Model = (sequelize) => {
   return sequelize.define(
-    "ModelName",
+    'ModelName',
     {
       id: {
         type: DataTypes.UUID,
@@ -597,10 +612,10 @@ const Model = (sequelize) => {
       },
     },
     {
-      tableName: "table_name",
+      tableName: 'table_name',
       timestamps: true,
-      createdAt: "created_at",
-      updatedAt: "updated_at",
+      createdAt: 'created_at',
+      updatedAt: 'updated_at',
     },
   );
 };
@@ -613,8 +628,8 @@ module.exports = Model;
 Define associations in `src/models/index.js`:
 
 ```javascript
-User.belongsTo(Tenant, { foreignKey: "tenantId", as: "tenant" });
-User.hasMany(Session, { foreignKey: "userId", as: "sessions" });
+User.belongsTo(Tenant, { foreignKey: 'tenantId', as: 'tenant' });
+User.hasMany(Session, { foreignKey: 'userId', as: 'sessions' });
 ```
 
 ---
@@ -628,7 +643,7 @@ Services throw:
 ```javascript
 throw {
   status: 400, // HTTP status code
-  message: "Error description",
+  message: 'Error description',
 };
 ```
 
@@ -641,7 +656,7 @@ asyncHandlerWithMapping(
   },
   {
     // Error message patterns to status codes
-    "not found": 404,
+    'not found': 404,
     invalid: 400,
   },
 );
@@ -708,28 +723,28 @@ module:tenant:action
 
 ```javascript
 // Global permissions
-"user:create";
-"user:read";
-"user:update";
-"user:delete";
-"tenant:create";
-"tenant:read";
+'user:create';
+'user:read';
+'user:update';
+'user:delete';
+'tenant:create';
+'tenant:read';
 
 // Self permissions
-"user:self:update";
-"user:self:read";
-"tenant:self:update";
+'user:self:update';
+'user:self:read';
+'tenant:self:update';
 
 // Tenant permissions
-"user:tenant:create";
-"user:tenant:assign";
-"tenant:tenant:read";
+'user:tenant:create';
+'user:tenant:assign';
+'tenant:tenant:read';
 
 // Backup permissions
-"tenant:backup:create";
-"tenant:backup:read";
-"tenant:backup:restore";
-"tenant:backup:delete";
+'tenant:backup:create';
+'tenant:backup:read';
+'tenant:backup:restore';
+'tenant:backup:delete';
 ```
 
 ### Role Hierarchy
@@ -757,14 +772,14 @@ const record = await Model.findOne({
 // Find with include
 const user = await Users.findOne({
   where: { id },
-  include: [{ model: Tenant, as: "tenant" }],
+  include: [{ model: Tenant, as: 'tenant' }],
 });
 
 // Pagination
 const { rows, count } = await Model.findAndCountAll({
   limit: limit,
   offset: (page - 1) * limit,
-  order: [["createdAt", "DESC"]],
+  order: [['createdAt', 'DESC']],
 });
 ```
 
@@ -813,7 +828,7 @@ cacheKeys.tenantSettings(id); // cache:tenant:settings:{id}
 ### RabbitMQ Configuration
 
 ```javascript
-const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
+const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
 ```
 
 ### Queue Pattern
@@ -912,7 +927,305 @@ node scripts/generate-pdf.js
 
 ---
 
-## 18. Environment Variables
+## 18. Constants Standards
+
+### Constants Directory Structure
+
+All application-wide constants must be centralized in the `src/constants/` directory. This ensures maintainability, consistency, and easy updates across the codebase.
+
+```
+src/constants/
+├── index.js                      # Main export file
+├── appConstants.js               # App-wide settings (pagination, OTP, password, etc.)
+├── roleConstants.js              # Role names, IDs, levels, hierarchy
+└── permissionConstants.js        # Permission naming conventions
+```
+
+### File Organization
+
+| File                     | Purpose                                             |
+| ------------------------ | --------------------------------------------------- |
+| `index.js`               | Re-exports all constants from sub-modules           |
+| `appConstants.js`        | Pagination, OTP, password, session, backup settings |
+| `roleConstants.js`       | Role names, IDs, levels, built-in roles             |
+| `permissionConstants.js` | Permission naming conventions (module:action)       |
+
+### Constants File Template
+
+```javascript
+// appConstants.js
+/**
+ * Application Constants
+ *
+ * Centralized application-wide constants including pagination, OTP, password,
+ * session, and backup settings.
+ */
+
+/**
+ * Default pagination settings
+ */
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 25;
+const MAX_LIMIT = 200;
+
+/**
+ * User status values
+ */
+const USER_STATUS = {
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+  SUSPENDED: 'SUSPENDED',
+};
+
+/**
+ * OTP settings
+ */
+const OTP_LENGTH = 6;
+const OTP_EXPIRY_MINUTES = 5;
+
+module.exports = {
+  DEFAULT_PAGE,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  USER_STATUS,
+  OTP_LENGTH,
+  OTP_EXPIRY_MINUTES,
+};
+```
+
+### Import Pattern
+
+```javascript
+// Import from centralized constants
+const {
+  ROLE_NAMES,
+  ROLE_IDS,
+  ROLE_LEVELS,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  USER_PERMISSIONS,
+  TENANT_PERMISSIONS,
+  PASSWORD_SALT_ROUNDS,
+} = require('../constants');
+
+// Or destructured import
+const { DEFAULT_PAGE, DEFAULT_LIMIT } = require('../constants');
+```
+
+### Backward Compatibility
+
+For backward compatibility, `src/utils/constants.js` re-exports all constants from `src/constants/`:
+
+```javascript
+// src/utils/constants.js
+const constants = require('../constants');
+
+module.exports = {
+  SUPER_ADMIN_ROLE_ID: constants.SUPER_ADMIN_ROLE_ID,
+  ROLE_NAMES: constants.ROLE_NAMES,
+  ROLE_IDS: constants.ROLE_IDS,
+  // ... all other constants re-exported
+};
+```
+
+### Guidelines
+
+1. **Centralize all constants** - No hardcoded values in controllers, services, or middlewares
+2. **Use descriptive names** - `DEFAULT_LIMIT` not `DL`, `OTP_EXPIRY_MINUTES` not `OE`
+3. **Group related constants** - Use objects for related values (`USER_STATUS.ACTIVE`)
+4. **Document constants** - Add JSDoc comments explaining purpose
+5. **Environment overrides** - Allow env overrides for critical values (e.g., `SUPER_ADMIN_ROLE_ID`)
+6. **Mark deprecated** - Use `@deprecated` JSDoc tag for legacy constants
+7. **Sync with seed data** - Constants must match database seed values
+
+### Role Constants
+
+```javascript
+// roleConstants.js
+const ROLE_NAMES = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  TENANT_ADMIN: 'TENANT_ADMIN',
+  USER: 'USER',
+};
+
+const ROLE_IDS = {
+  SUPER_ADMIN: '9be20605-cc6a-4d91-8246-9756b4a1754b',
+  TENANT_ADMIN: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
+  USER: 'f6e5d4c3-b2a1-4987-6543-210fedcba987',
+};
+
+const ROLE_LEVELS = {
+  SUPER_ADMIN: 3,
+  TENANT_ADMIN: 2,
+  USER: 1,
+};
+
+const BUILTIN_ROLES = ['SUPER_ADMIN', 'TENANT_ADMIN', 'USER'];
+```
+
+### Permission Constants
+
+```javascript
+// permissionConstants.js
+const USER_PERMISSIONS = {
+  CREATE: 'user:create',
+  READ: 'user:read',
+  UPDATE: 'user:update',
+  DELETE: 'user:delete',
+  SELF_UPDATE: 'user:self:update',
+  SELF_READ: 'user:self:read',
+  TENANT_CREATE: 'user:tenant:create',
+  TENANT_READ: 'user:tenant:read',
+  TENANT_UPDATE: 'user:tenant:update',
+  TENANT_DELETE: 'user:tenant:delete',
+  TENANT_ASSIGN: 'user:tenant:assign',
+};
+```
+
+---
+
+## 19. Migration & Seeding Standards
+
+### Migration Service
+
+All database migration and seeding operations must be handled through the migration service (`src/services/migration.service.js`). This consolidates all seeding logic and provides a single source of truth for database initialization.
+
+### Service Structure
+
+```javascript
+// migration.service.js
+const migrationService = require('../services/migration.service');
+
+// Seed all data (roles, permissions, users)
+const result = await migrationService.seedAll();
+
+// Seed specific components
+await migrationService.seedDefaultRoles(); // SUPER_ADMIN, TENANT_ADMIN, USER
+await migrationService.seedApplicationRoles(); // Application-specific roles
+await migrationService.seedPermissions(); // Permission records
+await migrationService.seedRolesPermissions(); // Role-permission assignments
+await migrationService.seedTablePermissions(); // Dynamic table permissions
+await migrationService.seedUsers(); // Default system users
+
+// Unseed operations
+await migrationService.unseedAll();
+await migrationService.unseedRoles(roleIds);
+await migrationService.unseedUsers(emails);
+```
+
+### Controller Pattern
+
+```javascript
+// migration.controller.js
+const migrationService = require('../services/migration.service');
+
+exports.seeding = async (req, res) => {
+  try {
+    const result = await migrationService.seedAll();
+
+    return res.status(200).send({
+      success: true,
+      status: 200,
+      message: 'Seeding success',
+      data: result,
+    });
+  } catch (error) {
+    return res.status(400).send({
+      success: false,
+      status: 400,
+      message: error.message,
+    });
+  }
+};
+```
+
+### Migration Config Pattern
+
+```javascript
+// migrate.js
+const migrationService = require('../services/migration.service');
+
+async function Up() {
+  await db.sync({ alter: true });
+
+  const seedResult = await migrationService.seedAll();
+  console.log('Seed Results:', {
+    roles: seedResult.roles,
+    permissions: seedResult.permissions,
+    rolesPermissions: seedResult.rolesPermissions,
+    tablePermissions: seedResult.tablePermissions,
+    users: seedResult.users,
+  });
+}
+```
+
+### Seeding Functions
+
+Each seeding function follows a consistent pattern:
+
+```javascript
+/**
+ * Seed default roles (SUPER_ADMIN, TENANT_ADMIN, USER)
+ * @returns {Promise<Object>} Result of seeding operation
+ */
+async function seedDefaultRoles() {
+  const result = {
+    rolesCreated: 0,
+    rolesUpdated: 0,
+    errors: [],
+  };
+
+  try {
+    for (const role of DEFAULT_ROLES) {
+      try {
+        const [roleInstance, created] = await Roles.findOrCreate({
+          where: { id: role.id },
+          defaults: role,
+        });
+
+        if (!created) {
+          const changed = roleInstance.changed();
+          if (changed.length > 0) {
+            await roleInstance.update(role);
+          }
+          result.rolesUpdated++;
+        } else {
+          result.rolesCreated++;
+        }
+      } catch (error) {
+        result.errors.push(`Error seeding role ${role.name}: ${error.message}`);
+      }
+    }
+    return result;
+  } catch (error) {
+    result.errors.push(`Fatal error: ${error.message}`);
+    return result;
+  }
+}
+```
+
+### Seeding Order
+
+1. **Roles** - Default roles (SUPER_ADMIN, TENANT_ADMIN, USER) first
+2. **Application Roles** - Application-specific roles (HEALTHCARE ADMIN, etc.)
+3. **Permissions** - Permission records for all modules
+4. **Role Permissions** - Assign permissions to roles
+5. **Table Permissions** - Dynamic table-level permissions
+6. **Users** - Default system users (last, as they reference roles)
+
+### Guidelines
+
+1. **Use findOrCreate** - All seeding operations must be idempotent
+2. **Track results** - Return counts of created/updated/errored items
+3. **Error isolation** - Individual seeding errors should not stop the entire process
+4. **Use centralized constants** - Import from `../constants`, not inline values
+5. **Separate concerns** - Each seeding function handles one type of data
+6. **Console logging** - Use timestamped console.log for progress tracking
+7. **Transaction safety** - Use transactions for related operations
+
+---
+
+## 20. Environment Variables
 
 ### Required Variables
 
@@ -969,7 +1282,7 @@ RABBITMQ_PASS=guest
 
 ---
 
-## 19. Git & Deployment
+## 21. Git & Deployment
 
 ### Git Workflow
 
@@ -1003,7 +1316,7 @@ docker exec -it backend node scripts/generate-html-doc.js
 
 ---
 
-## 20. Unit Testing Standards
+## 22. Unit Testing Standards
 
 ### Test Framework & Configuration
 
@@ -1108,7 +1421,7 @@ const mockModel = {
   count: jest.fn(),
 };
 
-jest.mock("../../models", () => ({
+jest.mock('../../models', () => ({
   ModelName: mockModel,
 }));
 ```
@@ -1116,7 +1429,7 @@ jest.mock("../../models", () => ({
 #### Mocking Services
 
 ```javascript
-jest.mock("../../services/other_service", () => ({
+jest.mock('../../services/other_service', () => ({
   otherFunction: jest.fn().mockResolvedValue({ success: true }),
 }));
 ```
@@ -1125,12 +1438,12 @@ jest.mock("../../services/other_service", () => ({
 
 ```javascript
 const mockReq = {
-  body: { fieldName: "value" },
-  query: { page: "1" },
-  params: { id: "123" },
-  user: { id: "user-1", tenantId: "tenant-1" },
-  ip: "127.0.0.1",
-  headers: { "user-agent": "TestBrowser" },
+  body: { fieldName: 'value' },
+  query: { page: '1' },
+  params: { id: '123' },
+  user: { id: 'user-1', tenantId: 'tenant-1' },
+  ip: '127.0.0.1',
+  headers: { 'user-agent': 'TestBrowser' },
 };
 
 const mockRes = {
@@ -1147,7 +1460,7 @@ const mockTransaction = {
   commit: jest.fn().mockResolvedValue(undefined),
   rollback: jest.fn().mockResolvedValue(undefined),
   toObject: jest.fn().mockReturnValue({}),
-  LOCK: { UPDATE: "UPDATE" },
+  LOCK: { UPDATE: 'UPDATE' },
 };
 ```
 
@@ -1156,13 +1469,13 @@ const mockTransaction = {
 #### Testing Success Cases
 
 ```javascript
-it("should return user data when found", async () => {
-  const mockUser = { id: "1", email: "test@example.com" };
+it('should return user data when found', async () => {
+  const mockUser = { id: '1', email: 'test@example.com' };
   Users.findOne.mockResolvedValue(mockUser);
 
-  const result = await getUser("1");
+  const result = await getUser('1');
 
-  expect(Users.findOne).toHaveBeenCalledWith({ where: { id: "1" } });
+  expect(Users.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
   expect(result).toEqual(mockUser);
 });
 ```
@@ -1170,14 +1483,14 @@ it("should return user data when found", async () => {
 #### Testing Error Cases
 
 ```javascript
-it("should throw NotFoundError when user not found", async () => {
+it('should throw NotFoundError when user not found', async () => {
   Users.findOne.mockResolvedValue(null);
 
-  await expect(getUser("invalid-id")).rejects.toThrow("User not found");
+  await expect(getUser('invalid-id')).rejects.toThrow('User not found');
   // Or
-  await expect(getUser("invalid-id")).rejects.toEqual({
+  await expect(getUser('invalid-id')).rejects.toEqual({
     status: 404,
-    message: "User not found",
+    message: 'User not found',
   });
 });
 ```
@@ -1185,17 +1498,17 @@ it("should throw NotFoundError when user not found", async () => {
 #### Testing Conditional Logic
 
 ```javascript
-it("should return error without details in production", () => {
+it('should return error without details in production', () => {
   const originalEnv = process.env.NODE_ENV;
-  process.env.NODE_ENV = "production";
-  const error = new AppError(400, "Bad request", true, { field: "email" });
+  process.env.NODE_ENV = 'production';
+  const error = new AppError(400, 'Bad request', true, { field: 'email' });
 
   const json = error.toJSON();
 
   expect(json).toEqual({
     success: false,
     status: 400,
-    message: "Bad request",
+    message: 'Bad request',
   });
 
   process.env.NODE_ENV = originalEnv;
@@ -1205,8 +1518,8 @@ it("should return error without details in production", () => {
 #### Testing Async Operations
 
 ```javascript
-it("should handle async operations correctly", async () => {
-  const mockData = { id: "1", name: "test" };
+it('should handle async operations correctly', async () => {
+  const mockData = { id: '1', name: 'test' };
   Model.create.mockResolvedValue(mockData);
 
   const result = await createResource(mockData);
@@ -1219,12 +1532,12 @@ it("should handle async operations correctly", async () => {
 #### Testing Multiple Scenarios
 
 ```javascript
-describe("logAuthEvent", () => {
-  it("should log login success with INFO severity", async () => {
+describe('logAuthEvent', () => {
+  it('should log login success with INFO severity', async () => {
     // ...
   });
 
-  it("should log login failed with WARNING severity", async () => {
+  it('should log login failed with WARNING severity', async () => {
     // ...
   });
 });
@@ -1245,7 +1558,7 @@ const {
   mockThrow,
   mockResolve,
   mockResolveThenThrow,
-} = require("../test.utils");
+} = require('../test.utils');
 ```
 
 ### Coverage Requirements
@@ -1318,7 +1631,8 @@ npx jest --watch
 | Caching         | `src/services/redis.service.js`      | `get()`, `set()`, `del()`               |
 | Locking         | `src/services/redis.service.js`      | `acquireLock()`, `releaseLock()`        |
 | Email queue     | `src/services/emailQueue.service.js` | `queueActivationEmail()`                |
-| Constants       | `src/utils/constants.js`             | `DEFAULT_PAGE`, `MAX_LIMIT`             |
+| Constants       | `src/constants/`                     | `ROLE_NAMES`, `DEFAULT_LIMIT`           |
+| Migration       | `src/services/migration.service.js`  | `seedAll()`, `unseedAll()`              |
 
 ### API Endpoints
 

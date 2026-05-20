@@ -1,17 +1,17 @@
 // src/services/tenant.service.js
-const { Op } = require("sequelize");
-const { db } = require("../config");
-const { Tenants, Users } = require("../models");
-const { logger } = require("../middlewares/activityLog");
-const { AppError } = require("../utils/appError");
-const { DEFAULT_LIMIT, MAX_LIMIT } = require("../utils/constants");
+const { Op } = require('sequelize');
+const { db } = require('../config');
+const { Tenants, Users } = require('../models');
+const { logger } = require('../middlewares/activityLog');
+const { AppError } = require('../utils/appError');
+const { DEFAULT_LIMIT, MAX_LIMIT } = require('../utils/constants');
 const {
   validate: validateInput,
   formatErrors,
   createTenantSchema,
   updateTenantSchema,
-} = require("../validators/tenant.validator");
-const { get, set, del, delPattern, cacheKeys } = require("./redis.service");
+} = require('../validators/tenant.validator');
+const { get, set, del, delPattern, cacheKeys } = require('./redis.service');
 
 // ==========================================
 // VALIDATION HELPERS
@@ -28,7 +28,7 @@ const validate = (data, schema) => {
   if (error) {
     throw {
       status: 400,
-      message: "Validation failed",
+      message: 'Validation failed',
       errors: formatErrors(error.details),
     };
   }
@@ -40,10 +40,10 @@ const validate = (data, schema) => {
 // ------------------------------------------------------------------
 
 const safeTenantAttributes = {
-  exclude: ["updatedAt", "createdBy"],
+  exclude: ['updatedAt', 'createdBy'],
 };
 
-const TENANT_LOGO_BASE_URL = `${process.env.HOST_URL || "http://localhost:5000"}/uploads/tenant`;
+const TENANT_LOGO_BASE_URL = `${process.env.HOST_URL || 'http://localhost:5000'}/uploads/tenant`;
 
 /**
  * Transform tenant instance to plain object with logo baseUrl
@@ -79,13 +79,14 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
       const cached = await get(cacheKey);
       if (cached) {
         return {
+          success: true,
+          status: 200,
+          message: 'Fetch tenants successful (cached)',
           data: {
             rows: cached.rows,
             count: cached.meta?.total || 0,
             meta: cached.meta,
           },
-          message: "Fetch tenants successful (cached)",
-          status: 200,
         };
       }
     }
@@ -107,12 +108,12 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
       include: [
         {
           model: Users,
-          as: "users",
-          attributes: ["id", "username", "email", "status"],
+          as: 'users',
+          attributes: ['id', 'username', 'email', 'status'],
           required: false,
         },
       ],
-      order: [["id", "DESC"]],
+      order: [['id', 'DESC']],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),
     });
@@ -120,19 +121,15 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
     // Transform tenants to include logoBaseUrl
     const transformedRows = transformTenants(rows);
 
-    const result = {
-      data: {
-        rows: transformedRows,
-        count,
-        meta: {
-          total: count,
-          page: Number(page),
-          limit: Number(limit),
-          totalPages: Math.ceil(count / Number(limit)),
-        },
+    const resultData = {
+      rows: transformedRows,
+      count,
+      meta: {
+        total: count,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(count / Number(limit)),
       },
-      message: "Fetch tenants successful",
-      status: 200,
     };
 
     // Cache first page only for 5 minutes
@@ -141,20 +138,28 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
       await set(
         cacheKey,
         {
-          rows: result.data.rows,
-          meta: result.data.meta,
+          rows: resultData.rows,
+          meta: resultData.meta,
         },
         300,
       );
     }
 
-    return result;
+    return {
+      success: true,
+      status: 200,
+      message: 'Fetch tenants successful',
+      data: resultData,
+    };
   } catch (error) {
-    logger.error("Error fetching tenants", {
+    logger.error('Error fetching tenants', {
       error: error.message,
       stack: error.stack,
     });
-    throw error;
+    throw {
+      status: error.status || 500,
+      message: error.message || 'Internal server error',
+    };
   }
 };
 
@@ -168,9 +173,10 @@ exports.fetchSpecificTenant = async (tenantId) => {
     const cached = await get(cacheKey);
     if (cached) {
       return {
-        data: cached,
-        message: "Fetch tenant successful (cached)",
+        success: true,
         status: 200,
+        message: 'Fetch tenant successful (cached)',
+        data: cached,
       };
     }
 
@@ -179,8 +185,8 @@ exports.fetchSpecificTenant = async (tenantId) => {
       include: [
         {
           model: Users,
-          as: "users",
-          attributes: ["id", "username", "email", "status"],
+          as: 'users',
+          attributes: ['id', 'username', 'email', 'status'],
           required: false,
         },
       ],
@@ -188,9 +194,10 @@ exports.fetchSpecificTenant = async (tenantId) => {
 
     if (!tenant) {
       return {
-        data: null,
-        message: "Tenant not found",
+        success: true,
         status: 404,
+        message: 'Tenant not found',
+        data: null,
       };
     }
 
@@ -201,13 +208,14 @@ exports.fetchSpecificTenant = async (tenantId) => {
     await set(cacheKey, transformedTenant, 600);
 
     return {
-      data: transformedTenant,
-      message: "Fetch tenant successful",
+      success: true,
       status: 200,
+      message: 'Fetch tenant successful',
+      data: transformedTenant,
     };
   } catch (error) {
-    logger.error("Error fetching specific tenant", { error: error.message });
-    throw new AppError(500, "Internal server error");
+    logger.error('Error fetching specific tenant', { error: error.message });
+    throw new AppError(500, 'Internal server error');
   }
 };
 
@@ -230,7 +238,7 @@ exports.createTenant = async (input, createdBy) => {
 
     if (existingCode) {
       await transaction.rollback();
-      throw new AppError(409, "Tenant code already exists");
+      throw new AppError(409, 'Tenant code already exists');
     }
 
     // Check if name already exists
@@ -241,7 +249,7 @@ exports.createTenant = async (input, createdBy) => {
 
     if (existingName) {
       await transaction.rollback();
-      throw new AppError(409, "Tenant name already exists");
+      throw new AppError(409, 'Tenant name already exists');
     }
 
     const tenant = await Tenants.create(
@@ -249,7 +257,7 @@ exports.createTenant = async (input, createdBy) => {
         name,
         code,
         description: description || null,
-        logo: logo || "default.svg",
+        logo: logo || 'default.svg',
         maxUsers: maxUsers || 10,
         createdBy,
       },
@@ -266,24 +274,25 @@ exports.createTenant = async (input, createdBy) => {
     await set(cacheKeys.tenantByCode(code), transformedTenant, 600);
 
     // Invalidate tenant list cache
-    await delPattern("tenants:*");
+    await delPattern('tenants:*');
 
-    logger.info("Tenant created", {
+    logger.info('Tenant created', {
       tenantId: tenant.id,
       code: tenant.code,
       createdBy,
     });
 
     return {
-      data: transformedTenant,
-      message: "Tenant created successfully",
+      success: true,
       status: 201,
+      message: 'Tenant created successfully',
+      data: transformedTenant,
     };
   } catch (error) {
     if (!error.isAppError) {
       await transaction.rollback();
     }
-    logger.error("Error creating tenant", { error: error.message });
+    logger.error('Error creating tenant', { error: error.message });
     throw error;
   }
 };
@@ -303,7 +312,7 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
 
     if (!tenant) {
       await transaction.rollback();
-      throw new AppError(404, "Tenant not found");
+      throw new AppError(404, 'Tenant not found');
     }
 
     // Check if code already exists (excluding current tenant)
@@ -315,7 +324,7 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
 
       if (existingCode) {
         await transaction.rollback();
-        throw new AppError(409, "Tenant code already exists");
+        throw new AppError(409, 'Tenant code already exists');
       }
     }
 
@@ -328,7 +337,7 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
 
       if (existingName) {
         await transaction.rollback();
-        throw new AppError(409, "Tenant name already exists");
+        throw new AppError(409, 'Tenant name already exists');
       }
     }
 
@@ -360,23 +369,24 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
     }
 
     // Invalidate tenant list cache
-    await delPattern("tenants:*");
+    await delPattern('tenants:*');
 
-    logger.info("Tenant updated", {
+    logger.info('Tenant updated', {
       tenantId,
       updatedBy,
     });
 
     return {
-      data: transformedTenant,
-      message: "Tenant updated successfully",
+      success: true,
       status: 200,
+      message: 'Tenant updated successfully',
+      data: transformedTenant,
     };
   } catch (error) {
     if (!error.isAppError) {
       await transaction.rollback();
     }
-    logger.error("Error updating tenant", { error: error.message });
+    logger.error('Error updating tenant', { error: error.message });
     throw error;
   }
 };
@@ -392,7 +402,7 @@ exports.deleteTenant = async (tenantId, deletedBy) => {
 
     if (!tenant) {
       await transaction.rollback();
-      throw new AppError(404, "Tenant not found");
+      throw new AppError(404, 'Tenant not found');
     }
 
     // Check if tenant has users
@@ -416,24 +426,25 @@ exports.deleteTenant = async (tenantId, deletedBy) => {
     // Invalidate all tenant caches
     await del(cacheKeys.tenant(tenantId));
     await del(cacheKeys.tenantByCode(tenant.code));
-    await delPattern("tenants:*");
+    await delPattern('tenants:*');
     await delPattern(`tenant:settings:${tenantId}`);
 
-    logger.info("Tenant deleted", {
+    logger.info('Tenant deleted', {
       tenantId,
       deletedBy,
     });
 
     return {
-      data: null,
-      message: "Tenant deleted successfully",
+      success: true,
       status: 200,
+      message: 'Tenant deleted successfully',
+      data: null,
     };
   } catch (error) {
     if (!error.isAppError) {
       await transaction.rollback();
     }
-    logger.error("Error deleting tenant", { error: error.message });
+    logger.error('Error deleting tenant', { error: error.message });
     throw error;
   }
 };
@@ -448,9 +459,10 @@ exports.getTenantSettings = async (tenantId) => {
     const cached = await get(cacheKey);
     if (cached) {
       return {
-        data: cached,
-        message: "Fetch tenant settings successful (cached)",
+        success: true,
         status: 200,
+        message: 'Fetch tenant settings successful (cached)',
+        data: cached,
       };
     }
 
@@ -458,7 +470,7 @@ exports.getTenantSettings = async (tenantId) => {
       include: [
         {
           model: TenantSettings,
-          as: "settings",
+          as: 'settings',
           required: false,
         },
       ],
@@ -466,9 +478,10 @@ exports.getTenantSettings = async (tenantId) => {
 
     if (!tenant) {
       return {
-        data: null,
-        message: "Tenant not found",
+        success: true,
         status: 404,
+        message: 'Tenant not found',
+        data: null,
       };
     }
 
@@ -485,13 +498,14 @@ exports.getTenantSettings = async (tenantId) => {
     await set(cacheKey, result, 900);
 
     return {
-      data: result,
-      message: "Fetch tenant settings successful",
+      success: true,
       status: 200,
+      message: 'Fetch tenant settings successful',
+      data: result,
     };
   } catch (error) {
-    logger.error("Error fetching tenant settings", { error: error.message });
-    throw new AppError(500, "Internal server error");
+    logger.error('Error fetching tenant settings', { error: error.message });
+    throw new AppError(500, 'Internal server error');
   }
 };
 
@@ -506,7 +520,7 @@ exports.updateTenantSettings = async (tenantId, settingsData, updatedBy) => {
 
     if (!tenant) {
       await transaction.rollback();
-      throw new AppError(404, "Tenant not found");
+      throw new AppError(404, 'Tenant not found');
     }
 
     // Upsert each setting
@@ -528,22 +542,23 @@ exports.updateTenantSettings = async (tenantId, settingsData, updatedBy) => {
     // Invalidate settings cache
     await del(cacheKeys.tenantSettings(tenantId));
 
-    logger.info("Tenant settings updated", {
+    logger.info('Tenant settings updated', {
       tenantId,
       updatedBy,
       keys: Object.keys(settingsData),
     });
 
     return {
-      data: settingsData,
-      message: "Tenant settings updated successfully",
+      success: true,
       status: 200,
+      message: 'Tenant settings updated successfully',
+      data: settingsData,
     };
   } catch (error) {
     if (!error.isAppError) {
       await transaction.rollback();
     }
-    logger.error("Error updating tenant settings", { error: error.message });
+    logger.error('Error updating tenant settings', { error: error.message });
     throw error;
   }
 };
@@ -557,9 +572,10 @@ exports.getTenantUserCount = async (tenantId) => {
 
     if (!tenant) {
       return {
-        data: null,
-        message: "Tenant not found",
+        success: true,
         status: 404,
+        message: 'Tenant not found',
+        data: null,
       };
     }
 
@@ -568,17 +584,18 @@ exports.getTenantUserCount = async (tenantId) => {
     });
 
     return {
+      success: true,
+      status: 200,
+      message: 'Fetch tenant user count successful',
       data: {
         tenantId,
         userCount,
         maxUsers: tenant.maxUsers,
         remainingSlots: Math.max(0, tenant.maxUsers - userCount),
       },
-      message: "Fetch tenant user count successful",
-      status: 200,
     };
   } catch (error) {
-    logger.error("Error fetching tenant user count", { error: error.message });
-    throw new AppError(500, "Internal server error");
+    logger.error('Error fetching tenant user count', { error: error.message });
+    throw new AppError(500, 'Internal server error');
   }
 };

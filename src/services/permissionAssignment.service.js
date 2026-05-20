@@ -12,9 +12,9 @@
  * Dynamic permissions are managed via the tablePermission.service.js
  */
 
-const { Permissions, UserPermissions } = require("../models");
-const { ROLE_NAMES, USER_PERMISSIONS } = require("../utils/constants");
-const { logger } = require("../middlewares/activityLog");
+const { Permissions, UserPermissions } = require('../models');
+const { ROLE_NAMES, USER_PERMISSIONS } = require('../utils/constants');
+const { logger } = require('../middlewares/activityLog');
 
 /**
  * Get default permissions for a role (Legacy system)
@@ -66,25 +66,18 @@ function getPermissionsForRole(roleName) {
 async function assignPermissionsToUser(user, options = {}) {
   const { grantedBy = null } = options;
 
-  const result = {
-    success: false,
-    assignedPermissions: [],
-    skippedPermissions: [],
-    errors: [],
-  };
-
   try {
     // Validate user
     if (!user || !user.id) {
-      throw new Error("Invalid user object provided");
+      throw { status: 400, message: 'Invalid user object provided' };
     }
 
     // Fetch user's role to determine permissions
     const role =
-      user.role || (await require("../models").Roles.findByPk(user.roleId));
+      user.role || (await require('../models').Roles.findByPk(user.roleId));
 
     if (!role) {
-      throw new Error(`Role not found for user ${user.id}`);
+      throw { status: 404, message: `Role not found for user ${user.id}` };
     }
 
     const roleName = role.name;
@@ -94,18 +87,25 @@ async function assignPermissionsToUser(user, options = {}) {
 
     // Super admin doesn't need explicit permissions
     if (permissionNames.length === 0) {
-      result.success = true;
-      result.skippedPermissions = ["SUPER_ADMIN - implicit all permissions"];
       logger.info(
         `Super admin user ${user.id} - no explicit permissions needed`,
       );
-      return result;
+      return {
+        success: true,
+        status: 200,
+        message: 'Super admin - implicit all permissions',
+        data: {
+          assignedPermissions: [],
+          skippedPermissions: ['SUPER_ADMIN - implicit all permissions'],
+          errors: [],
+        },
+      };
     }
 
     // Find all permissions by name
     const permissions = await Permissions.findAll({
       where: { name: permissionNames },
-      attributes: ["id", "name"],
+      attributes: ['id', 'name'],
     });
 
     const permissionMap = new Map(permissions.map((p) => [p.name, p.id]));
@@ -123,12 +123,13 @@ async function assignPermissionsToUser(user, options = {}) {
       }
     }
 
+    const errors = [];
     if (notFoundPermissions.length > 0) {
-      result.errors.push(
-        `Permissions not found in database: ${notFoundPermissions.join(", ")}. Run seed script first.`,
+      errors.push(
+        `Permissions not found in database: ${notFoundPermissions.join(', ')}. Run seed script first.`,
       );
       logger.warn(
-        `Permissions not found for user ${user.id}: ${notFoundPermissions.join(", ")}`,
+        `Permissions not found for user ${user.id}: ${notFoundPermissions.join(', ')}`,
       );
     }
 
@@ -145,9 +146,6 @@ async function assignPermissionsToUser(user, options = {}) {
         ignoreDuplicates: true,
       });
 
-      result.assignedPermissions = foundPermissionIds;
-      result.success = true;
-
       logger.info(
         `Assigned ${foundPermissionIds.length} permissions to user ${user.id}`,
         {
@@ -160,11 +158,19 @@ async function assignPermissionsToUser(user, options = {}) {
       );
     }
 
-    return result;
+    return {
+      success: true,
+      status: 200,
+      message: 'Permissions assigned successfully',
+      data: {
+        assignedPermissions: foundPermissionIds,
+        skippedPermissions: [],
+        errors,
+      },
+    };
   } catch (error) {
-    result.errors.push(`Error assigning permissions: ${error.message}`);
     logger.error(`Error assigning permissions to user ${user?.id}:`, error);
-    return result;
+    throw error;
   }
 }
 
@@ -183,24 +189,16 @@ async function assignSelfPermissions(user, options = {}) {
     USER_PERMISSIONS.SELF_READ,
   ];
 
-  const result = {
-    success: false,
-    assignedPermissions: [],
-    errors: [],
-  };
-
   try {
     if (!user || !user.id) {
-      throw new Error("Invalid user object provided");
+      throw { status: 400, message: 'Invalid user object provided' };
     }
 
     // Find self permissions
     const permissions = await Permissions.findAll({
       where: { name: selfPermissionNames },
-      attributes: ["id", "name"],
+      attributes: ['id', 'name'],
     });
-
-    const permissionMap = new Map(permissions.map((p) => [p.name, p.id]));
 
     const userPermissionRecords = permissions.map((perm) => ({
       userId: user.id,
@@ -213,20 +211,24 @@ async function assignSelfPermissions(user, options = {}) {
         ignoreDuplicates: true,
       });
 
-      result.assignedPermissions = permissions;
-      result.success = true;
-
       logger.info(`Assigned self permissions to user ${user.id}`);
     }
 
-    return result;
+    return {
+      success: true,
+      status: 200,
+      message: 'Self permissions assigned successfully',
+      data: {
+        assignedPermissions: permissions,
+        errors: [],
+      },
+    };
   } catch (error) {
-    result.errors.push(`Error assigning self permissions: ${error.message}`);
     logger.error(
       `Error assigning self permissions to user ${user?.id}:`,
       error,
     );
-    return result;
+    throw error;
   }
 }
 
@@ -237,31 +239,28 @@ async function assignSelfPermissions(user, options = {}) {
  * @returns {Object} Result of the revocation operation
  */
 async function revokeAllPermissions(userId) {
-  const result = {
-    success: false,
-    revokedCount: 0,
-    errors: [],
-  };
-
   try {
     if (!userId) {
-      throw new Error("Invalid user ID provided");
+      throw { status: 400, message: 'Invalid user ID provided' };
     }
 
     const deletedCount = await UserPermissions.destroy({
       where: { userId },
     });
 
-    result.revokedCount = deletedCount;
-    result.success = true;
-
     logger.info(`Revoked ${deletedCount} permissions from user ${userId}`);
 
-    return result;
+    return {
+      success: true,
+      status: 200,
+      message: 'Permissions revoked successfully',
+      data: {
+        revokedCount: deletedCount,
+      },
+    };
   } catch (error) {
-    result.errors.push(`Error revoking permissions: ${error.message}`);
     logger.error(`Error revoking permissions for user ${userId}:`, error);
-    return result;
+    throw error;
   }
 }
 
@@ -274,26 +273,33 @@ async function revokeAllPermissions(userId) {
 async function getUserPermissions(userId) {
   try {
     if (!userId) {
-      throw new Error("Invalid user ID provided");
+      throw { status: 400, message: 'Invalid user ID provided' };
     }
 
     const userPermissions = await UserPermissions.findAll({
       where: { userId },
       include: [
         {
-          model: require("../models").Permissions,
-          as: "permission",
-          attributes: ["id", "name", "module", "action", "description"],
+          model: require('../models').Permissions,
+          as: 'permission',
+          attributes: ['id', 'name', 'module', 'action', 'description'],
         },
       ],
     });
 
-    return userPermissions.map((up) => ({
+    const permissions = userPermissions.map((up) => ({
       ...up.permission.get(),
       grantedBy: up.grantedBy,
       expiresAt: up.expiresAt,
       assignedAt: up.createdAt,
     }));
+
+    return {
+      success: true,
+      status: 200,
+      message: 'User permissions retrieved successfully',
+      data: permissions,
+    };
   } catch (error) {
     logger.error(`Error getting permissions for user ${userId}:`, error);
     throw error;
@@ -317,7 +323,7 @@ async function hasPermission(userId, permissionName) {
       where: {
         userId,
         permissionId: {
-          [require("sequelize").Op.in]: require("sequelize").Sequelize.literal(
+          [require('sequelize').Op.in]: require('sequelize').Sequelize.literal(
             `(SELECT id FROM permissions WHERE name = '${permissionName}')`,
           ),
         },
@@ -354,44 +360,56 @@ async function getUserTablePermissions(userId, tenantId) {
       TenantRoles,
       TablePermission,
       Models,
-    } = require("../models");
+    } = require('../models');
 
     // Get user with their roles
     const user = await Users.findByPk(userId, {
       include: [
         {
           model: Roles,
-          as: "role",
-          attributes: ["id", "name", "roleLevel"],
+          as: 'role',
+          attributes: ['id', 'name', 'roleLevel'],
         },
         {
           model: TenantRoles,
-          as: "tenantRole",
+          as: 'tenantRole',
           where: tenantId ? { tenantId } : undefined,
-          attributes: ["id", "name", "level"],
+          attributes: ['id', 'name', 'level'],
         },
       ],
     });
 
     if (!user) {
-      return [];
+      return {
+        success: true,
+        status: 200,
+        message: 'User not found',
+        data: [],
+      };
     }
 
     // SUPER_ADMIN gets all table permissions
-    if (user.role?.name === "SUPER_ADMIN") {
-      return TablePermission.findAll({
+    if (user.role?.name === 'SUPER_ADMIN') {
+      const permissions = await TablePermission.findAll({
         include: [
           {
             model: Models,
-            as: "model",
-            attributes: ["id", "modelName", "tableName", "module"],
+            as: 'model',
+            attributes: ['id', 'modelName', 'tableName', 'module'],
           },
         ],
         order: [
-          ["modelId", "ASC"],
-          ["action", "ASC"],
+          ['modelId', 'ASC'],
+          ['action', 'ASC'],
         ],
       });
+
+      return {
+        success: true,
+        status: 200,
+        message: 'Table permissions retrieved successfully',
+        data: permissions,
+      };
     }
 
     // For other roles, get permissions from role_permissions table
@@ -400,36 +418,48 @@ async function getUserTablePermissions(userId, tenantId) {
     };
 
     if (user.role) {
-      where["$roles.id$"] = user.role.id;
+      where['$roles.id$'] = user.role.id;
     }
 
-    return TablePermission.findAll({
+    const permissions = await TablePermission.findAll({
       where,
       include: [
         {
           model: Models,
-          as: "model",
-          attributes: ["id", "modelName", "tableName", "module"],
+          as: 'model',
+          attributes: ['id', 'modelName', 'tableName', 'module'],
         },
         {
           model: Roles,
-          through: { attributes: ["isGranted", "expiresAt"] },
-          as: "roles",
+          through: { attributes: ['isGranted', 'expiresAt'] },
+          as: 'roles',
         },
         {
           model: TenantRoles,
-          through: { attributes: ["isGranted", "expiresAt", "abacRules"] },
-          as: "tenantRoles",
+          through: { attributes: ['isGranted', 'expiresAt', 'abacRules'] },
+          as: 'tenantRoles',
         },
       ],
       order: [
-        ["modelId", "ASC"],
-        ["action", "ASC"],
+        ['modelId', 'ASC'],
+        ['action', 'ASC'],
       ],
     });
+
+    return {
+      success: true,
+      status: 200,
+      message: 'Table permissions retrieved successfully',
+      data: permissions,
+    };
   } catch (error) {
     logger.error(`Error getting table permissions for user ${userId}:`, error);
-    return [];
+    return {
+      success: false,
+      status: 500,
+      message: 'Error retrieving table permissions',
+      data: [],
+    };
   }
 }
 
@@ -444,7 +474,7 @@ async function getUserTablePermissions(userId, tenantId) {
  */
 async function hasTablePermission(userId, modelName, action, tenantId) {
   try {
-    return await require("../services/tablePermission.service").checkUserPermission(
+    return await require('../services/tablePermission.service').checkUserPermission(
       userId,
       modelName,
       action,

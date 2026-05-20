@@ -10,12 +10,12 @@
  *       scheme: bearer
  *       bearerFormat: JWT
  */
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { auth } = require("../../middlewares/auth");
-const { rbac } = require("../../middlewares/rbac");
-const { abac } = require("../../middlewares/abac");
-const { TENANT_PERMISSIONS, ROLE_NAMES } = require("../../utils/constants");
+const { auth } = require('../../middlewares/auth');
+const { rbac } = require('../../middlewares/rbac');
+const { abac } = require('../../middlewares/abac');
+const { TENANT_PERMISSIONS, ROLE_NAMES } = require('../../utils/constants');
 const {
   createBackupController,
   getBackupsController,
@@ -24,7 +24,7 @@ const {
   restoreBackupController,
   deleteBackupController,
   getBackupStatsController,
-} = require("../../controllers/tenantBackup.controller");
+} = require('../../controllers/tenantBackup.controller');
 
 /* ------------------------------------------------------------------ */
 /* CREATE BACKUP                                                      */
@@ -83,17 +83,59 @@ const {
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 201
  *                 message:
  *                   type: string
+ *                   example: "Backup created successfully"
  *                 data:
  *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                     status:
+ *                       type: string
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  */
 router.post(
-  "/:tenantId/backups",
+  '/:tenantId/backups',
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
@@ -156,19 +198,58 @@ router.post(
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
  *                 message:
  *                   type: string
+ *                   example: "Backups fetched successfully"
  *                 data:
  *                   type: array
  *                   items:
  *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         format: uuid
+ *                       status:
+ *                         type: string
+ *                       size:
+ *                         type: integer
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
  *                 meta:
  *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.get(
-  "/:tenantId/backups",
+  '/:tenantId/backups',
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
@@ -206,13 +287,68 @@ router.get(
  *     responses:
  *       '200':
  *         description: Backup details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Backup fetched successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                     status:
+ *                       type: string
+ *                     size:
+ *                       type: integer
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
  *       '404':
  *         description: Backup not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Backup not found"
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.get(
-  "/:tenantId/backups/:backupId",
+  '/:tenantId/backups/:backupId',
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
@@ -257,13 +393,55 @@ router.get(
  *               format: binary
  *       '400':
  *         description: Backup is not ready for download
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Backup is not ready"
  *       '404':
  *         description: Backup not found or file missing
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Backup not found"
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.get(
-  "/:tenantId/backups/:backupId/download",
+  '/:tenantId/backups/:backupId/download',
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
@@ -319,19 +497,69 @@ router.get(
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
  *                 message:
  *                   type: string
+ *                   example: "Backup restored successfully"
  *                 data:
  *                   type: object
+ *                   properties:
+ *                     restored:
+ *                       type: boolean
  *       '400':
  *         description: Backup is not ready for restore
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Backup is not ready"
  *       '404':
  *         description: Backup not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Backup not found"
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/:tenantId/backups/:backupId/restore",
+  '/:tenantId/backups/:backupId/restore',
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
@@ -369,13 +597,55 @@ router.post(
  *     responses:
  *       '200':
  *         description: Backup deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Backup deleted successfully"
  *       '404':
  *         description: Backup not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Backup not found"
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.delete(
-  "/:tenantId/backups/:backupId",
+  '/:tenantId/backups/:backupId',
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
@@ -414,8 +684,13 @@ router.delete(
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
  *                 message:
  *                   type: string
+ *                   example: "Backup stats fetched successfully"
  *                 data:
  *                   type: object
  *                   properties:
@@ -433,9 +708,23 @@ router.delete(
  *                       type: boolean
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.get(
-  "/:tenantId/backups/stats",
+  '/:tenantId/backups/stats',
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,

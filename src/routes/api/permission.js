@@ -10,11 +10,11 @@
  *       bearerFormat: JWT
  */
 
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const permissionController = require("../../controllers/permission.controller");
-const { auth } = require("../../middlewares/auth");
-const { rbac } = require("../../middlewares/rbac");
+const permissionController = require('../../controllers/permission.controller');
+const { auth } = require('../../middlewares/auth');
+const { rbac } = require('../../middlewares/rbac');
 
 /* ------------------------------------------------------------------ */
 /* GET ALL PERMISSIONS                                               */
@@ -58,6 +58,9 @@ const { rbac } = require("../../middlewares/rbac");
  *                 success:
  *                   type: boolean
  *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
  *                 message:
  *                   type: string
  *                   example: "Permissions fetched successfully"
@@ -108,14 +111,17 @@ const { rbac } = require("../../middlewares/rbac");
  *                 success:
  *                   type: boolean
  *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 500
  *                 message:
  *                   type: string
- *                   example: "Internal Server Error"
+ *                   example: "Internal server error"
  */
 router.get(
-  "/all",
+  '/all',
   auth,
-  rbac(["SUPERADMIN"]),
+  rbac(['SUPERADMIN']),
   permissionController.getAllPermissions,
 );
 
@@ -156,6 +162,9 @@ router.get(
  *                 success:
  *                   type: boolean
  *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
  *                 message:
  *                   type: string
  *                   example: "Permission fetched successfully"
@@ -189,16 +198,33 @@ router.get(
  *                 success:
  *                   type: boolean
  *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
  *                 message:
  *                   type: string
  *                   example: "Permission not found"
  *       '500':
  *         description: Internal Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 500
+ *                 message:
+ *                   type: string
+ *                   example: "Internal server error"
  */
 router.post(
-  "/detail",
+  '/detail',
   auth,
-  rbac(["SUPERADMIN"]),
+  rbac(['SUPERADMIN']),
   permissionController.getPermission,
 );
 
@@ -249,6 +275,9 @@ router.post(
  *                 success:
  *                   type: boolean
  *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 201
  *                 message:
  *                   type: string
  *                   example: "Permission created successfully"
@@ -282,16 +311,33 @@ router.post(
  *                 success:
  *                   type: boolean
  *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
  *                 message:
  *                   type: string
  *                   example: "Permission already exists"
  *       '500':
  *         description: Internal Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 500
+ *                 message:
+ *                   type: string
+ *                   example: "Internal server error"
  */
 router.post(
-  "/create",
+  '/create',
   auth,
-  rbac(["SUPERADMIN"]),
+  rbac(['SUPERADMIN']),
   permissionController.createPermission,
 );
 
@@ -344,6 +390,9 @@ router.post(
  *                 success:
  *                   type: boolean
  *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
  *                 message:
  *                   type: string
  *                   example: "Permission updated successfully"
@@ -377,16 +426,33 @@ router.post(
  *                 success:
  *                   type: boolean
  *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
  *                 message:
  *                   type: string
  *                   example: "Permission not found"
  *       '500':
  *         description: Internal Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 500
+ *                 message:
+ *                   type: string
+ *                   example: "Internal server error"
  */
 router.patch(
-  "/edit",
+  '/edit',
   auth,
-  rbac(["SUPERADMIN"]),
+  rbac(['SUPERADMIN']),
   permissionController.updatePermission,
 );
 
@@ -422,6 +488,9 @@ router.patch(
  *                 success:
  *                   type: boolean
  *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
  *                 message:
  *                   type: string
  *                   example: "Permission deleted successfully"
@@ -435,16 +504,33 @@ router.patch(
  *                 success:
  *                   type: boolean
  *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
  *                 message:
  *                   type: string
  *                   example: "Permission not found"
  *       '500':
  *         description: Internal Server Error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 500
+ *                 message:
+ *                   type: string
+ *                   example: "Internal server error"
  */
 router.delete(
-  "/delete",
+  '/delete',
   auth,
-  rbac(["SUPERADMIN"]),
+  rbac(['SUPERADMIN']),
   permissionController.deletePermission,
 );
 

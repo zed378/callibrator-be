@@ -10,11 +10,11 @@
  *       scheme: bearer
  *       bearerFormat: JWT
  */
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { auth } = require("../../middlewares/auth");
-const { dynamicAccess } = require("../../middlewares/dynamicAccess");
-const tenantController = require("../../controllers/tenant.controller");
+const { auth } = require('../../middlewares/auth');
+const { dynamicAccess } = require('../../middlewares/dynamicAccess');
+const tenantController = require('../../controllers/tenant.controller');
 
 /* ------------------------------------------------------------------ */
 /* GET ALL TENANTS                                                    */
@@ -51,15 +51,72 @@ const tenantController = require("../../controllers/tenant.controller");
  *     responses:
  *       '200':
  *         description: Successful retrieval of tenants
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Tenants fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
  *       '401':
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 401
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.get(
-  "/all",
+  '/all',
   auth,
-  dynamicAccess("Tenant", "read", { checkTenant: true }),
+  dynamicAccess('Tenant', 'read', { checkTenant: true }),
   tenantController.getAllTenants,
 );
 
@@ -91,15 +148,59 @@ router.get(
  *     responses:
  *       '200':
  *         description: Tenant details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant fetched successfully"
+ *                 data:
+ *                   type: object
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/detail",
+  '/detail',
   auth,
-  dynamicAccess("Tenant", "read", { checkTenant: true }),
+  dynamicAccess('Tenant', 'read', { checkTenant: true }),
   tenantController.getSpecificTenant,
 );
 
@@ -144,15 +245,59 @@ router.post(
  *     responses:
  *       '201':
  *         description: Tenant created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 201
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant created successfully"
+ *                 data:
+ *                   type: object
  *       '409':
  *         description: Conflict (name or code already exists)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 409
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant name or code already exists"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/create",
+  '/create',
   auth,
-  dynamicAccess("Tenant", "create", { checkTenant: true }),
+  dynamicAccess('Tenant', 'create', { checkTenant: true }),
   tenantController.createTenant,
 );
 
@@ -203,17 +348,75 @@ router.post(
  *     responses:
  *       '200':
  *         description: Tenant updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant updated successfully"
+ *                 data:
+ *                   type: object
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  *       '409':
  *         description: Conflict (name or code already exists)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 409
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant name or code already exists"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.patch(
-  "/edit",
+  '/edit',
   auth,
-  dynamicAccess("Tenant", "update", { checkSelf: true, checkTenant: true }),
+  dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
   tenantController.updateTenant,
 );
 
@@ -245,17 +448,73 @@ router.patch(
  *     responses:
  *       '200':
  *         description: Tenant deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant deleted successfully"
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  *       '400':
  *         description: Bad Request (tenant has active users)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Cannot delete tenant with active users"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.delete(
-  "/delete",
+  '/delete',
   auth,
-  dynamicAccess("Tenant", "delete", { checkTenant: true }),
+  dynamicAccess('Tenant', 'delete', { checkTenant: true }),
   tenantController.deleteTenant,
 );
 
@@ -287,15 +546,59 @@ router.delete(
  *     responses:
  *       '200':
  *         description: Tenant settings retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant settings fetched successfully"
+ *                 data:
+ *                   type: object
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/settings",
+  '/settings',
   auth,
-  dynamicAccess("Tenant", "read", { checkTenant: true }),
+  dynamicAccess('Tenant', 'read', { checkTenant: true }),
   tenantController.getTenantSettings,
 );
 
@@ -336,15 +639,59 @@ router.post(
  *     responses:
  *       '200':
  *         description: Tenant settings updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant settings updated successfully"
+ *                 data:
+ *                   type: object
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.patch(
-  "/settings",
+  '/settings',
   auth,
-  dynamicAccess("Tenant", "update", { checkSelf: true, checkTenant: true }),
+  dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
   tenantController.updateTenantSettings,
 );
 
@@ -376,15 +723,62 @@ router.patch(
  *     responses:
  *       '200':
  *         description: Tenant user count retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant user count fetched successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     count:
+ *                       type: integer
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/user-count",
+  '/user-count',
   auth,
-  dynamicAccess("Tenant", "read", { checkTenant: true }),
+  dynamicAccess('Tenant', 'read', { checkTenant: true }),
   tenantController.getTenantUserCount,
 );
 
@@ -421,17 +815,75 @@ router.post(
  *     responses:
  *       '200':
  *         description: Tenant logo uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Logo uploaded successfully"
+ *                 data:
+ *                   type: object
  *       '400':
  *         description: No file uploaded or invalid file type
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "No file uploaded"
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/:tenantId/logo",
+  '/:tenantId/logo',
   auth,
-  dynamicAccess("Tenant", "update", { checkSelf: true, checkTenant: true }),
+  dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
   tenantController.uploadTenantLogo,
 );
 
@@ -458,15 +910,57 @@ router.post(
  *     responses:
  *       '200':
  *         description: Tenant logo removed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Logo removed successfully"
  *       '404':
  *         description: Tenant not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant not found"
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.delete(
-  "/:tenantId/logo",
+  '/:tenantId/logo',
   auth,
-  dynamicAccess("Tenant", "update", { checkSelf: true, checkTenant: true }),
+  dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
   tenantController.removeTenantLogo,
 );
 

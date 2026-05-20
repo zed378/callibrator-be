@@ -3,13 +3,13 @@
  * Converts CODING_STANDARDS.md to CODING_STANDARDS.html
  */
 
-const fs = require("fs");
-const path = require("path");
-const markdownIt = require("markdown-it");
+const fs = require('fs');
+const path = require('path');
+const markdownIt = require('markdown-it');
 
-const DOC_DIR = path.join(__dirname, "..", "docs");
-const MD_INPUT = path.join(DOC_DIR, "CODING_STANDARDS.md");
-const HTML_OUTPUT = path.join(DOC_DIR, "CODING_STANDARDS.html");
+const DOC_DIR = path.join(__dirname, '..', 'docs');
+const MD_INPUT = path.join(DOC_DIR, 'CODING_STANDARDS.md');
+const HTML_OUTPUT = path.join(DOC_DIR, 'CODING_STANDARDS.html');
 
 // Initialize markdown-it with plugins
 const md = markdownIt({
@@ -22,10 +22,10 @@ const md = markdownIt({
 // Read markdown file
 let markdownContent;
 try {
-  markdownContent = fs.readFileSync(MD_INPUT, "utf-8");
-  console.log("Reading:", MD_INPUT);
+  markdownContent = fs.readFileSync(MD_INPUT, 'utf-8');
+  console.log('Reading:', MD_INPUT);
 } catch (error) {
-  console.error("Error reading markdown file:", error.message);
+  console.error('Error reading markdown file:', error.message);
   process.exit(1);
 }
 
@@ -34,35 +34,37 @@ let htmlContent = md.render(markdownContent);
 
 // Map of heading text (as it appears in HTML) to desired ID for sidebar navigation
 const idMap = [
-  ["1. Project Overview", "1-project-overview"],
-  ["2. Naming Conventions", "2-naming-conventions"],
-  ["3. File Structure", "3-file-structure"],
-  ["4. Controller Standards", "4-controller-standards"],
-  ["5. Service Standards", "5-service-standards"],
-  ["6. Route Standards", "6-route-standards"],
-  ["7. Validator Standards", "7-validator-standards"],
-  ["8. Utility Standards", "8-utility-standards"],
-  ["9. Middleware Standards", "9-middleware-standards"],
-  ["10. Model Standards", "10-model-standards"],
-  ["11. Error Handling", "11-error-handling"],
-  ["12. Response Format", "12-response-format"],
-  ["13. Permission Format", "13-permission-format"],
-  ["14. Database Standards", "14-database-standards"],
-  ["15. Caching Standards", "15-caching-standards"],
-  ["16. Message Queue Standards", "16-message-queue-standards"],
-  ["17. Documentation Standards", "17-documentation-standards"],
-  ["18. Environment Variables", "18-environment-variables"],
-  ["19. Git", "19-git--deployment"],
-  ["20. Unit Testing Standards", "20-unit-testing-standards"],
-  ["Quick Reference", "quick-reference"],
+  ['1. Project Overview', '1-project-overview'],
+  ['2. Naming Conventions', '2-naming-conventions'],
+  ['3. File Structure', '3-file-structure'],
+  ['4. Controller Standards', '4-controller-standards'],
+  ['5. Service Standards', '5-service-standards'],
+  ['6. Route Standards', '6-route-standards'],
+  ['7. Validator Standards', '7-validator-standards'],
+  ['8. Utility Standards', '8-utility-standards'],
+  ['9. Middleware Standards', '9-middleware-standards'],
+  ['10. Model Standards', '10-model-standards'],
+  ['11. Error Handling', '11-error-handling'],
+  ['12. Response Format', '12-response-format'],
+  ['13. Permission Format', '13-permission-format'],
+  ['14. Database Standards', '14-database-standards'],
+  ['15. Caching Standards', '15-caching-standards'],
+  ['16. Message Queue Standards', '16-message-queue-standards'],
+  ['17. Documentation Standards', '17-documentation-standards'],
+  ['18. Constants Standards', '18-constants-standards'],
+  ['19. Migration & Seeding Standards', '19-migration--seeding-standards'],
+  ['20. Environment Variables', '20-environment-variables'],
+  ['21. Git & Deployment', '21-git--deployment'],
+  ['22. Unit Testing Standards', '22-unit-testing-standards'],
+  ['Quick Reference', 'quick-reference'],
 ];
 
 // Add anchor IDs to h2 headings for sidebar navigation
 idMap.forEach(([headingText, id]) => {
   // Escape special regex characters
-  const escapedHeading = headingText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const escapedHeading = headingText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // Match h2 with the heading text (handle & entities too)
-  const h2Regex = new RegExp(`(</?h2[^>]*>)\\s*${escapedHeading}`, "is");
+  const h2Regex = new RegExp(`(</?h2[^>]*>)\\s*${escapedHeading}`, 'is');
 
   if (h2Regex.test(htmlContent)) {
     htmlContent = htmlContent.replace(
@@ -73,10 +75,10 @@ idMap.forEach(([headingText, id]) => {
 });
 
 // Generate full HTML page
-const generatedDate = new Date().toLocaleDateString("en-US", {
-  year: "numeric",
-  month: "long",
-  day: "numeric",
+const generatedDate = new Date().toLocaleDateString('en-US', {
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
 });
 
 const fullHtml = `<!DOCTYPE html>
@@ -231,9 +233,11 @@ const fullHtml = `<!DOCTYPE html>
             <a href="#15-caching-standards">15. Caching Standards</a>
             <a href="#16-message-queue-standards">16. Message Queue Standards</a>
             <a href="#17-documentation-standards">17. Documentation Standards</a>
-            <a href="#18-environment-variables">18. Environment Variables</a>
-            <a href="#19-git--deployment">19. Git & Deployment</a>
-            <a href="#20-unit-testing-standards">20. Unit Testing Standards</a>
+            <a href="#18-constants-standards">18. Constants Standards</a>
+            <a href="#19-migration--seeding-standards">19. Migration & Seeding Standards</a>
+            <a href="#20-environment-variables">20. Environment Variables</a>
+            <a href="#21-git--deployment">21. Git & Deployment</a>
+            <a href="#22-unit-testing-standards">22. Unit Testing Standards</a>
             <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0;"></div>
             <a href="#quick-reference" style="opacity: 0.5; font-size: 12px;">Quick Reference</a>
         </div>
@@ -290,9 +294,9 @@ const fullHtml = `<!DOCTYPE html>
 </html>`;
 
 // Write HTML file
-fs.writeFileSync(HTML_OUTPUT, fullHtml, "utf-8");
+fs.writeFileSync(HTML_OUTPUT, fullHtml, 'utf-8');
 
-console.log("\nCoding Standards HTML generated!");
+console.log('\nCoding Standards HTML generated!');
 console.log(`   Path: ${HTML_OUTPUT}`);
 console.log(`   Size: ${Math.round(fullHtml.length / 1024)} KB`);
 console.log(`\nOpen in browser: ${HTML_OUTPUT}`);

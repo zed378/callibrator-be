@@ -3,13 +3,19 @@
  * tags:
  *   name: TablePermissions
  *   description: Dynamic RBAC/ABAC permission management endpoints
+ * components:
+ *   securitySchemes:
+ *     bearerAuth:
+ *       type: http
+ *       scheme: bearer
+ *       bearerFormat: JWT
  */
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { auth } = require("../../middlewares/auth");
-const { rbac } = require("../../middlewares/rbac");
-const { ROLE_NAMES } = require("../../utils/constants");
-const controller = require("../../controllers/tablePermission.controller");
+const { auth } = require('../../middlewares/auth');
+const { rbac } = require('../../middlewares/rbac');
+const { ROLE_NAMES } = require('../../utils/constants');
+const controller = require('../../controllers/tablePermission.controller');
 
 /* ------------------------------------------------------------------ */
 /* MODELS MANAGEMENT                                                  */
@@ -35,8 +41,37 @@ const controller = require("../../controllers/tablePermission.controller");
  *     responses:
  *       200:
  *         description: Models fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Models fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
  */
-router.get("/models", auth, controller.getAllModels);
+router.get('/models', auth, controller.getAllModels);
 
 /**
  * @swagger
@@ -60,8 +95,24 @@ router.get("/models", auth, controller.getAllModels);
  *     responses:
  *       201:
  *         description: Model created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 201
+ *                 message:
+ *                   type: string
+ *                   example: "Model created successfully"
+ *                 data:
+ *                   type: object
  */
-router.post("/models", auth, controller.createModel);
+router.post('/models', auth, controller.createModel);
 
 /**
  * @swagger
@@ -82,8 +133,24 @@ router.post("/models", auth, controller.createModel);
  *     responses:
  *       200:
  *         description: Model fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Model fetched successfully"
+ *                 data:
+ *                   type: object
  */
-router.post("/models/detail", auth, controller.getModelDetail);
+router.post('/models/detail', auth, controller.getModelDetail);
 
 /**
  * @swagger
@@ -108,8 +175,24 @@ router.post("/models/detail", auth, controller.getModelDetail);
  *     responses:
  *       200:
  *         description: Model updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Model updated successfully"
+ *                 data:
+ *                   type: object
  */
-router.patch("/models", auth, controller.updateModel);
+router.patch('/models', auth, controller.updateModel);
 
 /**
  * @swagger
@@ -126,8 +209,22 @@ router.patch("/models", auth, controller.updateModel);
  *     responses:
  *       200:
  *         description: Model deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Model deleted successfully"
  */
-router.delete("/models", auth, controller.deleteModel);
+router.delete('/models', auth, controller.deleteModel);
 
 /* ------------------------------------------------------------------ */
 /* TABLE PERMISSIONS MANAGEMENT                                       */
@@ -152,8 +249,26 @@ router.delete("/models", auth, controller.deleteModel);
  *     responses:
  *       200:
  *         description: Table permissions fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Table permissions fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
  */
-router.post("/permissions/detail", auth, controller.getTablePermissions);
+router.post('/permissions/detail', auth, controller.getTablePermissions);
 
 /**
  * @swagger
@@ -185,8 +300,24 @@ router.post("/permissions/detail", auth, controller.getTablePermissions);
  *     responses:
  *       200:
  *         description: Table permissions updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Table permissions updated successfully"
+ *                 data:
+ *                   type: object
  */
-router.post("/permissions/upsert", auth, controller.upsertTablePermissions);
+router.post('/permissions/upsert', auth, controller.upsertTablePermissions);
 
 /**
  * @swagger
@@ -210,8 +341,24 @@ router.post("/permissions/upsert", auth, controller.upsertTablePermissions);
  *     responses:
  *       200:
  *         description: Table permission updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Table permission updated successfully"
+ *                 data:
+ *                   type: object
  */
-router.patch("/permissions", auth, controller.updateTablePermission);
+router.patch('/permissions', auth, controller.updateTablePermission);
 
 /**
  * @swagger
@@ -228,8 +375,22 @@ router.patch("/permissions", auth, controller.updateTablePermission);
  *     responses:
  *       200:
  *         description: Table permission deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Table permission deleted successfully"
  */
-router.delete("/permissions", auth, controller.deleteTablePermission);
+router.delete('/permissions', auth, controller.deleteTablePermission);
 
 /* ------------------------------------------------------------------ */
 /* ROLE PERMISSIONS MANAGEMENT                                        */
@@ -257,8 +418,24 @@ router.delete("/permissions", auth, controller.deleteTablePermission);
  *     responses:
  *       200:
  *         description: Permission granted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Permission granted successfully"
+ *                 data:
+ *                   type: object
  */
-router.post("/role-permissions/grant", auth, controller.grantRolePermission);
+router.post('/role-permissions/grant', auth, controller.grantRolePermission);
 
 /**
  * @swagger
@@ -280,8 +457,22 @@ router.post("/role-permissions/grant", auth, controller.grantRolePermission);
  *     responses:
  *       200:
  *         description: Permission revoked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Permission revoked successfully"
  */
-router.post("/role-permissions/revoke", auth, controller.revokeRolePermission);
+router.post('/role-permissions/revoke', auth, controller.revokeRolePermission);
 
 /**
  * @swagger
@@ -302,8 +493,26 @@ router.post("/role-permissions/revoke", auth, controller.revokeRolePermission);
  *     responses:
  *       200:
  *         description: Role permissions fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Role permissions fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
  */
-router.post("/role-permissions", auth, controller.getRolePermissions);
+router.post('/role-permissions', auth, controller.getRolePermissions);
 
 /**
  * @swagger
@@ -327,9 +536,25 @@ router.post("/role-permissions", auth, controller.getRolePermissions);
  *     responses:
  *       200:
  *         description: Permissions assigned successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Permissions assigned successfully"
+ *                 data:
+ *                   type: object
  */
 router.post(
-  "/role-permissions/bulk-assign",
+  '/role-permissions/bulk-assign',
   auth,
   controller.bulkAssignRolePermissions,
 );
@@ -361,9 +586,25 @@ router.post(
  *     responses:
  *       200:
  *         description: Permission granted to tenant role successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Permission granted to tenant role successfully"
+ *                 data:
+ *                   type: object
  */
 router.post(
-  "/tenant-role-permissions/grant",
+  '/tenant-role-permissions/grant',
   auth,
   controller.grantTenantRolePermission,
 );
@@ -388,9 +629,23 @@ router.post(
  *     responses:
  *       200:
  *         description: Permission revoked from tenant role successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Permission revoked from tenant role successfully"
  */
 router.post(
-  "/tenant-role-permissions/revoke",
+  '/tenant-role-permissions/revoke',
   auth,
   controller.revokeTenantRolePermission,
 );
@@ -414,9 +669,27 @@ router.post(
  *     responses:
  *       200:
  *         description: Tenant role permissions fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Tenant role permissions fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
  */
 router.post(
-  "/tenant-role-permissions",
+  '/tenant-role-permissions',
   auth,
   controller.getTenantRolePermissions,
 );
@@ -448,9 +721,25 @@ router.post(
  *     responses:
  *       200:
  *         description: ABAC rules updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "ABAC rules updated successfully"
+ *                 data:
+ *                   type: object
  */
 router.patch(
-  "/tenant-role-permissions/abac-rules",
+  '/tenant-role-permissions/abac-rules',
   auth,
   controller.updateTenantRoleAbacRules,
 );
@@ -478,9 +767,25 @@ router.patch(
  *     responses:
  *       200:
  *         description: Permissions assigned to tenant role successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Permissions assigned to tenant role successfully"
+ *                 data:
+ *                   type: object
  */
 router.post(
-  "/tenant-role-permissions/bulk-assign",
+  '/tenant-role-permissions/bulk-assign',
   auth,
   controller.bulkAssignTenantRolePermissions,
 );
@@ -511,8 +816,27 @@ router.post(
  *     responses:
  *       200:
  *         description: Permission check completed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Permission check completed"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     hasPermission:
+ *                       type: boolean
  */
-router.post("/check", auth, controller.checkPermission);
+router.post('/check', auth, controller.checkPermission);
 
 /**
  * @swagger
@@ -534,7 +858,25 @@ router.post("/check", auth, controller.checkPermission);
  *     responses:
  *       200:
  *         description: Allowed attributes fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Allowed attributes fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: string
  */
-router.post("/allowed-attributes", auth, controller.getAllowedAttributes);
+router.post('/allowed-attributes', auth, controller.getAllowedAttributes);
 
 module.exports = router;

@@ -10,12 +10,12 @@
  *       scheme: bearer
  *       bearerFormat: JWT
  */
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const { auth } = require("../../middlewares/auth");
-const { dynamicAccess } = require("../../middlewares/dynamicAccess");
-const { upload } = require("../../utils/upload");
-const userController = require("../../controllers/user.controller");
+const { auth } = require('../../middlewares/auth');
+const { dynamicAccess } = require('../../middlewares/dynamicAccess');
+const { upload } = require('../../utils/upload');
+const userController = require('../../controllers/user.controller');
 
 /* ------------------------------------------------------------------ */
 /* GET ALL USERS (paginated, searchable, tenant‑scoped)               */
@@ -65,15 +65,72 @@ const userController = require("../../controllers/user.controller");
  *     responses:
  *       '200':
  *         description: Successful retrieval of users
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Users fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
  *       '401':
  *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 401
+ *                 message:
+ *                   type: string
+ *                   example: "Unauthorized"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.get(
-  "/all",
+  '/all',
   auth,
-  dynamicAccess("User", "read", { checkTenant: true }),
+  dynamicAccess('User', 'read', { checkTenant: true }),
   userController.getAllUsers,
 );
 
@@ -105,15 +162,59 @@ router.get(
  *     responses:
  *       '200':
  *         description: User details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "User fetched successfully"
+ *                 data:
+ *                   type: object
  *       '400':
  *         description: Missing userId
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "userId is required"
  *       '404':
  *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
  */
 router.post(
-  "/detail",
+  '/detail',
   auth,
-  dynamicAccess("User", "read", { checkTenant: true }),
+  dynamicAccess('User', 'read', { checkTenant: true }),
   userController.getSpecificUser,
 );
 
@@ -144,8 +245,43 @@ router.post(
  *     responses:
  *       '200':
  *         description: Availability check result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Username is available"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     available:
+ *                       type: boolean
+ *       '400':
+ *         description: Bad request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Username is required"
  */
-router.post("/username-check", auth, userController.checkUsernameAvailability);
+router.post('/username-check', auth, userController.checkUsernameAvailability);
 
 /* ------------------------------------------------------------------ */
 /* UPDATE USER ROLE                                                   */
@@ -179,13 +315,43 @@ router.post("/username-check", auth, userController.checkUsernameAvailability);
  *     responses:
  *       '200':
  *         description: Role updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "User role updated successfully"
+ *                 data:
+ *                   type: object
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/role-update",
+  '/role-update',
   auth,
-  dynamicAccess("User", "update", { checkTenant: true }),
+  dynamicAccess('User', 'update', { checkTenant: true }),
   userController.updateUserRole,
 );
 
@@ -230,13 +396,43 @@ router.post(
  *     responses:
  *       '201':
  *         description: User created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 201
+ *                 message:
+ *                   type: string
+ *                   example: "User created successfully"
+ *                 data:
+ *                   type: object
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/create",
+  '/create',
   auth,
-  dynamicAccess("User", "create", { checkTenant: true }),
+  dynamicAccess('User', 'create', { checkTenant: true }),
   userController.createUser,
 );
 
@@ -275,13 +471,43 @@ router.post(
  *     responses:
  *       '200':
  *         description: User updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "User updated successfully"
+ *                 data:
+ *                   type: object
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.patch(
-  "/edit",
+  '/edit',
   auth,
-  dynamicAccess("User", "update", { checkSelf: true, checkTenant: true }),
+  dynamicAccess('User', 'update', { checkSelf: true, checkTenant: true }),
   userController.editUser,
 );
 
@@ -308,13 +534,41 @@ router.patch(
  *     responses:
  *       '200':
  *         description: User deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "User deleted successfully"
  *       '403':
  *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.delete(
-  "/delete",
+  '/delete',
   auth,
-  dynamicAccess("User", "delete", { checkTenant: true }),
+  dynamicAccess('User', 'delete', { checkTenant: true }),
   userController.deleteUser,
 );
 
@@ -351,21 +605,79 @@ router.delete(
  *     responses:
  *       '200':
  *         description: User avatar uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Avatar uploaded successfully"
+ *                 data:
+ *                   type: object
  *       '400':
  *         description: No file uploaded or invalid file type
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "No file uploaded"
  *       '404':
  *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.post(
-  "/:userId/avatar",
+  '/:userId/avatar',
   auth,
-  dynamicAccess("User", "update", { checkSelf: true, checkTenant: true }),
+  dynamicAccess('User', 'update', { checkSelf: true, checkTenant: true }),
   upload({
-    folder: "uploads/profile",
-    allowedMimes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
-    allowedExtensions: [".jpg", ".jpeg", ".png", ".gif", ".webp"],
+    folder: 'uploads/profile',
+    allowedMimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
+    allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
     maxFileSize: 2 * 1024 * 1024, // 2MB
   }),
   userController.uploadUserAvatar,
@@ -394,15 +706,57 @@ router.post(
  *     responses:
  *       '200':
  *         description: User avatar removed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Avatar removed successfully"
  *       '404':
  *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
  *       '403':
  *         description: Forbidden
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 403
+ *                 message:
+ *                   type: string
+ *                   example: "Forbidden"
  */
 router.delete(
-  "/:userId/avatar",
+  '/:userId/avatar',
   auth,
-  dynamicAccess("User", "update", { checkSelf: true, checkTenant: true }),
+  dynamicAccess('User', 'update', { checkSelf: true, checkTenant: true }),
   userController.removeUserAvatar,
 );
 

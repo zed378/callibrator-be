@@ -1,42 +1,43 @@
-const path = require("path");
-const fs = require("fs");
+const path = require('path');
+const fs = require('fs');
+require('./env');
 
-const swaggerJsdoc = require("swagger-jsdoc");
+const swaggerJsdoc = require('swagger-jsdoc');
 
-const outputProdPath = path.resolve(__dirname, "../../swagger.json");
+const outputProdPath = path.resolve(__dirname, '../../swagger.json');
 
 const options = {
   definition: {
-    openapi: "3.0.0",
+    openapi: '3.0.0',
 
     info: {
-      title: "Boilerplate API",
+      title: 'Boilerplate API',
 
-      version: "1.0.0",
+      version: '1.0.0',
 
-      description: "Enterprise-grade Express.js API documentation",
+      description: 'Enterprise-grade Express.js API documentation',
     },
 
     servers: [
       {
-        url: process.env.HOST_URL || "http://localhost:3000",
+        url: process.env.HOST_URL,
       },
     ],
 
     components: {
       securitySchemes: {
         bearerAuth: {
-          type: "http",
+          type: 'http',
 
-          scheme: "bearer",
+          scheme: 'bearer',
 
-          bearerFormat: "JWT",
+          bearerFormat: 'JWT',
         },
       },
     },
   },
 
-  apis: [path.resolve(__dirname, "../routes/api/*.js")],
+  apis: [path.resolve(__dirname, '../routes/api/*.js')],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

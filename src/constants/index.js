@@ -1,0 +1,76 @@
+/**
+ * Constants Index
+ *
+ * Main export file for the constants module.
+ * Re-exports all constants from sub-modules for easy importing.
+ *
+ * Usage:
+ *   const { ROLE_NAMES, ROLE_IDS } = require('../constants');
+ *   const { DEFAULT_LIMIT, MAX_LIMIT } = require('../constants');
+ *   const { USER_PERMISSIONS, TENANT_PERMISSIONS } = require('../constants');
+ */
+
+const {
+  SUPER_ADMIN_ROLE_ID,
+  ROLE_NAMES,
+  ROLE_IDS,
+  ROLE_LEVELS,
+  BUILTIN_ROLES,
+  ROLE_PERMISSIONS,
+} = require('./roleConstants');
+
+const {
+  USER_PERMISSIONS,
+  TENANT_PERMISSIONS,
+  ROLE_PERMISSION_CATEGORIES,
+} = require('./permissionConstants');
+
+const {
+  DEFAULT_PAGE,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  USER_STATUS,
+  OTP_LENGTH,
+  OTP_EXPIRY_MINUTES,
+  OTP_MAX_REQUESTS,
+  OTP_REQUEST_WINDOW_MINUTES,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_SALT_ROUNDS,
+  DEFAULT_SESSION_EXPIRY_HOURS,
+  MAX_SESSIONS_PER_USER,
+  DEFAULT_BACKUP_RETENTION_DAYS,
+  MAX_BACKUP_RETENTION_DAYS,
+  BACKUP_DIR,
+} = require('./appConstants');
+
+module.exports = {
+  // Role constants
+  SUPER_ADMIN_ROLE_ID,
+  ROLE_NAMES,
+  ROLE_IDS,
+  ROLE_LEVELS,
+  BUILTIN_ROLES,
+  ROLE_PERMISSIONS,
+
+  // Permission constants (DEPRECATED)
+  USER_PERMISSIONS,
+  TENANT_PERMISSIONS,
+  ROLE_PERMISSION_CATEGORIES,
+
+  // Application constants
+  DEFAULT_PAGE,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+  USER_STATUS,
+  OTP_LENGTH,
+  OTP_EXPIRY_MINUTES,
+  OTP_MAX_REQUESTS,
+  OTP_REQUEST_WINDOW_MINUTES,
+  PASSWORD_MIN_LENGTH,
+  PASSWORD_SALT_ROUNDS,
+  DEFAULT_SESSION_EXPIRY_HOURS,
+  MAX_SESSIONS_PER_USER,
+  DEFAULT_BACKUP_RETENTION_DAYS,
+  MAX_BACKUP_RETENTION_DAYS,
+  BACKUP_DIR,
+};

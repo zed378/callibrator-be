@@ -1,15 +1,15 @@
 // auth.service.js
-const { Op } = require("sequelize");
-const { db } = require("../config");
-const { Users, Sessions, LoginLogs, Roles } = require("../models");
-const { hashPassword, comparePassword } = require("../utils/password");
-const { generateAccessToken, verifyAccessToken } = require("../utils/jwt");
-const { hashToken } = require("../utils/session");
-const { hashOTP, generateOTP } = require("../utils/otp");
+const { Op } = require('sequelize');
+const { db } = require('../config');
+const { Users, Sessions, LoginLogs, Roles } = require('../models');
+const { hashPassword, comparePassword } = require('../utils/password');
+const { generateAccessToken, verifyAccessToken } = require('../utils/jwt');
+const { hashToken } = require('../utils/session');
+const { hashOTP, generateOTP } = require('../utils/otp');
 const {
   sendOtpEmail,
   sendActivationEmail,
-} = require("../services/email.service");
+} = require('../services/email.service');
 const {
   validate: validateInput,
   formatErrors,
@@ -17,18 +17,18 @@ const {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-} = require("../validators/auth.validator");
+} = require('../validators/auth.validator');
 const {
   acquireLock,
   releaseLock,
   get,
   set,
   cacheKeys,
-} = require("../services/redis.service");
+} = require('../services/redis.service');
 const {
   queueActivationEmail,
   queueOtpEmail,
-} = require("../services/emailQueue.service");
+} = require('../services/emailQueue.service');
 
 // ==========================================
 // VALIDATION HELPERS
@@ -45,7 +45,7 @@ const validate = (data, schema) => {
   if (error) {
     throw {
       status: 400,
-      message: "Validation failed",
+      message: 'Validation failed',
       errors: formatErrors(error.details),
     };
   }
@@ -61,7 +61,7 @@ exports.registerUser = async (input, origin) => {
   const { firstName, lastName, username, email, password } = data;
 
   // Use origin from request header for multi-tenant support
-  const baseOrigin = origin || "";
+  const baseOrigin = origin || '';
 
   // ---- distributed lock for race condition prevention -------------------
   const lockKey = `register:${email}:${username}`;
@@ -70,7 +70,7 @@ exports.registerUser = async (input, origin) => {
   if (!lockId) {
     throw {
       status: 429,
-      message: "Registration in progress. Please wait and try again.",
+      message: 'Registration in progress. Please wait and try again.',
     };
   }
 
@@ -86,7 +86,7 @@ exports.registerUser = async (input, origin) => {
     });
     if (existingUser) {
       await transaction.rollback();
-      throw { status: 409, message: "Email already registered" };
+      throw { status: 409, message: 'Email already registered' };
     }
 
     const existingUsername = await Users.findOne({
@@ -96,7 +96,7 @@ exports.registerUser = async (input, origin) => {
     });
     if (existingUsername) {
       await transaction.rollback();
-      throw { status: 409, message: "Username already used" };
+      throw { status: 409, message: 'Username already used' };
     }
 
     // ---- create user ------------------------------------------------------
@@ -108,7 +108,7 @@ exports.registerUser = async (input, origin) => {
         username,
         email,
         password: hashedPassword,
-        roleId: "e7e1cdd1-14fe-440f-89ec-b0bcd7041f9c",
+        roleId: 'e7e1cdd1-14fe-440f-89ec-b0bcd7041f9c',
       },
       { transaction },
     );
@@ -120,7 +120,7 @@ exports.registerUser = async (input, origin) => {
     // ---- activation email (async via queue) ------------------------------
     const activationToken = generateAccessToken({
       id: user.id,
-      type: "activation",
+      type: 'activation',
     });
     const activationLink = `${baseOrigin}/activation?token=${activationToken}`;
 
@@ -132,7 +132,7 @@ exports.registerUser = async (input, origin) => {
       activationLink,
     }).catch((err) => {
       // Log but don't fail registration if email queue fails
-      console.error("Failed to queue activation email:", err.message);
+      console.error('Failed to queue activation email:', err.message);
     });
 
     await transaction.commit();
@@ -162,7 +162,7 @@ exports.registerUser = async (input, origin) => {
 // ==========================================
 exports.activateAccount = async (token) => {
   if (!token) {
-    throw { status: 400, message: "Activation token is required" };
+    throw { status: 400, message: 'Activation token is required' };
   }
 
   let decoded;
@@ -171,23 +171,23 @@ exports.activateAccount = async (token) => {
   } catch {
     throw {
       status: 400,
-      message: "Invalid or expired activation token",
+      message: 'Invalid or expired activation token',
     };
   }
 
-  if (decoded.type !== "activation") {
+  if (decoded.type !== 'activation') {
     throw {
       status: 400,
-      message: "Invalid activation token type",
+      message: 'Invalid activation token type',
     };
   }
 
   const user = await Users.findOne({ where: { id: decoded.id } });
   if (!user) {
-    throw { status: 404, message: "User not found" };
+    throw { status: 404, message: 'User not found' };
   }
   if (user.isEmailVerified) {
-    throw { status: 400, message: "Account already activated" };
+    throw { status: 400, message: 'Account already activated' };
   }
 
   await user.update({
@@ -199,7 +199,7 @@ exports.activateAccount = async (token) => {
   return {
     success: true,
     status: 200,
-    message: "Account activated successfully",
+    message: 'Account activated successfully',
   };
 };
 
@@ -222,8 +222,8 @@ exports.loginUser = async (input) => {
       include: [
         {
           model: Roles,
-          as: "role",
-          attributes: ["id", "name", "description", "nameToShow"],
+          as: 'role',
+          attributes: ['id', 'name', 'description', 'nameToShow'],
           where: {
             isActive: true,
           },
@@ -233,13 +233,13 @@ exports.loginUser = async (input) => {
     });
 
     if (!existingUser) {
-      throw { status: 401, message: "Invalid credentials" };
+      throw { status: 401, message: 'Invalid credentials' };
     }
     if (!existingUser.isEmailVerified) {
-      throw { status: 403, message: "Please verify your email first" };
+      throw { status: 403, message: 'Please verify your email first' };
     }
     if (existingUser.isBan) {
-      throw { status: 403, message: "Account has been suspended" };
+      throw { status: 403, message: 'Account has been suspended' };
     }
     if (
       existingUser.lockedUntil &&
@@ -247,7 +247,7 @@ exports.loginUser = async (input) => {
     ) {
       throw {
         status: 423,
-        message: "Account temporarily locked",
+        message: 'Account temporarily locked',
         lockedUntil: existingUser.lockedUntil,
       };
     }
@@ -270,7 +270,7 @@ exports.loginUser = async (input) => {
         { transaction },
       );
       await transaction.commit();
-      throw { status: 401, message: "Invalid credentials" };
+      throw { status: 401, message: 'Invalid credentials' };
     }
 
     // successful login – reset failure counters
@@ -309,7 +309,7 @@ exports.loginUser = async (input) => {
         tenantId: existingUser.tenantId,
         ipAddress: ip,
         userAgent,
-        status: "SUCCESS",
+        status: 'SUCCESS',
         loginAt: new Date(),
       },
       { transaction },
@@ -317,12 +317,12 @@ exports.loginUser = async (input) => {
 
     await transaction.commit();
 
-    const pictureUrl = process.env.HOST_URL + "/uploads/profile/";
+    const pictureUrl = process.env.HOST_URL + '/uploads/profile/';
 
     return {
       success: true,
       status: 200,
-      message: "Login successful",
+      message: 'Login successful',
       token,
       session,
       data: {
@@ -361,7 +361,7 @@ exports.requestOTP = async (input) => {
   if (rateLimitCount !== null && rateLimitCount >= 3) {
     throw {
       status: 429,
-      message: "Too many OTP requests. Please wait 1 minute.",
+      message: 'Too many OTP requests. Please wait 1 minute.',
     };
   }
 
@@ -397,14 +397,14 @@ exports.requestOTP = async (input) => {
       return {
         success: true,
         status: 200,
-        message: "If the account exists, OTP has been sent",
+        message: 'If the account exists, OTP has been sent',
       };
     }
 
     if (!user.isEmailVerified) {
       await transaction.commit();
       await set(rateLimitKey, (rateLimitCount || 0) + 1, 60);
-      throw { status: 403, message: "Account email not verified" };
+      throw { status: 403, message: 'Account email not verified' };
     }
 
     const now = Date.now();
@@ -415,7 +415,7 @@ exports.requestOTP = async (input) => {
         await set(rateLimitKey, (rateLimitCount || 0) + 1, 60);
         throw {
           status: 429,
-          message: "Please wait before requesting another OTP",
+          message: 'Please wait before requesting another OTP',
         };
       }
     }
@@ -444,20 +444,20 @@ exports.requestOTP = async (input) => {
       lastName: user.lastName,
       otp,
     }).catch((err) => {
-      console.error("Failed to queue OTP email:", err.message);
+      console.error('Failed to queue OTP email:', err.message);
     });
 
     return {
       success: true,
       status: 200,
-      message: "If the account exists, OTP has been sent",
+      message: 'If the account exists, OTP has been sent',
     };
   } catch (error) {
     if (transaction) await transaction.rollback();
     throw {
-      status: error.message.includes("wait")
+      status: error.message.includes('wait')
         ? 429
-        : error.message.includes("verified")
+        : error.message.includes('verified')
           ? 403
           : error.status || 500,
       message: error.message,
@@ -479,21 +479,21 @@ exports.processResetPassword = async (input) => {
 
     const user = await Users.findOne({ where: { email } }, { transaction });
     if (!user) {
-      throw { status: 400, message: "Invalid OTP or email" };
+      throw { status: 400, message: 'Invalid OTP or email' };
     }
     if (!user.otpCode) {
-      throw { status: 400, message: "OTP not found" };
+      throw { status: 400, message: 'OTP not found' };
     }
     if (!user.otpExpiredAt || new Date(user.otpExpiredAt) < new Date()) {
       // clear expired OTP
       await user.update({ otpCode: null, otpExpiredAt: null }, { transaction });
       await transaction.commit();
-      throw { status: 400, message: "OTP expired" };
+      throw { status: 400, message: 'OTP expired' };
     }
 
     const hashedOTP = hashOTP(otp);
     if (hashedOTP !== user.otpCode) {
-      throw { status: 400, message: "Invalid OTP" };
+      throw { status: 400, message: 'Invalid OTP' };
     }
 
     const hashedPassword = await hashPassword(password);
@@ -512,7 +512,7 @@ exports.processResetPassword = async (input) => {
       {
         isRevoked: true,
         revokedAt: new Date(),
-        revokedReason: "PASSWORD_RESET",
+        revokedReason: 'PASSWORD_RESET',
         isActive: false,
       },
       {
@@ -525,7 +525,7 @@ exports.processResetPassword = async (input) => {
     return {
       success: true,
       status: 200,
-      message: "Password reset successful",
+      message: 'Password reset successful',
     };
   } catch (error) {
     if (transaction) await transaction.rollback();
@@ -547,7 +547,7 @@ exports.logoutSession = async (sessionId) => {
       {
         isRevoked: true,
         revokedAt: new Date(),
-        revokedReason: "LOGOUT",
+        revokedReason: 'LOGOUT',
         isActive: false,
       },
       { where: { id: sessionId }, transaction },
@@ -556,7 +556,7 @@ exports.logoutSession = async (sessionId) => {
     return {
       success: true,
       status: 200,
-      message: "Logout successful",
+      message: 'Logout successful',
     };
   } catch (error) {
     if (transaction) await transaction.rollback();
@@ -578,7 +578,7 @@ exports.logoutAllUserSessions = async (userId) => {
       {
         isRevoked: true,
         revokedAt: new Date(),
-        revokedReason: "LOGOUT_ALL",
+        revokedReason: 'LOGOUT_ALL',
         isActive: false,
       },
       { where: { userId, isRevoked: false }, transaction },
@@ -587,7 +587,7 @@ exports.logoutAllUserSessions = async (userId) => {
     return {
       success: true,
       status: 200,
-      message: "All sessions revoked successfully",
+      message: 'All sessions revoked successfully',
     };
   } catch (error) {
     if (transaction) await transaction.rollback();
@@ -606,30 +606,42 @@ exports.verifyUserSession = async (userId, sessionId) => {
   try {
     transaction = await db.transaction();
 
-    const user = await Users.findByPk(userId, {
+    const user = await Users.findOne({
+      where: { id: userId },
       attributes: {
-        exclude: ["password", "otpCode"],
+        exclude: ['password', 'otpCode'],
       },
+      include: [
+        {
+          model: Roles,
+          as: 'role',
+          attributes: ['id', 'name', 'description', 'nameToShow'],
+          where: {
+            isActive: true,
+          },
+        },
+      ],
       transaction,
     });
+
     if (!user) {
-      throw { status: 401, message: "User not found" };
+      throw { status: 401, message: 'User not found' };
     }
     if (user.isBanned) {
-      throw { status: 403, message: "Account banned" };
+      throw { status: 403, message: 'Account banned' };
     }
 
     const session = await Sessions.findByPk(sessionId, {
       transaction,
     });
     if (!session) {
-      throw { status: 401, message: "Session not found" };
+      throw { status: 401, message: 'Session not found' };
     }
     if (session.isRevoked) {
-      throw { status: 401, message: "Session revoked" };
+      throw { status: 401, message: 'Session revoked' };
     }
     if (new Date(session.expiredAt) < new Date()) {
-      throw { status: 401, message: "Session expired" };
+      throw { status: 401, message: 'Session expired' };
     }
 
     // update last activity
@@ -637,23 +649,27 @@ exports.verifyUserSession = async (userId, sessionId) => {
 
     await transaction.commit();
 
+    const pictureUrl = process.env.HOST_URL + '/uploads/profile/';
+
     return {
       success: true,
       status: 200,
-      message: "Token valid",
+      message: 'Token valid',
       data: {
         id: user.id,
-        email: user.email,
+        tenantId: user.tenantId,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.role,
+        email: user.email,
         username: user.username,
+        role: user.role,
+        picture: pictureUrl + user.picture,
       },
     };
   } catch (error) {
     if (transaction) await transaction.rollback();
     throw {
-      status: error.message.includes("banned") ? 403 : error.status || 401,
+      status: error.message.includes('banned') ? 403 : error.status || 401,
       message: error.message,
     };
   }
@@ -663,16 +679,16 @@ exports.verifyUserSession = async (userId, sessionId) => {
 // UPDATE PASSWORD ONLY
 // ==========================================
 exports.justUpdatePassword = async (userId, newPassword) => {
-  if (!newPassword || typeof newPassword !== "string") {
+  if (!newPassword || typeof newPassword !== 'string') {
     throw {
       status: 400,
-      message: "New password is required and must be a string",
+      message: 'New password is required and must be a string',
     };
   }
   if (newPassword.length < 6) {
     throw {
       status: 400,
-      message: "Password must be at least 6 characters long",
+      message: 'Password must be at least 6 characters long',
     };
   }
 
@@ -681,7 +697,7 @@ exports.justUpdatePassword = async (userId, newPassword) => {
     transaction = await db.transaction();
     const user = await Users.findByPk(userId, { transaction });
     if (!user) {
-      throw { status: 404, message: "User not found" };
+      throw { status: 404, message: 'User not found' };
     }
     const hashed = await hashPassword(newPassword);
     await user.update(
@@ -692,7 +708,7 @@ exports.justUpdatePassword = async (userId, newPassword) => {
     return {
       success: true,
       status: 200,
-      message: "Password updated successfully",
+      message: 'Password updated successfully',
     };
   } catch (error) {
     if (transaction) await transaction.rollback();
@@ -707,29 +723,29 @@ exports.justUpdatePassword = async (userId, newPassword) => {
 // CHECK PASSWORD VALIDITY
 // ==========================================
 exports.passIsValid = async (userId, candidatePassword) => {
-  if (!candidatePassword || typeof candidatePassword !== "string") {
-    throw { status: 400, message: "Password must be a non‑empty string" };
+  if (!candidatePassword || typeof candidatePassword !== 'string') {
+    throw { status: 400, message: 'Password must be a non‑empty string' };
   }
 
   let transaction;
   try {
     transaction = await db.transaction();
     const user = await Users.findByPk(userId, {
-      attributes: ["id", "password"],
+      attributes: ['id', 'password'],
       transaction,
     });
     if (!user) {
-      throw { status: 404, message: "User not found" };
+      throw { status: 404, message: 'User not found' };
     }
     const valid = await comparePassword(candidatePassword, user.password);
     if (!valid) {
-      throw { status: 401, message: "Invalid password" };
+      throw { status: 401, message: 'Invalid password' };
     }
     await transaction.commit();
     return {
       success: true,
       status: 200,
-      message: "Password is valid",
+      message: 'Password is valid',
     };
   } catch (error) {
     if (transaction) await transaction.rollback();

@@ -11,16 +11,16 @@
  *       bearerFormat: JWT
  */
 
-const express = require("express");
+const express = require('express');
 const router = express.Router();
-const rateLimit = require("express-rate-limit");
-const { auth } = require("../../middlewares/auth");
+const rateLimit = require('express-rate-limit');
+const { auth } = require('../../middlewares/auth');
 const {
   authRateLimiter,
   recordAuthFailure,
   resetAuthAttempts,
   rateLimitHeaders,
-} = require("../../middlewares/tokenRateLimiter");
+} = require('../../middlewares/tokenRateLimiter');
 
 // IP-based rate limiter (additional layer for DDoS protection)
 const authLimiter = rateLimit({
@@ -29,8 +29,8 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    status: "Error",
-    message: "Too many requests from this IP, please try again later",
+    status: 'Error',
+    message: 'Too many requests from this IP, please try again later',
   },
 });
 
@@ -40,8 +40,8 @@ const otpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    status: "Error",
-    message: "Too many requests from this IP, please try again later",
+    status: 'Error',
+    message: 'Too many requests from this IP, please try again later',
   },
 });
 
@@ -56,7 +56,7 @@ const {
   verify,
   justUpdatePassword,
   passIsValid,
-} = require("../../controllers/auth.controller");
+} = require('../../controllers/auth.controller');
 
 /* ------------------------------------------------------------------ */
 /* REGISTER */
@@ -101,18 +101,62 @@ const {
  *     responses:
  *       '201':
  *         description: Registration successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 201
+ *                 message:
+ *                   type: string
+ *                   example: "Registration successful"
+ *                 data:
+ *                   type: object
  *       '409':
  *         description: Conflict (email or username already exists)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 409
+ *                 message:
+ *                   type: string
+ *                   example: "Email or username already exists"
  *       '429':
  *         description: Too many requests - Rate limited (3 attempts per hour)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 429
+ *                 message:
+ *                   type: string
+ *                   example: "Too many registration attempts"
  */
 router.post(
-  "/register",
+  '/register',
   authLimiter,
-  authRateLimiter("register"),
+  authRateLimiter('register'),
   rateLimitHeaders(),
   register,
-  recordAuthFailure("register"),
+  recordAuthFailure('register'),
 );
 
 /* ------------------------------------------------------------------ */
@@ -134,12 +178,54 @@ router.post(
  *     responses:
  *       '200':
  *         description: Account activated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Account activated successfully"
  *       '400':
  *         description: Invalid, missing or expired token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid or expired token"
  *       '404':
  *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
  */
-router.get("/activation", activation);
+router.get('/activation', activation);
 
 /* ------------------------------------------------------------------ */
 /* LOGIN */
@@ -178,25 +264,82 @@ router.get("/activation", activation);
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Login successful"
  *                 token:
  *                   type: string
  *                 data:
  *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                     username:
+ *                       type: string
+ *                     email:
+ *                       type: string
  *       '401':
  *         description: Invalid credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 401
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid credentials"
  *       '429':
  *         description: Too many login attempts - Rate limited (5 attempts per 15 minutes)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 429
+ *                 message:
+ *                   type: string
+ *                   example: "Too many login attempts"
  *       '423':
  *         description: Account temporarily locked
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 423
+ *                 message:
+ *                   type: string
+ *                   example: "Account temporarily locked"
  */
 router.post(
-  "/login",
+  '/login',
   authLimiter,
-  authRateLimiter("login"),
+  authRateLimiter('login'),
   rateLimitHeaders(),
   login,
-  resetAuthAttempts("login"),
-  recordAuthFailure("login"),
+  resetAuthAttempts('login'),
+  recordAuthFailure('login'),
 );
 
 /* ------------------------------------------------------------------ */
@@ -225,16 +368,60 @@ router.post(
  *     responses:
  *       '200':
  *         description: OTP sent
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "OTP sent successfully"
+ *       '404':
+ *         description: User not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 404
+ *                 message:
+ *                   type: string
+ *                   example: "User not found"
  *       '429':
  *         description: Too many requests - Rate limited (3 attempts per 15 minutes)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 429
+ *                 message:
+ *                   type: string
+ *                   example: "Too many requests"
  */
 router.post(
-  "/send-otp",
+  '/send-otp',
   otpLimiter,
-  authRateLimiter("forgotPassword"),
+  authRateLimiter('forgotPassword'),
   rateLimitHeaders(),
   sendOTP,
-  recordAuthFailure("forgotPassword"),
+  recordAuthFailure('forgotPassword'),
 );
 
 /* ------------------------------------------------------------------ */
@@ -269,18 +456,60 @@ router.post(
  *     responses:
  *       '200':
  *         description: Password reset successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Password reset successful"
  *       '400':
  *         description: Invalid OTP
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 400
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid OTP"
  *       '429':
  *         description: Too many requests - Rate limited (5 attempts per 5 minutes)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 429
+ *                 message:
+ *                   type: string
+ *                   example: "Too many requests"
  */
 router.post(
-  "/reset-password",
+  '/reset-password',
   otpLimiter,
-  authRateLimiter("resetPassword"),
+  authRateLimiter('resetPassword'),
   rateLimitHeaders(),
   resetPassword,
-  recordAuthFailure("resetPassword"),
+  recordAuthFailure('resetPassword'),
 );
 
 /* ------------------------------------------------------------------ */
@@ -298,8 +527,22 @@ router.post(
  *     responses:
  *       '200':
  *         description: Logout successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Logout successful"
  */
-router.post("/logout", auth, logout);
+router.post('/logout', auth, logout);
 
 /* ------------------------------------------------------------------ */
 /* LOGOUT ALL (requires auth) */
@@ -316,8 +559,22 @@ router.post("/logout", auth, logout);
  *     responses:
  *       '200':
  *         description: All sessions revoked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "All sessions revoked successfully"
  */
-router.post("/logout-all", auth, logoutAll);
+router.post('/logout-all', auth, logoutAll);
 
 /* ------------------------------------------------------------------ */
 /* VERIFY SESSION (requires auth) */
@@ -334,10 +591,40 @@ router.post("/logout-all", auth, logoutAll);
  *     responses:
  *       '200':
  *         description: Token valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Token valid"
+ *                 data:
+ *                   type: object
  *       '401':
  *         description: Invalid session
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 status:
+ *                   type: integer
+ *                   example: 401
+ *                 message:
+ *                   type: string
+ *                   example: "Invalid session"
  */
-router.post("/verify", auth, verify);
+router.post('/verify', auth, verify);
 
 /* ------------------------------------------------------------------ */
 /* JUST UPDATE PASSWORD (requires auth) */
@@ -354,8 +641,22 @@ router.post("/verify", auth, verify);
  *     responses:
  *       '200':
  *         description: Password updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Password updated successfully"
  */
-router.post("/just-update-password", auth, justUpdatePassword);
+router.post('/just-update-password', auth, justUpdatePassword);
 
 /* ------------------------------------------------------------------ */
 /* PASSWORD VALIDITY CHECK (requires auth) */
@@ -372,7 +673,26 @@ router.post("/just-update-password", auth, justUpdatePassword);
  *     responses:
  *       '200':
  *         description: Password is valid
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Password is valid"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     valid:
+ *                       type: boolean
  */
-router.post("/pass-is-valid", auth, passIsValid);
+router.post('/pass-is-valid', auth, passIsValid);
 
 module.exports = router;

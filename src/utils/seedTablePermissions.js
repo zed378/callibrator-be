@@ -11,7 +11,8 @@
  *   node src/utils/seedTablePermissions.js
  */
 
-const { Models, TablePermission, Roles, TenantRoles } = require("../models");
+const { Models, TablePermission, Roles, TenantRoles } = require('../models');
+const { ROLE_NAMES } = require('../constants');
 
 const logger = {
   info: (msg) => console.log(`[INFO] ${new Date().toISOString()} - ${msg}`),
@@ -25,610 +26,610 @@ const logger = {
  */
 const DEFAULT_MODELS = [
   {
-    modelName: "User",
-    tableName: "users",
-    module: "user_management",
-    description: "User accounts and profiles",
+    modelName: 'User',
+    tableName: 'users',
+    module: 'user_management',
+    description: 'User accounts and profiles',
     permissions: [
       {
-        action: "create",
-        scope: "tenant",
+        action: 'create',
+        scope: 'tenant',
         attributes: {
           allowed: [
-            "username",
-            "email",
-            "password",
-            "firstName",
-            "lastName",
-            "tenantId",
-            "roleId",
+            'username',
+            'email',
+            'password',
+            'firstName',
+            'lastName',
+            'tenantId',
+            'roleId',
           ],
         },
-        description: "Create new users",
+        description: 'Create new users',
       },
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
           allowed: [
-            "id",
-            "username",
-            "email",
-            "firstName",
-            "lastName",
-            "status",
-            "lastLoginAt",
+            'id',
+            'username',
+            'email',
+            'firstName',
+            'lastName',
+            'status',
+            'lastLoginAt',
           ],
-          hidden: ["password", "otpCode"],
+          hidden: ['password', 'otpCode'],
         },
-        description: "Read user information",
+        description: 'Read user information',
       },
       {
-        action: "update",
-        scope: "self",
+        action: 'update',
+        scope: 'self',
         attributes: {
-          allowed: ["firstName", "lastName", "picture"],
+          allowed: ['firstName', 'lastName', 'picture'],
         },
         abacRules: {
-          condition: "owner",
-          fields: ["id"],
+          condition: 'owner',
+          fields: ['id'],
         },
-        description: "Update user information",
+        description: 'Update user information',
       },
       {
-        action: "delete",
-        scope: "tenant",
+        action: 'delete',
+        scope: 'tenant',
         attributes: {},
-        description: "Delete user accounts",
+        description: 'Delete user accounts',
       },
       {
-        action: "export",
-        scope: "tenant",
+        action: 'export',
+        scope: 'tenant',
         attributes: {},
-        description: "Export user data",
+        description: 'Export user data',
       },
     ],
   },
   {
-    modelName: "Tenant",
-    tableName: "tenants",
-    module: "tenant_management",
-    description: "Tenant organizations",
+    modelName: 'Tenant',
+    tableName: 'tenants',
+    module: 'tenant_management',
+    description: 'Tenant organizations',
     permissions: [
       {
-        action: "create",
-        scope: "global",
+        action: 'create',
+        scope: 'global',
         attributes: {
-          allowed: ["name", "code", "description", "maxUsers"],
+          allowed: ['name', 'code', 'description', 'maxUsers'],
         },
-        description: "Create new tenants",
+        description: 'Create new tenants',
       },
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
-          allowed: ["id", "name", "code", "description", "status", "maxUsers"],
+          allowed: ['id', 'name', 'code', 'description', 'status', 'maxUsers'],
         },
-        description: "Read tenant information",
+        description: 'Read tenant information',
       },
       {
-        action: "update",
-        scope: "self",
+        action: 'update',
+        scope: 'self',
         attributes: {
-          allowed: ["name", "description", "maxUsers"],
+          allowed: ['name', 'description', 'maxUsers'],
         },
         abacRules: {
-          condition: "owner",
-          fields: ["id"],
+          condition: 'owner',
+          fields: ['id'],
         },
-        description: "Update tenant information",
+        description: 'Update tenant information',
       },
       {
-        action: "delete",
-        scope: "global",
+        action: 'delete',
+        scope: 'global',
         attributes: {},
-        description: "Delete tenants",
+        description: 'Delete tenants',
       },
       {
-        action: "export",
-        scope: "global",
+        action: 'export',
+        scope: 'global',
         attributes: {},
-        description: "Export tenant data",
+        description: 'Export tenant data',
       },
     ],
   },
   {
-    modelName: "Permission",
-    tableName: "permissions",
-    module: "access_control",
-    description: "System permissions",
+    modelName: 'Permission',
+    tableName: 'permissions',
+    module: 'access_control',
+    description: 'System permissions',
     permissions: [
       {
-        action: "read",
-        scope: "global",
+        action: 'read',
+        scope: 'global',
         attributes: {
-          allowed: ["id", "name", "module", "action", "description"],
+          allowed: ['id', 'name', 'module', 'action', 'description'],
         },
-        description: "Read permissions",
+        description: 'Read permissions',
       },
       {
-        action: "create",
-        scope: "global",
+        action: 'create',
+        scope: 'global',
         attributes: {
-          allowed: ["name", "module", "action", "description"],
+          allowed: ['name', 'module', 'action', 'description'],
         },
-        description: "Create permissions",
+        description: 'Create permissions',
       },
       {
-        action: "update",
-        scope: "global",
+        action: 'update',
+        scope: 'global',
         attributes: {
-          allowed: ["name", "module", "action", "description"],
+          allowed: ['name', 'module', 'action', 'description'],
         },
-        description: "Update permissions",
+        description: 'Update permissions',
       },
       {
-        action: "delete",
-        scope: "global",
+        action: 'delete',
+        scope: 'global',
         attributes: {},
-        description: "Delete permissions",
+        description: 'Delete permissions',
       },
     ],
   },
   {
-    modelName: "Role",
-    tableName: "roles",
-    module: "access_control",
-    description: "Global roles",
+    modelName: 'Role',
+    tableName: 'roles',
+    module: 'access_control',
+    description: 'Global roles',
     permissions: [
       {
-        action: "read",
-        scope: "global",
+        action: 'read',
+        scope: 'global',
         attributes: {
-          allowed: ["id", "name", "description", "roleLevel", "isActive"],
+          allowed: ['id', 'name', 'description', 'roleLevel', 'isActive'],
         },
-        description: "Read roles",
+        description: 'Read roles',
       },
       {
-        action: "create",
-        scope: "global",
+        action: 'create',
+        scope: 'global',
         attributes: {
-          allowed: ["name", "description", "roleLevel"],
+          allowed: ['name', 'description', 'roleLevel'],
         },
-        description: "Create roles",
+        description: 'Create roles',
       },
       {
-        action: "update",
-        scope: "global",
+        action: 'update',
+        scope: 'global',
         attributes: {
-          allowed: ["name", "description", "isActive"],
+          allowed: ['name', 'description', 'isActive'],
         },
-        description: "Update roles",
+        description: 'Update roles',
       },
       {
-        action: "delete",
-        scope: "global",
+        action: 'delete',
+        scope: 'global',
         attributes: {},
-        description: "Delete roles",
+        description: 'Delete roles',
       },
     ],
   },
   {
-    modelName: "TenantRole",
-    tableName: "tenant_roles",
-    module: "access_control",
-    description: "Tenant-specific roles",
+    modelName: 'TenantRole',
+    tableName: 'tenant_roles',
+    module: 'access_control',
+    description: 'Tenant-specific roles',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
-          allowed: ["id", "name", "description", "level", "isAssignable"],
+          allowed: ['id', 'name', 'description', 'level', 'isAssignable'],
         },
-        description: "Read tenant roles",
+        description: 'Read tenant roles',
       },
       {
-        action: "create",
-        scope: "tenant",
+        action: 'create',
+        scope: 'tenant',
         attributes: {
-          allowed: ["name", "description", "level"],
+          allowed: ['name', 'description', 'level'],
         },
-        description: "Create tenant roles",
+        description: 'Create tenant roles',
       },
       {
-        action: "update",
-        scope: "tenant",
+        action: 'update',
+        scope: 'tenant',
         attributes: {
-          allowed: ["name", "description", "level", "isAssignable"],
+          allowed: ['name', 'description', 'level', 'isAssignable'],
         },
-        description: "Update tenant roles",
+        description: 'Update tenant roles',
       },
       {
-        action: "delete",
-        scope: "tenant",
+        action: 'delete',
+        scope: 'tenant',
         attributes: {},
-        description: "Delete tenant roles",
+        description: 'Delete tenant roles',
       },
     ],
   },
   {
-    modelName: "RolePermission",
-    tableName: "role_permissions",
-    module: "access_control",
-    description: "Role-permission assignments",
+    modelName: 'RolePermission',
+    tableName: 'role_permissions',
+    module: 'access_control',
+    description: 'Role-permission assignments',
     permissions: [
       {
-        action: "read",
-        scope: "global",
+        action: 'read',
+        scope: 'global',
         attributes: {
-          allowed: ["id", "roleId", "tablePermissionId", "isGranted"],
+          allowed: ['id', 'roleId', 'tablePermissionId', 'isGranted'],
         },
-        description: "Read role-permission assignments",
+        description: 'Read role-permission assignments',
       },
       {
-        action: "create",
-        scope: "global",
+        action: 'create',
+        scope: 'global',
         attributes: {
-          allowed: ["roleId", "tablePermissionId", "isGranted"],
+          allowed: ['roleId', 'tablePermissionId', 'isGranted'],
         },
-        description: "Create role-permission assignments",
+        description: 'Create role-permission assignments',
       },
       {
-        action: "update",
-        scope: "global",
+        action: 'update',
+        scope: 'global',
         attributes: {
-          allowed: ["isGranted"],
+          allowed: ['isGranted'],
         },
-        description: "Update role-permission assignments",
+        description: 'Update role-permission assignments',
       },
       {
-        action: "delete",
-        scope: "global",
+        action: 'delete',
+        scope: 'global',
         attributes: {},
-        description: "Delete role-permission assignments",
+        description: 'Delete role-permission assignments',
       },
     ],
   },
   {
-    modelName: "TenantRolePermission",
-    tableName: "tenant_role_permissions",
-    module: "access_control",
-    description: "Tenant role-permission assignments",
+    modelName: 'TenantRolePermission',
+    tableName: 'tenant_role_permissions',
+    module: 'access_control',
+    description: 'Tenant role-permission assignments',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
           allowed: [
-            "id",
-            "tenantRoleId",
-            "tablePermissionId",
-            "isGranted",
-            "abacRules",
+            'id',
+            'tenantRoleId',
+            'tablePermissionId',
+            'isGranted',
+            'abacRules',
           ],
         },
-        description: "Read tenant role-permission assignments",
+        description: 'Read tenant role-permission assignments',
       },
       {
-        action: "create",
-        scope: "tenant",
+        action: 'create',
+        scope: 'tenant',
         attributes: {
           allowed: [
-            "tenantRoleId",
-            "tablePermissionId",
-            "isGranted",
-            "abacRules",
+            'tenantRoleId',
+            'tablePermissionId',
+            'isGranted',
+            'abacRules',
           ],
         },
-        description: "Create tenant role-permission assignments",
+        description: 'Create tenant role-permission assignments',
       },
       {
-        action: "update",
-        scope: "tenant",
+        action: 'update',
+        scope: 'tenant',
         attributes: {
-          allowed: ["isGranted", "abacRules"],
+          allowed: ['isGranted', 'abacRules'],
         },
-        description: "Update tenant role-permission assignments",
+        description: 'Update tenant role-permission assignments',
       },
       {
-        action: "delete",
-        scope: "tenant",
+        action: 'delete',
+        scope: 'tenant',
         attributes: {},
-        description: "Delete tenant role-permission assignments",
+        description: 'Delete tenant role-permission assignments',
       },
     ],
   },
   {
-    modelName: "Session",
-    tableName: "sessions",
-    module: "authentication",
-    description: "User sessions",
+    modelName: 'Session',
+    tableName: 'sessions',
+    module: 'authentication',
+    description: 'User sessions',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
           allowed: [
-            "id",
-            "userId",
-            "tenantId",
-            "createdAt",
-            "expiredAt",
-            "isActive",
+            'id',
+            'userId',
+            'tenantId',
+            'createdAt',
+            'expiredAt',
+            'isActive',
           ],
-          hidden: ["token"],
+          hidden: ['token'],
         },
-        description: "Read session information",
+        description: 'Read session information',
       },
       {
-        action: "create",
-        scope: "global",
+        action: 'create',
+        scope: 'global',
         attributes: {
-          allowed: ["userId", "tenantId", "token", "expiredAt"],
+          allowed: ['userId', 'tenantId', 'token', 'expiredAt'],
         },
-        description: "Create sessions",
+        description: 'Create sessions',
       },
       {
-        action: "update",
-        scope: "self",
+        action: 'update',
+        scope: 'self',
         attributes: {
-          allowed: ["lastActivityAt"],
+          allowed: ['lastActivityAt'],
         },
         abacRules: {
-          condition: "owner",
-          fields: ["userId"],
+          condition: 'owner',
+          fields: ['userId'],
         },
-        description: "Update sessions",
+        description: 'Update sessions',
       },
       {
-        action: "delete",
-        scope: "tenant",
+        action: 'delete',
+        scope: 'tenant',
         attributes: {},
-        description: "Delete sessions",
+        description: 'Delete sessions',
       },
     ],
   },
   {
-    modelName: "LoginLog",
-    tableName: "login_logs",
-    module: "authentication",
-    description: "Login activity logs",
+    modelName: 'LoginLog',
+    tableName: 'login_logs',
+    module: 'authentication',
+    description: 'Login activity logs',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
           allowed: [
-            "id",
-            "userId",
-            "tenantId",
-            "ipAddress",
-            "userAgent",
-            "status",
-            "createdAt",
+            'id',
+            'userId',
+            'tenantId',
+            'ipAddress',
+            'userAgent',
+            'status',
+            'createdAt',
           ],
         },
-        description: "Read login logs",
+        description: 'Read login logs',
       },
       {
-        action: "create",
-        scope: "global",
+        action: 'create',
+        scope: 'global',
         attributes: {
-          allowed: ["userId", "tenantId", "ipAddress", "userAgent", "status"],
+          allowed: ['userId', 'tenantId', 'ipAddress', 'userAgent', 'status'],
         },
-        description: "Create login logs",
+        description: 'Create login logs',
       },
       {
-        action: "export",
-        scope: "tenant",
+        action: 'export',
+        scope: 'tenant',
         attributes: {},
-        description: "Export login logs",
+        description: 'Export login logs',
       },
     ],
   },
   {
-    modelName: "TenantSetting",
-    tableName: "tenant_settings",
-    module: "tenant_management",
-    description: "Tenant configuration settings",
+    modelName: 'TenantSetting',
+    tableName: 'tenant_settings',
+    module: 'tenant_management',
+    description: 'Tenant configuration settings',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
-          allowed: ["id", "tenantId", "key", "value", "updatedAt"],
+          allowed: ['id', 'tenantId', 'key', 'value', 'updatedAt'],
         },
-        description: "Read tenant settings",
+        description: 'Read tenant settings',
       },
       {
-        action: "create",
-        scope: "tenant",
+        action: 'create',
+        scope: 'tenant',
         attributes: {
-          allowed: ["tenantId", "key", "value"],
+          allowed: ['tenantId', 'key', 'value'],
         },
-        description: "Create tenant settings",
+        description: 'Create tenant settings',
       },
       {
-        action: "update",
-        scope: "tenant",
+        action: 'update',
+        scope: 'tenant',
         attributes: {
-          allowed: ["value"],
+          allowed: ['value'],
         },
-        description: "Update tenant settings",
+        description: 'Update tenant settings',
       },
       {
-        action: "delete",
-        scope: "tenant",
+        action: 'delete',
+        scope: 'tenant',
         attributes: {},
-        description: "Delete tenant settings",
+        description: 'Delete tenant settings',
       },
     ],
   },
   {
-    modelName: "TenantFeature",
-    tableName: "tenant_features",
-    module: "tenant_management",
-    description: "Tenant feature flags",
+    modelName: 'TenantFeature',
+    tableName: 'tenant_features',
+    module: 'tenant_management',
+    description: 'Tenant feature flags',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
-          allowed: ["id", "tenantId", "featureKey", "isEnabled", "updatedAt"],
+          allowed: ['id', 'tenantId', 'featureKey', 'isEnabled', 'updatedAt'],
         },
-        description: "Read tenant features",
+        description: 'Read tenant features',
       },
       {
-        action: "create",
-        scope: "tenant",
+        action: 'create',
+        scope: 'tenant',
         attributes: {
-          allowed: ["tenantId", "featureKey", "isEnabled"],
+          allowed: ['tenantId', 'featureKey', 'isEnabled'],
         },
-        description: "Create tenant features",
+        description: 'Create tenant features',
       },
       {
-        action: "update",
-        scope: "tenant",
+        action: 'update',
+        scope: 'tenant',
         attributes: {
-          allowed: ["isEnabled"],
+          allowed: ['isEnabled'],
         },
-        description: "Update tenant features",
+        description: 'Update tenant features',
       },
       {
-        action: "delete",
-        scope: "tenant",
+        action: 'delete',
+        scope: 'tenant',
         attributes: {},
-        description: "Delete tenant features",
+        description: 'Delete tenant features',
       },
     ],
   },
   {
-    modelName: "TenantAuditLog",
-    tableName: "tenant_audit_logs",
-    module: "audit",
-    description: "Tenant audit trail",
+    modelName: 'TenantAuditLog',
+    tableName: 'tenant_audit_logs',
+    module: 'audit',
+    description: 'Tenant audit trail',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
           allowed: [
-            "id",
-            "tenantId",
-            "userId",
-            "action",
-            "entityType",
-            "entityId",
-            "changes",
-            "ipAddress",
-            "createdAt",
+            'id',
+            'tenantId',
+            'userId',
+            'action',
+            'entityType',
+            'entityId',
+            'changes',
+            'ipAddress',
+            'createdAt',
           ],
         },
-        description: "Read tenant audit logs",
+        description: 'Read tenant audit logs',
       },
       {
-        action: "create",
-        scope: "global",
+        action: 'create',
+        scope: 'global',
         attributes: {
           allowed: [
-            "tenantId",
-            "userId",
-            "action",
-            "entityType",
-            "entityId",
-            "changes",
-            "ipAddress",
+            'tenantId',
+            'userId',
+            'action',
+            'entityType',
+            'entityId',
+            'changes',
+            'ipAddress',
           ],
         },
-        description: "Create audit logs",
+        description: 'Create audit logs',
       },
       {
-        action: "export",
-        scope: "tenant",
+        action: 'export',
+        scope: 'tenant',
         attributes: {},
-        description: "Export audit logs",
+        description: 'Export audit logs',
       },
     ],
   },
   {
-    modelName: "TenantBackup",
-    tableName: "tenant_backups",
-    module: "backup",
-    description: "Tenant backup management",
+    modelName: 'TenantBackup',
+    tableName: 'tenant_backups',
+    module: 'backup',
+    description: 'Tenant backup management',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
-          allowed: ["id", "tenantId", "status", "createdAt", "size", "fileUrl"],
+          allowed: ['id', 'tenantId', 'status', 'createdAt', 'size', 'fileUrl'],
         },
-        description: "Read backup information",
+        description: 'Read backup information',
       },
       {
-        action: "create",
-        scope: "tenant",
+        action: 'create',
+        scope: 'tenant',
         attributes: {
-          allowed: ["tenantId", "description"],
+          allowed: ['tenantId', 'description'],
         },
-        description: "Create backups",
+        description: 'Create backups',
       },
       {
-        action: "update",
-        scope: "tenant",
+        action: 'update',
+        scope: 'tenant',
         attributes: {
-          allowed: ["status", "fileUrl"],
+          allowed: ['status', 'fileUrl'],
         },
-        description: "Update backup settings",
+        description: 'Update backup settings',
       },
       {
-        action: "delete",
-        scope: "tenant",
+        action: 'delete',
+        scope: 'tenant',
         attributes: {},
-        description: "Delete backups",
+        description: 'Delete backups',
       },
       {
-        action: "import",
-        scope: "tenant",
+        action: 'import',
+        scope: 'tenant',
         attributes: {},
-        description: "Restore from backups",
+        description: 'Restore from backups',
       },
     ],
   },
   {
-    modelName: "UserPermission",
-    tableName: "user_permissions",
-    module: "access_control",
-    description: "User-specific permissions",
+    modelName: 'UserPermission',
+    tableName: 'user_permissions',
+    module: 'access_control',
+    description: 'User-specific permissions',
     permissions: [
       {
-        action: "read",
-        scope: "tenant",
+        action: 'read',
+        scope: 'tenant',
         attributes: {
-          allowed: ["id", "userId", "permissionId", "isGranted"],
+          allowed: ['id', 'userId', 'permissionId', 'isGranted'],
         },
-        description: "Read user permissions",
+        description: 'Read user permissions',
       },
       {
-        action: "create",
-        scope: "tenant",
+        action: 'create',
+        scope: 'tenant',
         attributes: {
-          allowed: ["userId", "permissionId", "isGranted"],
+          allowed: ['userId', 'permissionId', 'isGranted'],
         },
-        description: "Create user permissions",
+        description: 'Create user permissions',
       },
       {
-        action: "update",
-        scope: "tenant",
+        action: 'update',
+        scope: 'tenant',
         attributes: {
-          allowed: ["isGranted"],
+          allowed: ['isGranted'],
         },
-        description: "Update user permissions",
+        description: 'Update user permissions',
       },
       {
-        action: "delete",
-        scope: "tenant",
+        action: 'delete',
+        scope: 'tenant',
         attributes: {},
-        description: "Delete user permissions",
+        description: 'Delete user permissions',
       },
     ],
   },
@@ -639,10 +640,10 @@ const DEFAULT_MODELS = [
  */
 async function seedTablePermissions() {
   try {
-    logger.info("Starting table permissions seed...");
+    logger.info('Starting table permissions seed...');
 
     // 1. Create models
-    logger.info("Creating models...");
+    logger.info('Creating models...');
     const createdModels = [];
 
     for (const modelDef of DEFAULT_MODELS) {
@@ -667,7 +668,7 @@ async function seedTablePermissions() {
     }
 
     // 2. Create table permissions for each model
-    logger.info("Creating table permissions...");
+    logger.info('Creating table permissions...');
 
     for (const model of createdModels) {
       for (const permDef of model.permissions || []) {
@@ -695,9 +696,7 @@ async function seedTablePermissions() {
     }
 
     // 3. Assign permissions to global roles
-    logger.info("Assigning permissions to global roles...");
-
-    const { ROLE_NAMES } = require("../utils/constants");
+    logger.info('Assigning permissions to global roles...');
 
     const superAdminRole = await Roles.findOne({
       where: { name: ROLE_NAMES.SUPER_ADMIN },
@@ -723,7 +722,7 @@ async function seedTablePermissions() {
         include: [
           {
             model: Models,
-            as: "model",
+            as: 'model',
             where: {
               modelName: DEFAULT_MODELS.map((m) => m.modelName),
             },
@@ -733,7 +732,7 @@ async function seedTablePermissions() {
 
       for (const perm of tenantScopedPermissions) {
         // Grant read, create, update for tenant-scoped resources
-        if (["read", "create", "update"].includes(perm.action)) {
+        if (['read', 'create', 'update'].includes(perm.action)) {
           await assignPermissionToRole(tenantAdminRole.id, perm.id, true);
           logger.info(
             `  Assigned ${perm.action} to TENANT_ADMIN for ${perm.model.modelName}`,
@@ -752,11 +751,11 @@ async function seedTablePermissions() {
         include: [
           {
             model: Models,
-            as: "model",
-            where: { modelName: "User" },
+            as: 'model',
+            where: { modelName: 'User' },
           },
         ],
-        where: { action: ["read", "update"] },
+        where: { action: ['read', 'update'] },
       });
 
       for (const perm of selfPermissions) {
@@ -765,7 +764,7 @@ async function seedTablePermissions() {
       }
     }
 
-    logger.info("Table permissions seed completed successfully!");
+    logger.info('Table permissions seed completed successfully!');
     return true;
   } catch (error) {
     logger.error(`Seed failed: ${error.message}`);
@@ -778,7 +777,7 @@ async function seedTablePermissions() {
  * Helper: Assign a permission to a role
  */
 async function assignPermissionToRole(roleId, tablePermissionId, isGranted) {
-  const { RolePermission } = require("../models");
+  const { RolePermission } = require('../models');
 
   const existing = await RolePermission.findOne({
     where: { roleId, tablePermissionId },

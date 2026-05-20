@@ -1,12 +1,12 @@
-const { Op } = require("sequelize");
+const { Op } = require('sequelize');
 
-const { Permissions } = require("../models");
+const { Permissions } = require('../models');
 
 // ==========================================
 // GET ALL PERMISSIONS
 // ==========================================
 
-exports.getAllPermissions = async ({ page = 1, limit = 20, search = "" }) => {
+exports.getAllPermissions = async ({ page = 1, limit = 20, search = '' }) => {
   const offset = (page - 1) * limit;
 
   const where = search
@@ -30,16 +30,21 @@ exports.getAllPermissions = async ({ page = 1, limit = 20, search = "" }) => {
     where,
     limit: Number(limit),
     offset: Number(offset),
-    order: [["createdAt", "DESC"]],
+    order: [['createdAt', 'DESC']],
   });
 
   return {
-    data: rows,
-    meta: {
-      total: count,
-      page: Number(page),
-      limit: Number(limit),
-      totalPages: Math.ceil(count / limit),
+    success: true,
+    status: 200,
+    message: 'Fetch permissions successful',
+    data: {
+      rows,
+      meta: {
+        total: count,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(count / limit),
+      },
     },
   };
 };
@@ -51,9 +56,14 @@ exports.getAllPermissions = async ({ page = 1, limit = 20, search = "" }) => {
 exports.getPermissionById = async (id) => {
   const permission = await Permissions.findByPk(id);
   if (!permission) {
-    throw new Error("Permission not found");
+    throw { status: 404, message: 'Permission not found' };
   }
-  return permission;
+  return {
+    success: true,
+    status: 200,
+    message: 'Fetch permission successful',
+    data: permission,
+  };
 };
 
 // ==========================================
@@ -67,10 +77,15 @@ exports.createPermission = async (payload) => {
     },
   });
   if (exist) {
-    throw new Error("Permission already exists");
+    throw { status: 409, message: 'Permission already exists' };
   }
   const permission = await Permissions.create(payload);
-  return permission;
+  return {
+    success: true,
+    status: 201,
+    message: 'Permission created successfully',
+    data: permission,
+  };
 };
 
 // ==========================================
@@ -80,10 +95,15 @@ exports.createPermission = async (payload) => {
 exports.updatePermission = async ({ id, data }) => {
   const permission = await Permissions.findByPk(id);
   if (!permission) {
-    throw new Error("Permission not found");
+    throw { status: 404, message: 'Permission not found' };
   }
   await permission.update(data);
-  return permission;
+  return {
+    success: true,
+    status: 200,
+    message: 'Permission updated successfully',
+    data: permission,
+  };
 };
 
 // ==========================================
@@ -93,8 +113,13 @@ exports.updatePermission = async ({ id, data }) => {
 exports.deletePermission = async (id) => {
   const permission = await Permissions.findByPk(id);
   if (!permission) {
-    throw new Error("Permission not found");
+    throw { status: 404, message: 'Permission not found' };
   }
   await permission.destroy();
-  return true;
+  return {
+    success: true,
+    status: 200,
+    message: 'Permission deleted successfully',
+    data: null,
+  };
 };
