@@ -48,7 +48,7 @@ RUN mkdir -p /app/backup/tenant-backups /app/log /app/uploads/profile /app/uploa
     chown -R app:app /app/backup /app/log /app/uploads
 
 # Copy binary
-COPY --from=builder /app/dist/backend ./backend
+COPY --from=builder /app/backend ./backend
 
 # Optional runtime assets
 COPY --from=builder /app/swagger.json ./swagger.json
