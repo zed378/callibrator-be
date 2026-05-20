@@ -16,9 +16,9 @@ exports.getAllRoles = async ({
   const where = search
     ? {
         [Op.or]: [
-          { name: { [Op.iLike]: `%${search}%` } },
-          { description: { [Op.iLike]: `%${search}%` } },
-          { nameToShow: { [Op.iLike]: `%${search}%` } },
+          { name: { [Op.like]: `%${search.toLowerCase()}%` } },
+          { description: { [Op.like]: `%${search.toLowerCase()}%` } },
+          { nameToShow: { [Op.like]: `%${search.toLowerCase()}%` } },
         ],
       }
     : {};

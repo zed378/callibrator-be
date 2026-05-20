@@ -18,9 +18,9 @@ exports.getAllModels = async ({ page = 1, limit = 20, search = '' }) => {
   const where = search
     ? {
         [Op.or]: [
-          { modelName: { [Op.iLike]: `%${search}%` } },
-          { tableName: { [Op.iLike]: `%${search}%` } },
-          { module: { [Op.iLike]: `%${search}%` } },
+          { modelName: { [Op.like]: `%${search.toLowerCase()}%` } },
+          { tableName: { [Op.like]: `%${search.toLowerCase()}%` } },
+          { module: { [Op.like]: `%${search.toLowerCase()}%` } },
         ],
       }
     : {};

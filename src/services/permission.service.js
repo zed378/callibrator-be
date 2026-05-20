@@ -14,12 +14,12 @@ exports.getAllPermissions = async ({ page = 1, limit = 20, search = '' }) => {
         [Op.or]: [
           {
             name: {
-              [Op.iLike]: `%${search}%`,
+              [Op.like]: `%${search.toLowerCase()}%`,
             },
           },
           {
             description: {
-              [Op.iLike]: `%${search}%`,
+              [Op.like]: `%${search.toLowerCase()}%`,
             },
           },
         ],

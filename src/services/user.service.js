@@ -1,5 +1,5 @@
 // src/services/userService.js
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
 const { db } = require('../config');
 const { Users, Roles } = require('../models');
 const { logger } = require('../middlewares/activityLog');
@@ -101,15 +101,14 @@ exports.fetchUsers = async ({
       };
     }
 
-    // Free‑text search (case‑insensitive)
+    // Free-text search (case-insensitive - MySQL compatible)
     if (find && typeof find === 'string' && find.trim() !== '') {
       const searchTerm = `%${find.toLowerCase()}%`;
-      // Using ILike for PostgreSQL; fallback to lower+like for MySQL if needed
       whereClause[Op.or] = [
-        { username: { [Op.iLike]: searchTerm } },
-        { firstName: { [Op.iLike]: searchTerm } },
-        { lastName: { [Op.iLike]: searchTerm } },
-        { email: { [Op.iLike]: searchTerm } },
+        { username: { [Op.like]: searchTerm } },
+        { firstName: { [Op.like]: searchTerm } },
+        { lastName: { [Op.like]: searchTerm } },
+        { email: { [Op.like]: searchTerm } },
       ];
     }
 
@@ -266,7 +265,7 @@ exports.checkUsernameAvailability = async (input) => {
     const existingUser = await Users.findOne({
       where: {
         username: {
-          [Op.iLike]: normalizedUsername,
+          [Op.like]: normalizedUsername,
         },
       },
 
@@ -471,7 +470,7 @@ exports.userCreate = async (input) => {
     const existingUsername = await Users.findOne({
       where: {
         username: {
-          [Op.iLike]: username.trim(),
+          [Op.like]: username.trim().toLowerCase(),
         },
       },
 
@@ -492,7 +491,7 @@ exports.userCreate = async (input) => {
     const existingEmail = await Users.findOne({
       where: {
         email: {
-          [Op.iLike]: email.trim(),
+          [Op.like]: email.trim().toLowerCase(),
         },
       },
 
@@ -680,7 +679,7 @@ exports.editUser = async (input) => {
       const existingUsername = await Users.findOne({
         where: {
           username: {
-            [Op.iLike]: username.trim(),
+            [Op.like]: username.trim().toLowerCase(),
           },
 
           id: {
@@ -707,7 +706,7 @@ exports.editUser = async (input) => {
       const existingEmail = await Users.findOne({
         where: {
           email: {
-            [Op.iLike]: email.trim(),
+            [Op.like]: email.trim().toLowerCase(),
           },
 
           id: {

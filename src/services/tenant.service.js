@@ -93,12 +93,13 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
 
     const whereClause = {};
 
-    // Free-text search (case-insensitive)
+    // Free-text search (case-insensitive - MySQL compatible)
     if (find) {
+      const searchTerm = `%${find.toLowerCase()}%`;
       whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${find}%` } },
-        { code: { [Op.iLike]: `%${find}%` } },
-        { description: { [Op.iLike]: `%${find}%` } },
+        { name: { [Op.like]: searchTerm } },
+        { code: { [Op.like]: searchTerm } },
+        { description: { [Op.like]: searchTerm } },
       ];
     }
 
