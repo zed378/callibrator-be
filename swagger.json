@@ -1,0 +1,3324 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Boilerplate API",
+    "version": "1.0.0",
+    "description": "Enterprise-grade Express.js API documentation"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Register a new user",
+        "description": "Public endpoint - no authentication or permission required. Rate limited to 3 attempts per hour to prevent abuse.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "firstName",
+                  "lastName",
+                  "username",
+                  "email",
+                  "password"
+                ],
+                "properties": {
+                  "firstName": {
+                    "type": "string",
+                    "example": "John"
+                  },
+                  "lastName": {
+                    "type": "string",
+                    "example": "Doe"
+                  },
+                  "username": {
+                    "type": "string",
+                    "example": "johndoe"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "user@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "example": "Secret123"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registration successful"
+          },
+          "409": {
+            "description": "Conflict (email or username already exists)"
+          },
+          "429": {
+            "description": "Too many requests - Rate limited (3 attempts per hour)"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/activation": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Activate user account using token",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Activation token sent via email"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account activated successfully"
+          },
+          "400": {
+            "description": "Invalid, missing or expired token"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Log in a user",
+        "description": "Public endpoint - no authentication or permission required. Rate limited to 5 attempts per 15 minutes. Account will be locked for 15 minutes after too many failed attempts. Token is revoked if brute force is detected.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "user",
+                  "password"
+                ],
+                "properties": {
+                  "user": {
+                    "type": "string",
+                    "description": "Username or email",
+                    "example": "sys"
+                  },
+                  "password": {
+                    "type": "string",
+                    "example": 123123
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login successful",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "token": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Invalid credentials"
+          },
+          "423": {
+            "description": "Account temporarily locked"
+          },
+          "429": {
+            "description": "Too many login attempts - Rate limited (5 attempts per 15 minutes)"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/send-otp": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Send OTP for password reset",
+        "description": "Public endpoint - no authentication or permission required. Rate limited to 3 attempts per 15 minutes to prevent OTP abuse.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "user@example.com"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OTP sent"
+          },
+          "429": {
+            "description": "Too many requests - Rate limited (3 attempts per 15 minutes)"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/reset-password": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Reset password using OTP",
+        "description": "Public endpoint - no authentication or permission required. Requires valid OTP sent to email. Rate limited to 5 attempts per 5 minutes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "otp",
+                  "password"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "otp": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Password reset successful"
+          },
+          "400": {
+            "description": "Invalid OTP"
+          },
+          "429": {
+            "description": "Too many requests - Rate limited (5 attempts per 5 minutes)"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Log out a single session",
+        "description": "Requires authentication. Users can revoke their current session. No specific permission required - available to all authenticated users.",
+        "responses": {
+          "200": {
+            "description": "Logout successful"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout-all": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Log out all sessions for the authenticated user",
+        "description": "Requires authentication. Users can revoke all their active sessions. No specific permission required - available to all authenticated users.",
+        "responses": {
+          "200": {
+            "description": "All sessions revoked successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/verify": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Verify a user session",
+        "description": "Requires authentication. Verifies if the current token is valid. No specific permission required - available to all authenticated users.",
+        "responses": {
+          "200": {
+            "description": "Token valid"
+          },
+          "401": {
+            "description": "Invalid session"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/just-update-password": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update the password of the logged-in user",
+        "description": "Requires authentication. Users can update their own password. Uses user:self:update permission implicitly.",
+        "responses": {
+          "200": {
+            "description": "Password updated successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/auth/pass-is-valid": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Check whether the supplied password matches",
+        "description": "Requires authentication. Verifies if the supplied password matches the user's current password. No specific permission required - available to all authenticated users.",
+        "responses": {
+          "200": {
+            "description": "Password is valid"
+          }
+        }
+      }
+    },
+    "/api/v1/permissions": {
+      "description": "Endpoint group for Permission Management"
+    },
+    "/api/v1/permissions/all": {
+      "get": {
+        "summary": "Fetch a list of all permissions with pagination and search",
+        "description": "Requires SUPER_ADMIN role. Only super admin can view all permissions.",
+        "tags": [
+          "Permissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Page number"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            },
+            "description": "Items per page"
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Search by name or description"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful retrieval",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permissions fetched successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "user:read"
+                          },
+                          "module": {
+                            "type": "string",
+                            "example": "User"
+                          },
+                          "action": {
+                            "type": "string",
+                            "example": "Read"
+                          },
+                          "description": {
+                            "type": "string",
+                            "example": "Allow users to read user data"
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer"
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        },
+                        "totalPages": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Internal Server Error"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/detail": {
+      "post": {
+        "summary": "Get details of a specific permission by its ID",
+        "description": "Requires SUPER_ADMIN role. Only super admin can view permission details.",
+        "tags": [
+          "Permissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "permissionId"
+                ],
+                "properties": {
+                  "permissionId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "UUID of the permission to fetch"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permission fetched successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "module": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request (Invalid ID or not found)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permission not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/create": {
+      "post": {
+        "summary": "Create a new permission",
+        "description": "Requires SUPER_ADMIN role. Only super admin can create new permissions.",
+        "tags": [
+          "Permissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "module",
+                  "action"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "user:delete"
+                  },
+                  "module": {
+                    "type": "string",
+                    "example": "User"
+                  },
+                  "action": {
+                    "type": "string",
+                    "example": "Delete"
+                  },
+                  "description": {
+                    "type": "string",
+                    "example": "Allow users to delete user accounts"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Permission created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permission created successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "module": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Conflict or Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permission already exists"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/edit": {
+      "patch": {
+        "summary": "Update an existing permission",
+        "description": "Requires SUPER_ADMIN role. Only super admin can update existing permissions.",
+        "tags": [
+          "Permissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "UUID of the permission to update"
+                  },
+                  "name": {
+                    "type": "string",
+                    "example": "user:read"
+                  },
+                  "module": {
+                    "type": "string",
+                    "example": "User"
+                  },
+                  "action": {
+                    "type": "string",
+                    "example": "Read"
+                  },
+                  "description": {
+                    "type": "string",
+                    "example": "Updated description"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permission updated successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "module": {
+                          "type": "string"
+                        },
+                        "action": {
+                          "type": "string"
+                        },
+                        "description": {
+                          "type": "string"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request (Not found or invalid input)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permission not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/permissions/delete": {
+      "delete": {
+        "summary": "Delete a permission by ID",
+        "description": "Requires SUPER_ADMIN role. Only super admin can delete permissions.",
+        "tags": [
+          "Permissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "UUID of the permission to delete"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Permission deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permission deleted successfully"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request (Not found or invalid ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Permission not found"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/models": {
+      "get": {
+        "summary": "Get all models",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Models fetched successfully"
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a new model",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "modelName",
+                  "tableName",
+                  "module"
+                ],
+                "properties": {
+                  "modelName": {
+                    "type": "string"
+                  },
+                  "tableName": {
+                    "type": "string"
+                  },
+                  "module": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Model created successfully"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a model",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "modelName": {
+                    "type": "string"
+                  },
+                  "tableName": {
+                    "type": "string"
+                  },
+                  "module": {
+                    "type": "string"
+                  },
+                  "isActive": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Model updated successfully"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a model",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Model deleted successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/models/detail": {
+      "post": {
+        "summary": "Get model detail by ID",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Model fetched successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/permissions/detail": {
+      "post": {
+        "summary": "Get table permissions for a model",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "modelId"
+                ],
+                "properties": {
+                  "modelId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Table permissions fetched successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/permissions/upsert": {
+      "post": {
+        "summary": "Create or update table permissions for a model",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "modelId",
+                  "permissions"
+                ],
+                "properties": {
+                  "modelId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "permissions": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "action"
+                      ],
+                      "properties": {
+                        "action": {
+                          "type": "string",
+                          "enum": [
+                            "create",
+                            "read",
+                            "update",
+                            "delete",
+                            "export",
+                            "import"
+                          ]
+                        },
+                        "scope": {
+                          "type": "string",
+                          "enum": [
+                            "global",
+                            "tenant",
+                            "self",
+                            "custom"
+                          ],
+                          "default": "global"
+                        },
+                        "attributes": {
+                          "type": "object"
+                        },
+                        "abacRules": {
+                          "type": "object"
+                        },
+                        "description": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Table permissions updated successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/permissions": {
+      "patch": {
+        "summary": "Update a specific table permission",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "id"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "global",
+                      "tenant",
+                      "self",
+                      "custom"
+                    ]
+                  },
+                  "attributes": {
+                    "type": "object"
+                  },
+                  "abacRules": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Table permission updated successfully"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a table permission",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Table permission deleted successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/role-permissions/grant": {
+      "post": {
+        "summary": "Grant table permission to a global role",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "roleId",
+                  "tablePermissionId"
+                ],
+                "properties": {
+                  "roleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tablePermissionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission granted successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/role-permissions/revoke": {
+      "post": {
+        "summary": "Revoke table permission from a global role",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "roleId",
+                  "tablePermissionId"
+                ],
+                "properties": {
+                  "roleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tablePermissionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission revoked successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/role-permissions": {
+      "post": {
+        "summary": "Get all granted permissions for a role",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "roleId"
+                ],
+                "properties": {
+                  "roleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role permissions fetched successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/role-permissions/bulk-assign": {
+      "post": {
+        "summary": "Bulk assign permissions to a role",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "roleId",
+                  "tablePermissionIds"
+                ],
+                "properties": {
+                  "roleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tablePermissionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permissions assigned successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/tenant-role-permissions/grant": {
+      "post": {
+        "summary": "Grant table permission to a tenant role",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantRoleId",
+                  "tablePermissionId"
+                ],
+                "properties": {
+                  "tenantRoleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tablePermissionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "abacRules": {
+                    "type": "object"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission granted to tenant role successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/tenant-role-permissions/revoke": {
+      "post": {
+        "summary": "Revoke table permission from a tenant role",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantRoleId",
+                  "tablePermissionId"
+                ],
+                "properties": {
+                  "tenantRoleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tablePermissionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission revoked from tenant role successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/tenant-role-permissions": {
+      "post": {
+        "summary": "Get all granted permissions for a tenant role",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantRoleId"
+                ],
+                "properties": {
+                  "tenantRoleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant role permissions fetched successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/tenant-role-permissions/abac-rules": {
+      "patch": {
+        "summary": "Update ABAC rules for a tenant role permission",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantRoleId",
+                  "tablePermissionId",
+                  "abacRules"
+                ],
+                "properties": {
+                  "tenantRoleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tablePermissionId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "abacRules": {
+                    "type": "object",
+                    "properties": {
+                      "condition": {
+                        "type": "string",
+                        "enum": [
+                          "owner",
+                          "attribute",
+                          "custom",
+                          "tenant"
+                        ]
+                      },
+                      "fields": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "operator": {
+                        "type": "string"
+                      },
+                      "value": {}
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "ABAC rules updated successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/tenant-role-permissions/bulk-assign": {
+      "post": {
+        "summary": "Bulk assign permissions to a tenant role",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantRoleId",
+                  "tablePermissionIds"
+                ],
+                "properties": {
+                  "tenantRoleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tablePermissionIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "abacRules": {
+                    "type": "object"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permissions assigned to tenant role successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/check": {
+      "post": {
+        "summary": "Check if user has permission for a model/action",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "modelName",
+                  "action"
+                ],
+                "properties": {
+                  "modelName": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "create",
+                      "read",
+                      "update",
+                      "delete",
+                      "export",
+                      "import"
+                    ]
+                  },
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Permission check completed"
+          }
+        }
+      }
+    },
+    "/api/v1/table-permissions/allowed-attributes": {
+      "post": {
+        "summary": "Get allowed attributes for a user on a model",
+        "tags": [
+          "TablePermissions"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "modelName",
+                  "action"
+                ],
+                "properties": {
+                  "modelName": {
+                    "type": "string"
+                  },
+                  "action": {
+                    "type": "string",
+                    "enum": [
+                      "create",
+                      "read",
+                      "update",
+                      "delete",
+                      "export",
+                      "import"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Allowed attributes fetched successfully"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/all": {
+      "get": {
+        "summary": "Retrieve a paginated list of tenants",
+        "description": "Requires read access to Tenant model with tenant scope. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "find",
+            "required": false,
+            "description": "Free-text search by name, code, or description",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful retrieval of tenants"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/detail": {
+      "post": {
+        "summary": "Fetch details of a specific tenant by ID",
+        "description": "Requires read access to Tenant model. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantId"
+                ],
+                "properties": {
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant details retrieved successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/create": {
+      "post": {
+        "summary": "Create a new tenant",
+        "description": "Requires create access to Tenant model with tenant scope. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "code"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Acme Corporation"
+                  },
+                  "code": {
+                    "type": "string",
+                    "example": "acme-corp"
+                  },
+                  "description": {
+                    "type": "string",
+                    "example": "Acme Corporation - Global Enterprise"
+                  },
+                  "logo": {
+                    "type": "string",
+                    "example": "acme-logo.png"
+                  },
+                  "maxUsers": {
+                    "type": "integer",
+                    "example": 50
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tenant created successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "409": {
+            "description": "Conflict (name or code already exists)"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/edit": {
+      "patch": {
+        "summary": "Update an existing tenant's details",
+        "description": "Requires update access to Tenant model. Self-check enabled. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantId"
+                ],
+                "properties": {
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "name": {
+                    "type": "string",
+                    "example": "Acme Corporation Updated"
+                  },
+                  "code": {
+                    "type": "string",
+                    "example": "acme-corp-updated"
+                  },
+                  "description": {
+                    "type": "string",
+                    "example": "Updated description"
+                  },
+                  "logo": {
+                    "type": "string",
+                    "example": "acme-logo-updated.png"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ACTIVE",
+                      "INACTIVE",
+                      "SUSPENDED"
+                    ],
+                    "example": "ACTIVE"
+                  },
+                  "maxUsers": {
+                    "type": "integer",
+                    "example": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant updated successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Tenant not found"
+          },
+          "409": {
+            "description": "Conflict (name or code already exists)"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/delete": {
+      "delete": {
+        "summary": "Delete a tenant",
+        "description": "Requires delete access to Tenant model with tenant scope. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantId"
+                ],
+                "properties": {
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant deleted successfully"
+          },
+          "400": {
+            "description": "Bad Request (tenant has active users)"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/settings": {
+      "post": {
+        "summary": "Get settings for a specific tenant",
+        "description": "Requires read access to Tenant model. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantId"
+                ],
+                "properties": {
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant settings retrieved successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update settings for a specific tenant",
+        "description": "Requires update access to Tenant model. Self-check enabled. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantId",
+                  "settings"
+                ],
+                "properties": {
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "settings": {
+                    "type": "object",
+                    "example": {
+                      "branding_primary_color": "#007bff",
+                      "branding_secondary_color": "#6c757d",
+                      "features_enable_signup": true,
+                      "features_enable_sso": false,
+                      "limits_max_storage_gb": 100
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant settings updated successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/user-count": {
+      "post": {
+        "summary": "Get user count for a tenant",
+        "description": "Requires read access to Tenant model. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tenantId"
+                ],
+                "properties": {
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant user count retrieved successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/logo": {
+      "post": {
+        "summary": "Upload a logo for a tenant",
+        "description": "Requires update access to Tenant model. Self-check enabled.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant logo uploaded successfully"
+          },
+          "400": {
+            "description": "No file uploaded or invalid file type"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a tenant's logo",
+        "description": "Requires update access to Tenant model. Self-check enabled.",
+        "tags": [
+          "Tenants"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant logo removed successfully"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/backups": {
+      "post": {
+        "summary": "Create a backup for a tenant",
+        "description": "Requires SUPER_ADMIN or TENANT_ADMIN role with tenant:update permission. Creates a ZIP file containing tenant data (settings, roles, features, users, permissions).",
+        "tags": [
+          "Tenant Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "example": "Pre-migration backup"
+                  },
+                  "description": {
+                    "type": "string",
+                    "example": "Backup before system migration"
+                  },
+                  "backupType": {
+                    "type": "string",
+                    "enum": [
+                      "FULL",
+                      "PARTIAL",
+                      "USER_ONLY"
+                    ],
+                    "default": "FULL",
+                    "example": "FULL"
+                  },
+                  "retentionDays": {
+                    "type": "integer",
+                    "default": 90,
+                    "example": 180
+                  },
+                  "tag": {
+                    "type": "string",
+                    "example": "pre-migration"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Backup created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Tenant not found"
+          }
+        }
+      },
+      "get": {
+        "summary": "Get all backups for a tenant",
+        "description": "Requires SUPER_ADMIN or TENANT_ADMIN role with tenant:read permission. Returns paginated list of backups with status, size, and metadata.",
+        "tags": [
+          "Tenant Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "IN_PROGRESS",
+                "COMPLETED",
+                "FAILED",
+                "RESTORING",
+                "RESTORED",
+                "DELETING"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "backupType",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "FULL",
+                "PARTIAL",
+                "USER_ONLY"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "tag",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Backups retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "meta": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/backups/{backupId}": {
+      "get": {
+        "summary": "Get details of a specific backup",
+        "description": "Requires SUPER_ADMIN or TENANT_ADMIN role with tenant:read permission. Returns detailed information about a specific backup including creator, size, and metadata.",
+        "tags": [
+          "Tenant Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "backupId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Backup details retrieved successfully"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Backup not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a backup",
+        "description": "Requires SUPER_ADMIN or TENANT_ADMIN role with tenant:delete permission. Deletes the backup file and record.",
+        "tags": [
+          "Tenant Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "backupId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Backup deleted successfully"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Backup not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/backups/{backupId}/download": {
+      "get": {
+        "summary": "Download a backup file",
+        "description": "Requires SUPER_ADMIN or TENANT_ADMIN role with tenant:read permission. Downloads the ZIP file containing the backup data.",
+        "tags": [
+          "Tenant Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "backupId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Backup file downloaded successfully",
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Backup is not ready for download"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Backup not found or file missing"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/backups/{backupId}/restore": {
+      "post": {
+        "summary": "Restore a backup for a tenant",
+        "description": "Requires SUPER_ADMIN or TENANT_ADMIN role with tenant:update permission. Restores tenant data from a backup. Can optionally merge with existing data.",
+        "tags": [
+          "Tenant Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "path",
+            "name": "backupId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mergeData": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to merge with existing data instead of replacing"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Backup restored successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Backup is not ready for restore"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "Backup not found"
+          }
+        }
+      }
+    },
+    "/api/v1/tenants/{tenantId}/backups/stats": {
+      "get": {
+        "summary": "Get backup statistics for a tenant",
+        "description": "Requires SUPER_ADMIN or TENANT_ADMIN role with tenant:read permission. Returns statistics including total backups, completed, failed, total size, and latest backup.",
+        "tags": [
+          "Tenant Backups"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Backup statistics retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "totalBackups": {
+                          "type": "integer"
+                        },
+                        "completedBackups": {
+                          "type": "integer"
+                        },
+                        "failedBackups": {
+                          "type": "integer"
+                        },
+                        "totalSize": {
+                          "type": "integer"
+                        },
+                        "latestBackup": {
+                          "type": "object"
+                        },
+                        "hasValidBackups": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden"
+          }
+        }
+      }
+    },
+    "/api/v1/users/all": {
+      "get": {
+        "summary": "Retrieve a paginated list of users",
+        "description": "Requires read access to User model with tenant scope. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenantId",
+            "required": false,
+            "description": "Identifier of the tenant the request belongs to",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "roleFilter",
+            "required": false,
+            "description": "Role filter",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "find",
+            "required": false,
+            "description": "Free-text search",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful retrieval of users"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        }
+      }
+    },
+    "/api/v1/users/detail": {
+      "post": {
+        "summary": "Fetch details of a specific user by ID",
+        "description": "Requires read access to User model. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User details retrieved successfully"
+          },
+          "400": {
+            "description": "Missing userId"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/v1/users/username-check": {
+      "post": {
+        "summary": "Check if a username is available",
+        "description": "Requires authentication. No specific permission required - available to all authenticated users.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username"
+                ],
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Availability check result"
+          }
+        }
+      }
+    },
+    "/api/v1/users/role-update": {
+      "post": {
+        "summary": "Update a user's role",
+        "description": "Requires update access to User model with tenant scope. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId",
+                  "roleId"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "roleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role updated successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        }
+      }
+    },
+    "/api/v1/users/create": {
+      "post": {
+        "summary": "Create a new user",
+        "description": "Requires create access to User model with tenant scope. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "username",
+                  "email",
+                  "password",
+                  "roleId"
+                ],
+                "properties": {
+                  "tenantId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "password": {
+                    "type": "string"
+                  },
+                  "roleId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        }
+      }
+    },
+    "/api/v1/users/edit": {
+      "patch": {
+        "summary": "Update an existing user's details",
+        "description": "Requires update access to User model. Self-check enabled. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "userId"
+                ],
+                "properties": {
+                  "userId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "username": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        }
+      }
+    },
+    "/api/v1/users/delete": {
+      "delete": {
+        "summary": "Delete a user account",
+        "description": "Requires delete access to User model with tenant scope. Uses dynamic RBAC/ABAC.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User deleted successfully"
+          },
+          "403": {
+            "description": "Forbidden - Insufficient permissions"
+          }
+        }
+      }
+    },
+    "/api/v1/users/{userId}/avatar": {
+      "post": {
+        "summary": "Upload an avatar for a user",
+        "description": "Requires update access to User model. Self-check enabled.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User avatar uploaded successfully"
+          },
+          "400": {
+            "description": "No file uploaded or invalid file type"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a user's avatar",
+        "description": "Requires update access to User model. Self-check enabled.",
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "User avatar removed successfully"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "404": {
+            "description": "User not found"
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints"
+    },
+    {
+      "name": "TablePermissions",
+      "description": "Dynamic RBAC/ABAC permission management endpoints"
+    },
+    {
+      "name": "Tenants",
+      "description": "Endpoints for managing tenants and organizations"
+    },
+    {
+      "name": "Tenant Backups",
+      "description": "Endpoints for managing tenant backups and restores"
+    },
+    {
+      "name": "Users",
+      "description": "Endpoints for managing user accounts and roles"
+    }
+  ]
+}

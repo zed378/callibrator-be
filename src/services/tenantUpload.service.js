@@ -1,0 +1,88 @@
+const { Tenants } = require("../models");
+const { logger } = require("../middlewares/activityLog");
+const { AppError } = require("../utils/appError");
+const { deleteUpload, getUploadUrl } = require("../utils/upload");
+
+// ==========================================
+// TENANT LOGO UPLOAD SERVICE
+// ==========================================
+
+/**
+ * Update tenant logo
+ * @param {string} tenantId - Tenant identifier
+ * @param {string} filename - Uploaded filename
+ * @param {string} updatedBy - User ID who updated
+ */
+exports.updateTenantLogo = async (tenantId, filename, updatedBy) => {
+  try {
+    const tenant = await Tenants.findByPk(tenantId);
+
+    if (!tenant) {
+      throw new AppError("Tenant not found", 404);
+    }
+
+    // Delete old logo if exists
+    if (tenant.logo) {
+      const oldFilename = tenant.logo.split("/").pop();
+      try {
+        await deleteUpload(oldFilename, "uploads/tenant");
+      } catch (err) {
+        logger.warn(`Failed to delete old logo: ${oldFilename}`, err);
+      }
+    }
+
+    // Update tenant with new logo
+    const logoUrl = getUploadUrl(filename, "uploads/tenant");
+    await tenant.update({ logo: logoUrl }, { silent: true });
+
+    logger.info(`Tenant logo updated: ${tenantId} by ${updatedBy}`);
+
+    return {
+      data: { logo: logoUrl },
+      message: "Tenant logo updated successfully",
+      status: 200,
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    logger.error("Error updating tenant logo", { error: error.message });
+    throw new AppError("Failed to update tenant logo", 500);
+  }
+};
+
+/**
+ * Remove tenant logo
+ * @param {string} tenantId - Tenant identifier
+ * @param {string} updatedBy - User ID who updated
+ */
+exports.removeTenantLogo = async (tenantId, updatedBy) => {
+  try {
+    const tenant = await Tenants.findByPk(tenantId);
+
+    if (!tenant) {
+      throw new AppError("Tenant not found", 404);
+    }
+
+    // Delete logo file if exists
+    if (tenant.logo) {
+      const filename = tenant.logo.split("/").pop();
+      try {
+        await deleteUpload(filename, "uploads/tenant");
+      } catch (err) {
+        logger.warn(`Failed to delete logo file: ${filename}`, err);
+      }
+
+      await tenant.update({ logo: null }, { silent: true });
+      logger.info(`Tenant logo removed: ${tenantId} by ${updatedBy}`);
+    }
+
+    return {
+      data: { logo: null },
+      message: "Tenant logo removed successfully",
+      status: 200,
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    logger.error("Error removing tenant logo", { error: error.message });
+    throw new AppError("Failed to remove tenant logo", 500);
+  }
+};
