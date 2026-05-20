@@ -33,14 +33,13 @@ exports.updateTenantLogo = async (tenantId, filename, updatedBy) => {
       }
     }
 
-    // Update tenant with new logo
-    const logoUrl = getUploadUrl(filename, 'uploads/tenant');
-    await tenant.update({ logo: logoUrl }, { silent: true });
+    // Update tenant with new logo (store only filename)
+    await tenant.update({ logo: filename }, { silent: true });
 
     logger.info(`Tenant logo updated: ${tenantId} by ${updatedBy}`);
 
     return {
-      data: { logo: logoUrl },
+      data: { logo: filename },
       message: 'Tenant logo updated successfully',
       status: 200,
     };

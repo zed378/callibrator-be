@@ -68,16 +68,24 @@ exports.createTenant = asyncHandler(async (req, res) => {
 });
 
 // ==========================================
-// UPDATE TENANT
+// UPDATE TENANT (supports form-data with optional file upload)
 // ==========================================
 
 exports.updateTenant = asyncHandler(async (req, res) => {
   const { tenantId } = req.params || req.body;
   const updatedBy = req.user?.id;
 
+  // Build input data from form-data or JSON body
+  const inputData = { ...req.body };
+
+  // If a file was uploaded, add the filename to the input
+  if (req.file) {
+    inputData.logo = req.uploadFilename;
+  }
+
   const result = await tenantService.updateTenant(
     tenantId,
-    req.body,
+    inputData,
     updatedBy,
   );
 

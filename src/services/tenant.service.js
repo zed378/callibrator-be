@@ -340,13 +340,26 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
       }
     }
 
+    // Delete old logo file if new logo is being uploaded and old logo exists and is not default
+    let newLogo = logo || tenant.logo;
+    if (logo && logo !== tenant.logo) {
+      const oldLogoFilename = (tenant.logo || '').split('/').pop();
+      if (oldLogoFilename && oldLogoFilename !== 'default.svg') {
+        try {
+          await deleteUpload(oldLogoFilename, 'uploads/tenant');
+        } catch (err) {
+          logger.warn(`Failed to delete old logo: ${oldLogoFilename}`, err);
+        }
+      }
+    }
+
     await tenant.update(
       {
         name: name || tenant.name,
         code: code || tenant.code,
         description:
           description !== undefined ? description : tenant.description,
-        logo: logo || tenant.logo,
+        logo: newLogo,
         status: status || tenant.status,
         maxUsers: maxUsers !== undefined ? maxUsers : tenant.maxUsers,
       },

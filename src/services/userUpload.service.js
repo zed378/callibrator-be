@@ -33,14 +33,13 @@ exports.updateUserAvatar = async (userId, filename, updatedBy) => {
       }
     }
 
-    // Update user with new avatar
-    const avatarUrl = getUploadUrl(filename, 'uploads/profile');
-    await user.update({ avatar: avatarUrl }, { silent: true });
+    // Update user with new avatar (store only filename)
+    await user.update({ avatar: filename }, { silent: true });
 
     logger.info(`User avatar updated: ${userId} by ${updatedBy}`);
 
     return {
-      data: { avatar: avatarUrl },
+      data: { avatar: filename },
       message: 'User avatar updated successfully',
       status: 200,
     };

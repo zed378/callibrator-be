@@ -303,14 +303,14 @@ router.post(
 );
 
 /* ------------------------------------------------------------------ */
-/* UPDATE TENANT                                                      */
+/* UPDATE TENANT (supports form-data with optional file upload)       */
 /* ------------------------------------------------------------------ */
 /**
  * @swagger
  * /api/v1/tenants/edit:
  *   patch:
  *     summary: Update an existing tenant's details
- *     description: Requires update access to Tenant model. Self-check enabled. Uses dynamic RBAC/ABAC.
+ *     description: Requires update access to Tenant model. Self-check enabled. Uses dynamic RBAC/ABAC. Supports multipart/form-data for file upload.
  *     tags:
  *       - Tenants
  *     security:
@@ -318,7 +318,7 @@ router.post(
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
@@ -327,6 +327,7 @@ router.post(
  *               tenantId:
  *                 type: string
  *                 format: uuid
+ *                 example: "b4130d0e-4772-4868-9da9-0817271bda93"
  *               name:
  *                 type: string
  *                 example: "Acme Corporation Updated"
@@ -338,7 +339,8 @@ router.post(
  *                 example: "Updated description"
  *               logo:
  *                 type: string
- *                 example: "acme-logo-updated.png"
+ *                 format: binary
+ *                 description: Optional logo file (JPEG, PNG, GIF, WebP, SVG)
  *               status:
  *                 type: string
  *                 enum: [ACTIVE, INACTIVE, SUSPENDED]
@@ -418,6 +420,17 @@ router.patch(
   '/edit',
   auth,
   dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
+  upload({
+    folder: 'uploads/tenant',
+    allowedMimes: [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/svg+xml',
+    ],
+    allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
+  }),
   tenantController.updateTenant,
 );
 
@@ -517,463 +530,6 @@ router.delete(
   auth,
   dynamicAccess('Tenant', 'delete', { checkTenant: true }),
   tenantController.deleteTenant,
-);
-
-/* ------------------------------------------------------------------ */
-/* GET TENANT SETTINGS                                                */
-/* ------------------------------------------------------------------ */
-/**
- * @swagger
- * /api/v1/tenants/settings:
- *   post:
- *     summary: Get settings for a specific tenant
- *     description: Requires read access to Tenant model. Uses dynamic RBAC/ABAC.
- *     tags:
- *       - Tenants
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - tenantId
- *             properties:
- *               tenantId:
- *                 type: string
- *                 format: uuid
- *     responses:
- *       '200':
- *         description: Tenant settings retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Tenant settings fetched successfully"
- *                 data:
- *                   type: object
- *       '404':
- *         description: Tenant not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 404
- *                 message:
- *                   type: string
- *                   example: "Tenant not found"
- *       '403':
- *         description: Forbidden - Insufficient permissions
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 403
- *                 message:
- *                   type: string
- *                   example: "Forbidden"
- */
-router.post(
-  '/settings',
-  auth,
-  dynamicAccess('Tenant', 'read', { checkTenant: true }),
-  tenantController.getTenantSettings,
-);
-
-/* ------------------------------------------------------------------ */
-/* UPDATE TENANT SETTINGS                                             */
-/* ------------------------------------------------------------------ */
-/**
- * @swagger
- * /api/v1/tenants/settings:
- *   patch:
- *     summary: Update settings for a specific tenant
- *     description: Requires update access to Tenant model. Self-check enabled. Uses dynamic RBAC/ABAC.
- *     tags:
- *       - Tenants
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - tenantId
- *               - settings
- *             properties:
- *               tenantId:
- *                 type: string
- *                 format: uuid
- *               settings:
- *                 type: object
- *                 example:
- *                   branding_primary_color: "#007bff"
- *                   branding_secondary_color: "#6c757d"
- *                   features_enable_signup: true
- *                   features_enable_sso: false
- *                   limits_max_storage_gb: 100
- *     responses:
- *       '200':
- *         description: Tenant settings updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Tenant settings updated successfully"
- *                 data:
- *                   type: object
- *       '404':
- *         description: Tenant not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 404
- *                 message:
- *                   type: string
- *                   example: "Tenant not found"
- *       '403':
- *         description: Forbidden - Insufficient permissions
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 403
- *                 message:
- *                   type: string
- *                   example: "Forbidden"
- */
-router.patch(
-  '/settings',
-  auth,
-  dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
-  tenantController.updateTenantSettings,
-);
-
-/* ------------------------------------------------------------------ */
-/* GET TENANT USER COUNT                                              */
-/* ------------------------------------------------------------------ */
-/**
- * @swagger
- * /api/v1/tenants/user-count:
- *   post:
- *     summary: Get user count for a tenant
- *     description: Requires read access to Tenant model. Uses dynamic RBAC/ABAC.
- *     tags:
- *       - Tenants
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - tenantId
- *             properties:
- *               tenantId:
- *                 type: string
- *                 format: uuid
- *     responses:
- *       '200':
- *         description: Tenant user count retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Tenant user count fetched successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     count:
- *                       type: integer
- *       '404':
- *         description: Tenant not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 404
- *                 message:
- *                   type: string
- *                   example: "Tenant not found"
- *       '403':
- *         description: Forbidden - Insufficient permissions
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 403
- *                 message:
- *                   type: string
- *                   example: "Forbidden"
- */
-router.post(
-  '/user-count',
-  auth,
-  dynamicAccess('Tenant', 'read', { checkTenant: true }),
-  tenantController.getTenantUserCount,
-);
-
-/* ------------------------------------------------------------------ */
-/* UPLOAD TENANT LOGO                                                 */
-/* ------------------------------------------------------------------ */
-/**
- * @swagger
- * /api/v1/tenants/{tenantId}/logo:
- *   post:
- *     summary: Upload a logo for a tenant
- *     description: Requires update access to Tenant model. Self-check enabled.
- *     tags:
- *       - Tenants
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: tenantId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     requestBody:
- *       required: true
- *       content:
- *         multipart/form-data:
- *           schema:
- *             type: object
- *             properties:
- *               file:
- *                 type: string
- *                 format: binary
- *     responses:
- *       '200':
- *         description: Tenant logo uploaded successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Logo uploaded successfully"
- *                 data:
- *                   type: object
- *       '400':
- *         description: No file uploaded or invalid file type
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 400
- *                 message:
- *                   type: string
- *                   example: "No file uploaded"
- *       '404':
- *         description: Tenant not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 404
- *                 message:
- *                   type: string
- *                   example: "Tenant not found"
- *       '403':
- *         description: Forbidden
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 403
- *                 message:
- *                   type: string
- *                   example: "Forbidden"
- */
-router.post(
-  '/:tenantId/logo',
-  auth,
-  dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
-  upload({
-    folder: 'uploads/tenant',
-    allowedMimes: [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'image/svg+xml',
-    ],
-    allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
-  }),
-  tenantController.uploadTenantLogo,
-);
-
-/* ------------------------------------------------------------------ */
-/* REMOVE TENANT LOGO                                                 */
-/* ------------------------------------------------------------------ */
-/**
- * @swagger
- * /api/v1/tenants/{tenantId}/logo:
- *   delete:
- *     summary: Remove a tenant's logo
- *     description: Requires update access to Tenant model. Self-check enabled.
- *     tags:
- *       - Tenants
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: tenantId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     responses:
- *       '200':
- *         description: Tenant logo removed successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Logo removed successfully"
- *       '404':
- *         description: Tenant not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 404
- *                 message:
- *                   type: string
- *                   example: "Tenant not found"
- *       '403':
- *         description: Forbidden
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 403
- *                 message:
- *                   type: string
- *                   example: "Forbidden"
- */
-router.delete(
-  '/:tenantId/logo',
-  auth,
-  dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
-  tenantController.removeTenantLogo,
 );
 
 module.exports = router;
