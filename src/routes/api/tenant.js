@@ -15,6 +15,7 @@ const router = express.Router();
 const { auth } = require('../../middlewares/auth');
 const { dynamicAccess } = require('../../middlewares/dynamicAccess');
 const tenantController = require('../../controllers/tenant.controller');
+const { upload } = require('../../utils/upload');
 
 /* ------------------------------------------------------------------ */
 /* GET ALL TENANTS                                                    */
@@ -884,6 +885,17 @@ router.post(
   '/:tenantId/logo',
   auth,
   dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
+  upload({
+    folder: 'uploads/tenant',
+    allowedMimes: [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/svg+xml',
+    ],
+    allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
+  }),
   tenantController.uploadTenantLogo,
 );
 

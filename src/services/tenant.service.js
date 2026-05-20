@@ -5,6 +5,7 @@ const { Tenants, Users } = require('../models');
 const { logger } = require('../middlewares/activityLog');
 const { AppError } = require('../utils/appError');
 const { DEFAULT_LIMIT, MAX_LIMIT } = require('../utils/constants');
+const { deleteUpload } = require('../utils/upload');
 const {
   validate: validateInput,
   formatErrors,
@@ -312,7 +313,6 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
     const tenant = await Tenants.findByPk(tenantId, { transaction });
 
     if (!tenant) {
-      await transaction.rollback();
       throw new AppError(404, 'Tenant not found');
     }
 
@@ -324,7 +324,6 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
       });
 
       if (existingCode) {
-        await transaction.rollback();
         throw new AppError(409, 'Tenant code already exists');
       }
     }
@@ -337,7 +336,6 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
       });
 
       if (existingName) {
-        await transaction.rollback();
         throw new AppError(409, 'Tenant name already exists');
       }
     }
@@ -384,8 +382,11 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
       data: transformedTenant,
     };
   } catch (error) {
-    if (!error.isAppError) {
-      await transaction.rollback();
+    // Only rollback if transaction is still active (not finished)
+    if (transaction && !transaction.finished) {
+      await transaction.rollback().catch(() => {
+        // Ignore rollback errors if transaction is already finished
+      });
     }
     logger.error('Error updating tenant', { error: error.message });
     throw error;
@@ -418,6 +419,18 @@ exports.deleteTenant = async (tenantId, deletedBy) => {
         `Cannot delete tenant with ${userCount} active user(s). Please remove or reassign users first.`,
         400,
       );
+    }
+
+    // Delete tenant logo file if exists and not default
+    if (tenant.logo) {
+      const logoFilename = tenant.logo.split('/').pop();
+      if (logoFilename && logoFilename !== 'default.svg') {
+        try {
+          await deleteUpload(logoFilename, 'uploads/tenant');
+        } catch (err) {
+          logger.warn(`Failed to delete tenant logo: ${logoFilename}`, err);
+        }
+      }
     }
 
     await tenant.destroy({ transaction });

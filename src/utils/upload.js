@@ -1,9 +1,9 @@
-const multer = require("multer");
-const path = require("path");
-const { v4: uuidv4 } = require("uuid");
-const storagePath = require("./storagePath");
-const { logger } = require("../middlewares/activityLog");
-const { AppError } = require("./appError");
+const multer = require('multer');
+const path = require('path');
+const { v4: uuidv4 } = require('uuid');
+const storagePath = require('./storagePath');
+const { logger } = require('../middlewares/activityLog');
+const { AppError } = require('./appError');
 
 // ==========================================
 // STORAGE CONFIGURATION
@@ -11,13 +11,14 @@ const { AppError } = require("./appError");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const folder = req.uploadFolder || "uploads";
+    const folder = req.uploadFolder || 'uploads';
     const fullPath = storagePath(folder);
     cb(null, fullPath);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname);
-    const fileName = `${uuidv4()}${ext}`;
+    const randomPrefix = Date.now() + '-' + Math.floor(Math.random() * 10000);
+    const fileName = `${randomPrefix}-${uuidv4()}${ext}`;
     req.uploadFilename = fileName;
     cb(null, fileName);
   },
@@ -29,19 +30,19 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   const allowedMimes = req.allowedMimes || [
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp",
-    "image/svg+xml",
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/svg+xml',
   ];
   const allowedExtensions = req.allowedExtensions || [
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".gif",
-    ".webp",
-    ".svg",
+    '.jpg',
+    '.jpeg',
+    '.png',
+    '.gif',
+    '.webp',
+    '.svg',
   ];
 
   const ext = path.extname(file.originalname).toLowerCase();
@@ -51,7 +52,7 @@ const fileFilter = (req, file, cb) => {
   } else {
     cb(
       new AppError(
-        `Invalid file type. Allowed: ${allowedExtensions.join(", ")}`,
+        `Invalid file type. Allowed: ${allowedExtensions.join(', ')}`,
         400,
       ),
     );
@@ -85,7 +86,7 @@ const upload = multer({
  */
 exports.upload = (options = {}) => {
   const {
-    folder = "uploads",
+    folder = 'uploads',
     allowedMimes,
     allowedExtensions,
     maxFileSize,
@@ -105,12 +106,12 @@ exports.upload = (options = {}) => {
     req.allowedMimes = allowedMimes;
     req.allowedExtensions = allowedExtensions;
 
-    uploader.single("file")(req, res, (err) => {
+    uploader.single('file')(req, res, (err) => {
       if (err instanceof AppError) {
         return next(err);
       }
       if (err) {
-        if (err.code === "LIMIT_FILE_SIZE") {
+        if (err.code === 'LIMIT_FILE_SIZE') {
           return next(
             new AppError(
               `File too large. Max size: ${maxFileSize / 1024 / 1024}MB`,
@@ -130,7 +131,7 @@ exports.upload = (options = {}) => {
  */
 exports.uploadMulti = (options = {}) => {
   const {
-    folder = "uploads",
+    folder = 'uploads',
     allowedMimes,
     allowedExtensions,
     maxFileSize,
@@ -142,12 +143,12 @@ exports.uploadMulti = (options = {}) => {
     req.allowedMimes = allowedMimes;
     req.allowedExtensions = allowedExtensions;
 
-    upload.array("files", maxFiles)(req, res, (err) => {
+    upload.array('files', maxFiles)(req, res, (err) => {
       if (err instanceof AppError) {
         return next(err);
       }
       if (err) {
-        if (err.code === "LIMIT_FILE_SIZE") {
+        if (err.code === 'LIMIT_FILE_SIZE') {
           return next(
             new AppError(
               `File too large. Max size: ${maxFileSize / 1024 / 1024}MB`,
@@ -167,8 +168,8 @@ exports.uploadMulti = (options = {}) => {
  * @param {string} filename - Name of the file to delete
  * @param {string} folder - Folder path
  */
-exports.deleteUpload = (filename, folder = "uploads") => {
-  const fs = require("fs");
+exports.deleteUpload = (filename, folder = 'uploads') => {
+  const fs = require('fs');
   const filePath = storagePath(folder, filename);
 
   return new Promise((resolve, reject) => {
@@ -188,6 +189,6 @@ exports.deleteUpload = (filename, folder = "uploads") => {
  * @param {string} filename - Name of the file
  * @param {string} folder - Folder path
  */
-exports.getUploadUrl = (filename, folder = "uploads") => {
+exports.getUploadUrl = (filename, folder = 'uploads') => {
   return `/${folder}/${filename}`;
 };

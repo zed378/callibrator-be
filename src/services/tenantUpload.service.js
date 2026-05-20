@@ -1,7 +1,7 @@
-const { Tenants } = require("../models");
-const { logger } = require("../middlewares/activityLog");
-const { AppError } = require("../utils/appError");
-const { deleteUpload, getUploadUrl } = require("../utils/upload");
+const { Tenants } = require('../models');
+const { logger } = require('../middlewares/activityLog');
+const { AppError } = require('../utils/appError');
+const { deleteUpload, getUploadUrl } = require('../utils/upload');
 
 // ==========================================
 // TENANT LOGO UPLOAD SERVICE
@@ -18,34 +18,36 @@ exports.updateTenantLogo = async (tenantId, filename, updatedBy) => {
     const tenant = await Tenants.findByPk(tenantId);
 
     if (!tenant) {
-      throw new AppError(404, "Tenant not found");
+      throw new AppError(404, 'Tenant not found');
     }
 
-    // Delete old logo if exists
+    // Delete old logo if exists and not default
     if (tenant.logo) {
-      const oldFilename = tenant.logo.split("/").pop();
-      try {
-        await deleteUpload(oldFilename, "uploads/tenant");
-      } catch (err) {
-        logger.warn(`Failed to delete old logo: ${oldFilename}`, err);
+      const oldFilename = tenant.logo.split('/').pop();
+      if (oldFilename && oldFilename !== 'default.svg') {
+        try {
+          await deleteUpload(oldFilename, 'uploads/tenant');
+        } catch (err) {
+          logger.warn(`Failed to delete old logo: ${oldFilename}`, err);
+        }
       }
     }
 
     // Update tenant with new logo
-    const logoUrl = getUploadUrl(filename, "uploads/tenant");
+    const logoUrl = getUploadUrl(filename, 'uploads/tenant');
     await tenant.update({ logo: logoUrl }, { silent: true });
 
     logger.info(`Tenant logo updated: ${tenantId} by ${updatedBy}`);
 
     return {
       data: { logo: logoUrl },
-      message: "Tenant logo updated successfully",
+      message: 'Tenant logo updated successfully',
       status: 200,
     };
   } catch (error) {
     if (error instanceof AppError) throw error;
-    logger.error("Error updating tenant logo", { error: error.message });
-    throw new AppError(500, "Failed to update tenant logo");
+    logger.error('Error updating tenant logo', { error: error.message });
+    throw new AppError(500, 'Failed to update tenant logo');
   }
 };
 
@@ -59,16 +61,18 @@ exports.removeTenantLogo = async (tenantId, updatedBy) => {
     const tenant = await Tenants.findByPk(tenantId);
 
     if (!tenant) {
-      throw new AppError(404, "Tenant not found");
+      throw new AppError(404, 'Tenant not found');
     }
 
-    // Delete logo file if exists
+    // Delete logo file if exists and not default
     if (tenant.logo) {
-      const filename = tenant.logo.split("/").pop();
-      try {
-        await deleteUpload(filename, "uploads/tenant");
-      } catch (err) {
-        logger.warn(`Failed to delete logo file: ${filename}`, err);
+      const filename = tenant.logo.split('/').pop();
+      if (filename && filename !== 'default.svg') {
+        try {
+          await deleteUpload(filename, 'uploads/tenant');
+        } catch (err) {
+          logger.warn(`Failed to delete logo file: ${filename}`, err);
+        }
       }
 
       await tenant.update({ logo: null }, { silent: true });
@@ -77,12 +81,12 @@ exports.removeTenantLogo = async (tenantId, updatedBy) => {
 
     return {
       data: { logo: null },
-      message: "Tenant logo removed successfully",
+      message: 'Tenant logo removed successfully',
       status: 200,
     };
   } catch (error) {
     if (error instanceof AppError) throw error;
-    logger.error("Error removing tenant logo", { error: error.message });
-    throw new AppError(500, "Failed to remove tenant logo");
+    logger.error('Error removing tenant logo', { error: error.message });
+    throw new AppError(500, 'Failed to remove tenant logo');
   }
 };

@@ -1,9 +1,10 @@
 // src/services/userService.js
 const { Op, Sequelize } = require('sequelize');
 const { db } = require('../config');
-const { Users, Roles } = require('../models');
+const { Users, Roles, Sessions, UserPermissions } = require('../models');
 const { logger } = require('../middlewares/activityLog');
 const { hashPassword } = require('../utils/password');
+const { deleteUpload } = require('../utils/upload');
 const {
   SUPER_ADMIN_ROLE_ID,
   DEFAULT_LIMIT,
@@ -886,6 +887,21 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
 
       transaction,
     });
+
+    // --------------------------------------------------------------
+    // DELETE USER AVATAR FILE IF EXISTS AND NOT DEFAULT
+    // --------------------------------------------------------------
+
+    if (user.avatar) {
+      const avatarFilename = user.avatar.split('/').pop();
+      if (avatarFilename && avatarFilename !== 'default.svg') {
+        try {
+          await deleteUpload(avatarFilename, 'uploads/profile');
+        } catch (err) {
+          logger.warn(`Failed to delete user avatar: ${avatarFilename}`, err);
+        }
+      }
+    }
 
     // --------------------------------------------------------------
     // DELETE USER

@@ -1,7 +1,7 @@
-const tenantService = require("../services/tenant.service");
-const tenantUploadService = require("../services/tenantUpload.service");
-const { asyncHandler } = require("../utils/controllerWrapper");
-const { success } = require("../utils/response");
+const tenantService = require('../services/tenant.service');
+const tenantUploadService = require('../services/tenantUpload.service');
+const { asyncHandler } = require('../utils/controllerWrapper');
+const { success } = require('../utils/response');
 
 // ==========================================
 // FETCH ALL TENANTS WITH PAGINATION
@@ -19,7 +19,7 @@ exports.getAllTenants = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Fetch tenants successful",
+    result.message || 'Fetch tenants successful',
     result.status || 200,
     result.meta,
   );
@@ -45,7 +45,7 @@ exports.getSpecificTenant = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Fetch tenant successful",
+    result.message || 'Fetch tenant successful',
     result.status || 200,
   );
 });
@@ -62,7 +62,7 @@ exports.createTenant = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Tenant created successfully",
+    result.message || 'Tenant created successfully',
     result.status || 201,
   );
 });
@@ -92,7 +92,7 @@ exports.updateTenant = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Tenant updated successfully",
+    result.message || 'Tenant updated successfully',
     result.status || 200,
   );
 });
@@ -102,7 +102,7 @@ exports.updateTenant = asyncHandler(async (req, res) => {
 // ==========================================
 
 exports.deleteTenant = asyncHandler(async (req, res) => {
-  const { tenantId } = req.params || req.body;
+  const { tenantId } = req.query || req.body;
   const deletedBy = req.user?.id;
 
   const result = await tenantService.deleteTenant(tenantId, deletedBy);
@@ -126,7 +126,7 @@ exports.deleteTenant = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Tenant deleted successfully",
+    result.message || 'Tenant deleted successfully',
     result.status || 200,
   );
 });
@@ -151,7 +151,7 @@ exports.getTenantSettings = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Fetch tenant settings successful",
+    result.message || 'Fetch tenant settings successful',
     result.status || 200,
   );
 });
@@ -182,7 +182,7 @@ exports.updateTenantSettings = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Tenant settings updated successfully",
+    result.message || 'Tenant settings updated successfully',
     result.status || 200,
   );
 });
@@ -207,7 +207,7 @@ exports.getTenantUserCount = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Fetch tenant user count successful",
+    result.message || 'Fetch tenant user count successful',
     result.status || 200,
   );
 });
@@ -224,7 +224,7 @@ exports.uploadTenantLogo = asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       status: 400,
-      message: "No file uploaded",
+      message: 'No file uploaded',
     });
   }
 
@@ -237,7 +237,7 @@ exports.uploadTenantLogo = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Tenant logo uploaded successfully",
+    result.message || 'Tenant logo uploaded successfully',
     result.status || 200,
   );
 });
@@ -258,7 +258,7 @@ exports.removeTenantLogo = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || "Tenant logo removed successfully",
+    result.message || 'Tenant logo removed successfully',
     result.status || 200,
   );
 });
