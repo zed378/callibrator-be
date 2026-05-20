@@ -9,9 +9,9 @@ const Joi = require('joi');
 
 exports.createTenantSchema = Joi.object({
   name: Joi.string().trim().min(2).max(100).required(),
-  code: Joi.string().trim().lowercase().alphanum().min(2).max(50).required(),
+  code: Joi.string().trim().min(2).max(50).required(),
   description: Joi.string().trim().allow(null, ''),
-  logo: Joi.string().uri().allow(null, ''),
+  logo: Joi.string().allow(null, ''),
   status: Joi.string()
     .valid('ACTIVE', 'INACTIVE', 'SUSPENDED', 'active', 'inactive', 'suspended')
     .default('ACTIVE')
@@ -32,9 +32,9 @@ exports.createTenantSchema = Joi.object({
 
 exports.updateTenantSchema = Joi.object({
   name: Joi.string().trim().min(2).max(100),
-  code: Joi.string().trim().lowercase().alphanum().min(2).max(50),
+  code: Joi.string().trim().min(2).max(50),
   description: Joi.string().trim().allow(null, ''),
-  logo: Joi.string().uri().allow(null, ''),
+  logo: Joi.string().allow(null, ''),
   status: Joi.string()
     .valid('ACTIVE', 'INACTIVE', 'SUSPENDED', 'active', 'inactive', 'suspended')
     .insensitive()

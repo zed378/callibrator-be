@@ -51,20 +51,47 @@ exports.getSpecificTenant = asyncHandler(async (req, res) => {
 });
 
 // ==========================================
-// CREATE TENANT
+// CREATE TENANT (supports form-data with optional file upload)
 // ==========================================
 
-exports.createTenant = asyncHandler(async (req, res) => {
-  const createdBy = req.user?.id;
+exports.createTenant = asyncHandler(async (req, res, next) => {
+  try {
+    const createdBy = req.user?.id;
+    const uploadedFilename = req.file ? req.uploadFilename : null;
 
-  const result = await tenantService.createTenant(req.body, createdBy);
+    // Build input data from form-data or JSON body
+    const inputData = { ...req.body };
 
-  success(
-    res,
-    result.data,
-    result.message || 'Tenant created successfully',
-    result.status || 201,
-  );
+    // If a file was uploaded, add the filename to the input
+    if (uploadedFilename) {
+      inputData.logo = uploadedFilename;
+    }
+
+    const result = await tenantService.createTenant(inputData, createdBy);
+
+    success(
+      res,
+      result.data,
+      result.message || 'Tenant created successfully',
+      result.status || 201,
+    );
+  } catch (err) {
+    // Delete uploaded file if creation failed
+    if (req.file) {
+      try {
+        await require('../utils/upload').deleteUpload(
+          req.uploadFilename,
+          'uploads/tenant',
+        );
+      } catch (deleteErr) {
+        require('../middlewares/activityLog').logger.warn(
+          `Failed to delete uploaded file after failure: ${req.uploadFilename}`,
+          deleteErr,
+        );
+      }
+    }
+    next(err);
+  }
 });
 
 // ==========================================
@@ -72,15 +99,21 @@ exports.createTenant = asyncHandler(async (req, res) => {
 // ==========================================
 
 exports.updateTenant = asyncHandler(async (req, res) => {
-  const { tenantId } = req.params || req.body;
+  const tenantId = req.params.tenantId || req.body.tenantId;
   const updatedBy = req.user?.id;
+  const uploadedFilename = req.file ? req.uploadFilename : null;
+
+  // Debug logging
+  console.log('Update tenant request - tenantId:', tenantId);
+  console.log('Update tenant request - req.body:', req.body);
+  console.log('Update tenant request - req.params:', req.params);
 
   // Build input data from form-data or JSON body
   const inputData = { ...req.body };
 
   // If a file was uploaded, add the filename to the input
-  if (req.file) {
-    inputData.logo = req.uploadFilename;
+  if (uploadedFilename) {
+    inputData.logo = uploadedFilename;
   }
 
   const result = await tenantService.updateTenant(

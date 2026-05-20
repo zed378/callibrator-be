@@ -1,4 +1,4 @@
-const { logger } = require("./activityLog");
+const { logger } = require('./activityLog');
 
 /**
  * Global Error Handler Middleware
@@ -6,8 +6,8 @@ const { logger } = require("./activityLog");
  */
 exports.errorHandler = (err, req, res, next) => {
   const statusCode = err.status || 500;
-  const message = err.message || "Internal server error";
-  const requestId = req.requestId || "unknown";
+  const message = err.message || 'Internal server error';
+  const requestId = req.requestId || 'unknown';
 
   // Structured logging with Winston
   logger.error(message, {
@@ -27,8 +27,13 @@ exports.errorHandler = (err, req, res, next) => {
     requestId,
   };
 
+  // Include validation errors if present
+  if (err.errors) {
+    response.errors = err.errors;
+  }
+
   // Include stack trace only in development
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== 'production') {
     response.stack = err.stack;
   }
 

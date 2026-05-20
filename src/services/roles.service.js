@@ -41,14 +41,20 @@ exports.getAllRoles = async ({
     ],
   });
 
+  // Get active and inactive counts
+  const activeCount = await Roles.count({ where: { isActive: true } });
+  const inactiveCount = await Roles.count({ where: { isActive: false } });
+
   return {
     success: true,
     status: 200,
     message: 'Fetch roles successful',
     data: {
       rows,
+      count,
+      activeCount,
+      inactiveCount,
       meta: {
-        total: count,
         page: Number(page),
         limit: Number(limit),
         totalPages: Math.ceil(count / limit),

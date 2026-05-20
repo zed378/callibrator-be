@@ -206,14 +206,14 @@ router.post(
 );
 
 /* ------------------------------------------------------------------ */
-/* CREATE TENANT                                                      */
+/* CREATE TENANT (supports form-data with optional file upload)       */
 /* ------------------------------------------------------------------ */
 /**
  * @swagger
  * /api/v1/tenants/create:
  *   post:
  *     summary: Create a new tenant
- *     description: Requires create access to Tenant model with tenant scope. Uses dynamic RBAC/ABAC.
+ *     description: Requires create access to Tenant model with tenant scope. Uses dynamic RBAC/ABAC. Supports multipart/form-data for file upload.
  *     tags:
  *       - Tenants
  *     security:
@@ -221,7 +221,7 @@ router.post(
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             required:
@@ -237,9 +237,10 @@ router.post(
  *               description:
  *                 type: string
  *                 example: "Acme Corporation - Global Enterprise"
- *               logo:
+ *               file:
  *                 type: string
- *                 example: "acme-logo.png"
+ *                 format: binary
+ *                 description: Optional logo file (JPEG, PNG, GIF, WebP, SVG). Use field name "file" for the upload.
  *               maxUsers:
  *                 type: integer
  *                 example: 50
@@ -299,6 +300,18 @@ router.post(
   '/create',
   auth,
   dynamicAccess('Tenant', 'create', { checkTenant: true }),
+  upload({
+    folder: 'uploads/tenant',
+    allowedMimes: [
+      'image/jpeg',
+      'image/png',
+      'image/gif',
+      'image/webp',
+      'image/svg+xml',
+    ],
+    allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024,
+  }),
   tenantController.createTenant,
 );
 
@@ -337,10 +350,10 @@ router.post(
  *               description:
  *                 type: string
  *                 example: "Updated description"
- *               logo:
+ *               file:
  *                 type: string
  *                 format: binary
- *                 description: Optional logo file (JPEG, PNG, GIF, WebP, SVG)
+ *                 description: Optional logo file (JPEG, PNG, GIF, WebP, SVG). Use field name "file" for the upload.
  *               status:
  *                 type: string
  *                 enum: [ACTIVE, INACTIVE, SUSPENDED]
@@ -430,6 +443,7 @@ router.patch(
       'image/svg+xml',
     ],
     allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
+    maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024,
   }),
   tenantController.updateTenant,
 );
