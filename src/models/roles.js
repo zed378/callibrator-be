@@ -1,9 +1,9 @@
-const { Sequelize, DataTypes } = require("sequelize");
+const { Sequelize, DataTypes } = require('sequelize');
 
-const { db } = require("../config");
+const { db } = require('../config');
 
 const Roles = db.define(
-  "roles",
+  'roles',
   {
     id: {
       type: DataTypes.UUID,
@@ -29,6 +29,8 @@ const Roles = db.define(
     isActive: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
+      comment:
+        'Role active status - inactive roles cannot be assigned to users',
     },
 
     roleLevel: {
@@ -36,7 +38,7 @@ const Roles = db.define(
       allowNull: false,
       defaultValue: 1,
       comment:
-        "Role hierarchy level: 1 = USER, 2 = TENANT_ADMIN, 3 = SUPER_ADMIN",
+        'Role hierarchy level: 1 = USER, 2 = TENANT_ADMIN, 3 = SUPER_ADMIN',
     },
   },
   {
@@ -52,15 +54,15 @@ const Roles = db.define(
 
 Roles.associate = (models) => {
   Roles.hasMany(models.Users, {
-    foreignKey: "roleId",
-    as: "users",
+    foreignKey: 'roleId',
+    as: 'users',
   });
 
   Roles.belongsToMany(models.Permissions, {
     through: models.UserPermissions,
-    foreignKey: "userId", // This is actually roleId in a different context
-    otherKey: "permissionId",
-    as: "permissions",
+    foreignKey: 'userId', // This is actually roleId in a different context
+    otherKey: 'permissionId',
+    as: 'permissions',
   });
 };
 
@@ -72,7 +74,7 @@ Roles.getRolePermissions = async (roleId, models) => {
     include: [
       {
         model: models.Permissions,
-        as: "permissions",
+        as: 'permissions',
         through: { attributes: [] },
       },
     ],

@@ -173,7 +173,7 @@ const DEFAULT_ROLES = [
     description: 'Super Admin - Has full access to all resources',
     nameToShow: 'Super Admin',
     isActive: true,
-    roleLevel: 3,
+    roleLevel: 10,
   },
   {
     id: ROLE_IDS.TENANT_ADMIN,

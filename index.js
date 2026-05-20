@@ -100,8 +100,6 @@ const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
   : [];
 
-console.log('Allowed CORS origins:', allowedOrigins);
-
 app.use(
   cors({
     origin: (origin, callback) => {

@@ -31,6 +31,14 @@ exports.getAllRoles = async ({
       ['roleLevel', 'ASC'],
       ['createdAt', 'DESC'],
     ],
+    attributes: [
+      'id',
+      'name',
+      'description',
+      'nameToShow',
+      'isActive',
+      'roleLevel',
+    ],
   });
 
   return {
@@ -88,7 +96,7 @@ exports.getRoleByName = async (name) => {
 // ==========================================
 
 exports.createRole = async (payload) => {
-  const { name } = payload;
+  const { name, isActive } = payload;
 
   // Check if role already exists
   const existing = await Roles.findOne({ where: { name } });
@@ -96,7 +104,13 @@ exports.createRole = async (payload) => {
     throw { status: 409, message: 'Role already exists' };
   }
 
-  const role = await Roles.create(payload);
+  // Default isActive to true if not provided
+  const roleData = {
+    ...payload,
+    isActive: isActive !== undefined ? isActive : true,
+  };
+
+  const role = await Roles.create(roleData);
   return {
     success: true,
     status: 201,
@@ -123,7 +137,13 @@ exports.updateRole = async ({ id, data }) => {
     }
   }
 
-  await role.update(data);
+  // Default isActive to true if not provided
+  const updateData = {
+    ...data,
+    isActive: data.isActive !== undefined ? data.isActive : role.isActive,
+  };
+
+  await role.update(updateData);
   return {
     success: true,
     status: 200,

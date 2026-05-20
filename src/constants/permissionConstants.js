@@ -67,6 +67,19 @@ const TENANT_PERMISSIONS = {
 };
 
 /**
+ * Role Module Permissions
+ * Permissions related to role management operations
+ */
+const ROLE_MODULE_PERMISSIONS = {
+  // Global permissions (module:action)
+  CREATE: 'role:create',
+  READ: 'role:read',
+  UPDATE: 'role:update',
+  DELETE: 'role:delete',
+  ASSIGN_PERMISSIONS: 'role:assign:permissions',
+};
+
+/**
  * Permission categories by role (DEPRECATED)
  * Kept for backward compatibility with legacy permission assignment
  * @deprecated Use dynamic table permissions instead
@@ -96,5 +109,6 @@ const ROLE_PERMISSION_CATEGORIES = {
 module.exports = {
   USER_PERMISSIONS,
   TENANT_PERMISSIONS,
+  ROLE_MODULE_PERMISSIONS,
   ROLE_PERMISSION_CATEGORIES,
 };

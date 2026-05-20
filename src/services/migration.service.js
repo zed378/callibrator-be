@@ -20,12 +20,14 @@ const {
   Models,
   TablePermission,
   RolePermission,
+  LoginLogs,
 } = require('../models');
 const {
   ROLE_NAMES,
   ROLE_IDS,
   USER_PERMISSIONS,
   TENANT_PERMISSIONS,
+  ROLE_MODULE_PERMISSIONS,
   PASSWORD_SALT_ROUNDS,
 } = require('../constants');
 const {
@@ -283,7 +285,7 @@ const DEFAULT_ROLES = [
     description: 'Super Admin - Has full access to all resources',
     nameToShow: 'Super Admin',
     isActive: true,
-    roleLevel: 3,
+    roleLevel: 10,
     permissionIds: [], // Super admin gets all permissions implicitly
   },
   {
@@ -325,6 +327,12 @@ const ROLE_PERMISSION_ASSIGNMENTS = {
     TENANT_PERMISSIONS.TENANT_ASSIGN,
     TENANT_PERMISSIONS.SELF_UPDATE,
     TENANT_PERMISSIONS.SELF_READ,
+    // Role module permissions
+    ROLE_MODULE_PERMISSIONS.CREATE,
+    ROLE_MODULE_PERMISSIONS.READ,
+    ROLE_MODULE_PERMISSIONS.UPDATE,
+    ROLE_MODULE_PERMISSIONS.DELETE,
+    ROLE_MODULE_PERMISSIONS.ASSIGN_PERMISSIONS,
   ],
   [ROLE_IDS.USER]: [USER_PERMISSIONS.SELF_UPDATE, USER_PERMISSIONS.SELF_READ],
 };
@@ -512,6 +520,60 @@ async function seedPermissions() {
 
     // Seed tenant module permissions
     for (const perm of TENANT_MODULE_PERMISSIONS) {
+      try {
+        const permInstance = await Permissions.findOne({
+          where: { name: perm.name },
+        });
+
+        if (permInstance) {
+          result.permissionsSkipped++;
+          continue;
+        }
+
+        await Permissions.create(perm);
+        result.permissionsCreated++;
+      } catch (error) {
+        result.errors.push(
+          `Error seeding permission ${perm.name}: ${error.message}`,
+        );
+      }
+    }
+
+    // Seed role module permissions
+    const roleModulePermissions = [
+      {
+        name: ROLE_MODULE_PERMISSIONS.CREATE,
+        module: 'role',
+        action: 'create',
+        description: 'Create new roles',
+      },
+      {
+        name: ROLE_MODULE_PERMISSIONS.READ,
+        module: 'role',
+        action: 'read',
+        description: 'View roles',
+      },
+      {
+        name: ROLE_MODULE_PERMISSIONS.UPDATE,
+        module: 'role',
+        action: 'update',
+        description: 'Update existing roles',
+      },
+      {
+        name: ROLE_MODULE_PERMISSIONS.DELETE,
+        module: 'role',
+        action: 'delete',
+        description: 'Delete roles',
+      },
+      {
+        name: ROLE_MODULE_PERMISSIONS.ASSIGN_PERMISSIONS,
+        module: 'role',
+        action: 'assign:permissions',
+        description: 'Assign permissions to roles',
+      },
+    ];
+
+    for (const perm of roleModulePermissions) {
       try {
         const permInstance = await Permissions.findOne({
           where: { name: perm.name },
@@ -911,10 +973,36 @@ async function unseedRoles(roleIds) {
 async function unseedUsers(emails) {
   const result = {
     usersDeleted: 0,
+    loginLogsDeleted: 0,
     errors: [],
   };
 
   try {
+    // First, get user IDs for the emails
+    const users = await Users.findAll({
+      attributes: ['id'],
+      where: {
+        email: {
+          [Op.in]: emails,
+        },
+      },
+    });
+
+    const userIds = users.map((u) => u.id);
+
+    // Delete login logs for these users (foreign key constraint)
+    if (userIds.length > 0) {
+      const loginLogsDeleted = await LoginLogs.destroy({
+        where: {
+          userId: {
+            [Op.in]: userIds,
+          },
+        },
+      });
+      result.loginLogsDeleted = loginLogsDeleted;
+    }
+
+    // Then delete the users
     const deletedCount = await Users.destroy({
       where: {
         email: {

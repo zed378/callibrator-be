@@ -22,6 +22,7 @@ const {
 const {
   USER_PERMISSIONS,
   TENANT_PERMISSIONS,
+  ROLE_MODULE_PERMISSIONS,
   ROLE_PERMISSION_CATEGORIES,
 } = require('./permissionConstants');
 
@@ -55,6 +56,7 @@ module.exports = {
   // Permission constants (DEPRECATED)
   USER_PERMISSIONS,
   TENANT_PERMISSIONS,
+  ROLE_MODULE_PERMISSIONS,
   ROLE_PERMISSION_CATEGORIES,
 
   // Application constants

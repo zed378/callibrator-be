@@ -41,12 +41,12 @@ const ROLE_IDS = {
 
 /**
  * Role hierarchy levels
- * - 3: SUPER_ADMIN - Has full access to all resources
+ * - 10: SUPER_ADMIN - Has full access to all resources
  * - 2: TENANT_ADMIN - Can manage users within their tenant
  * - 1: USER - Can only manage their own profile
  */
 const ROLE_LEVELS = {
-  SUPER_ADMIN: 3,
+  SUPER_ADMIN: 10,
   TENANT_ADMIN: 2,
   USER: 1,
 };

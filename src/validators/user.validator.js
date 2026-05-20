@@ -1,7 +1,7 @@
 /**
  * User validation schemas
  */
-const Joi = require("joi");
+const Joi = require('joi');
 
 // ==========================================
 // COMMON FIELDS
@@ -28,10 +28,10 @@ const username = Joi.string()
 // ==========================================
 
 exports.createUserSchema = Joi.object({
-  tenantId: Joi.string().uuid().allow(null, ""),
+  tenantId: Joi.string().uuid().allow(null, ''),
   username,
   firstName: Joi.string().trim().min(2).max(100).required(),
-  lastName: Joi.string().trim().min(2).max(100).allow(null, ""),
+  lastName: Joi.string().trim().min(2).max(100).allow(null, ''),
   email,
   password: Joi.string()
     .min(8)
@@ -39,11 +39,14 @@ exports.createUserSchema = Joi.object({
     .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/)
     .required()
     .messages({
-      "string.pattern.base":
-        "Password must contain uppercase, lowercase, and number",
+      'string.pattern.base':
+        'Password must contain uppercase, lowercase, and number',
     }),
   roleId: Joi.string().uuid().required(),
-  createdBy: Joi.string().uuid().allow(null, ""),
+  status: Joi.string()
+    .valid('ACTIVE', 'INACTIVE', 'SUSPENDED')
+    .default('ACTIVE'),
+  createdBy: Joi.string().uuid().allow(null, ''),
 });
 
 // ==========================================
@@ -51,28 +54,33 @@ exports.createUserSchema = Joi.object({
 // ==========================================
 
 exports.updateUserSchema = Joi.object({
-  tenantId: Joi.string().uuid().allow(null, ""),
+  userId: Joi.string().uuid().required(),
+  tenantId: Joi.string().uuid().allow(null, ''),
   username,
   firstName: Joi.string().trim().min(2).max(100),
-  lastName: Joi.string().trim().min(2).max(100).allow(null, ""),
+  lastName: Joi.string().trim().min(2).max(100).allow(null, ''),
   email,
   password: Joi.string()
     .min(8)
     .max(100)
     .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/)
     .messages({
-      "string.pattern.base":
-        "Password must contain uppercase, lowercase, and number",
+      'string.pattern.base':
+        'Password must contain uppercase, lowercase, and number',
     }),
   roleId: Joi.string().uuid(),
+  status: Joi.string().valid('ACTIVE', 'INACTIVE', 'SUSPENDED'),
+  isEmailVerified: Joi.boolean(),
+  isBanned: Joi.boolean(),
   newPassword: Joi.string()
     .min(8)
     .max(100)
     .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/)
     .messages({
-      "string.pattern.base":
-        "Password must contain uppercase, lowercase, and number",
+      'string.pattern.base':
+        'Password must contain uppercase, lowercase, and number',
     }),
+  updatedBy: Joi.string().uuid().allow(null, ''),
 });
 
 // ==========================================
@@ -117,7 +125,7 @@ exports.validate = (body, schema) => {
  */
 exports.formatErrors = (details) => {
   return details.map((item) => ({
-    field: item.path.join("."),
+    field: item.path.join('.'),
     message: item.message,
   }));
 };
