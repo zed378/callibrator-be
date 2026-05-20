@@ -183,7 +183,7 @@ async function createBackup({
   // Validate tenant exists
   const tenant = await Tenants.findByPk(tenantId);
   if (!tenant) {
-    throw new AppError("Tenant not found", 404);
+    throw new AppError(404, "Tenant not found");
   }
 
   // Create backup record
@@ -342,15 +342,15 @@ async function downloadBackup(backupId, models) {
   });
 
   if (!backup) {
-    throw new AppError("Backup not found", 404);
+    throw new AppError(404, "Backup not found");
   }
 
   if (backup.status !== TenantBackup.STATUS.COMPLETED) {
-    throw new AppError("Backup is not ready for download", 400);
+    throw new AppError(400, "Backup is not ready for download");
   }
 
   if (!backup.filePath || !fs.existsSync(backup.filePath)) {
-    throw new AppError("Backup file not found on storage", 404);
+    throw new AppError(404, "Backup file not found on storage");
   }
 
   return {
@@ -385,15 +385,15 @@ async function restoreBackup({
   });
 
   if (!backup) {
-    throw new AppError("Backup not found", 404);
+    throw new AppError(404, "Backup not found");
   }
 
   if (backup.status !== TenantBackup.STATUS.COMPLETED) {
-    throw new AppError("Backup is not ready for restore", 400);
+    throw new AppError(400, "Backup is not ready for restore");
   }
 
   if (!backup.filePath || !fs.existsSync(backup.filePath)) {
-    throw new AppError("Backup file not found on storage", 404);
+    throw new AppError(404, "Backup file not found on storage");
   }
 
   // Update backup status to restoring
@@ -611,7 +611,7 @@ async function deleteBackup(backupId, deletedById, models) {
   const backup = await TenantBackup.findByPk(backupId);
 
   if (!backup) {
-    throw new AppError("Backup not found", 404);
+    throw new AppError(404, "Backup not found");
   }
 
   // Update status to deleting

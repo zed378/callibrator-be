@@ -97,30 +97,40 @@ app.use(hpp());
 // ======================================================
 
 const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",")
+  ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
   : [];
+
+console.log("Allowed CORS origins:", allowedOrigins);
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow server-to-server / Postman requests
+      // Allow server-to-server / Postman requests (no origin header)
       if (!origin) {
         return callback(null, true);
       }
 
-      // Allow all if no CORS_ORIGIN specified
-      if (allowedOrigins.length === 0) {
+      // Allow all if no CORS_ORIGIN specified (development)
+      if (allowedOrigins.length === 0 || allowedOrigins.includes("*")) {
         return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin)) {
+      if (allowedOrigins.includes(origin.trim())) {
         return callback(null, true);
       }
+
+      // Log the mismatch for debugging
+      console.warn(
+        `CORS error: "${origin}" not in allowed origins:`,
+        allowedOrigins,
+      );
 
       return callback(new Error("Not allowed by CORS"));
     },
 
     credentials: true,
+    exposedHeaders: ["X-Request-Id"],
+    optionsSuccessStatus: 200,
   }),
 );
 

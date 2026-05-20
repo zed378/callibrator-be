@@ -37,15 +37,24 @@ const createSession = async ({
 // FIND SESSION
 // ==========================================
 
-const findSession = async ({ token, userId }) => {
+const findSession = async ({ token, userId, sessionId }) => {
   const tokenHash = hashToken(token);
 
+  const where = {
+    isRevoked: false,
+  };
+
+  // Prioritize session ID from x-session header
+  if (sessionId) {
+    where.id = sessionId;
+  } else {
+    // Fallback to token-based lookup
+    where.tokenHash = tokenHash;
+    where.userId = userId;
+  }
+
   return Sessions.findOne({
-    where: {
-      tokenHash,
-      userId,
-      isRevoked: false,
-    },
+    where,
   });
 };
 

@@ -647,7 +647,7 @@ exports.verifyUserSession = async (userId, sessionId) => {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
-        usernname: user.username,
+        username: user.username,
       },
     };
   } catch (error) {

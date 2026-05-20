@@ -18,7 +18,7 @@ exports.updateTenantLogo = async (tenantId, filename, updatedBy) => {
     const tenant = await Tenants.findByPk(tenantId);
 
     if (!tenant) {
-      throw new AppError("Tenant not found", 404);
+      throw new AppError(404, "Tenant not found");
     }
 
     // Delete old logo if exists
@@ -45,7 +45,7 @@ exports.updateTenantLogo = async (tenantId, filename, updatedBy) => {
   } catch (error) {
     if (error instanceof AppError) throw error;
     logger.error("Error updating tenant logo", { error: error.message });
-    throw new AppError("Failed to update tenant logo", 500);
+    throw new AppError(500, "Failed to update tenant logo");
   }
 };
 
@@ -59,7 +59,7 @@ exports.removeTenantLogo = async (tenantId, updatedBy) => {
     const tenant = await Tenants.findByPk(tenantId);
 
     if (!tenant) {
-      throw new AppError("Tenant not found", 404);
+      throw new AppError(404, "Tenant not found");
     }
 
     // Delete logo file if exists
@@ -83,6 +83,6 @@ exports.removeTenantLogo = async (tenantId, updatedBy) => {
   } catch (error) {
     if (error instanceof AppError) throw error;
     logger.error("Error removing tenant logo", { error: error.message });
-    throw new AppError("Failed to remove tenant logo", 500);
+    throw new AppError(500, "Failed to remove tenant logo");
   }
 };

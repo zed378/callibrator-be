@@ -1,6 +1,6 @@
 const { verifyAccessToken } = require("../utils/jwt");
 const { findSession } = require("../utils/session");
-const { Users, Sessions, Roles, Tenants } = require("../models");
+const { Users, Roles, Tenants } = require("../models");
 const { unauthorized, forbidden } = require("../utils/response");
 const { ROLE_NAMES } = require("../utils/constants");
 
@@ -71,10 +71,20 @@ exports.auth = async (req, res, next) => {
     }
 
     // ==========================================
+    // EXTRACT SESSION ID FROM X-SESSION HEADER
+    // ==========================================
+
+    const xSessionHeader = req.headers["X-Session"];
+
+    // ==========================================
     // VALIDATE SESSION
     // ==========================================
 
-    const session = await findSession({ token, userId: user.id });
+    const session = await findSession({
+      token,
+      userId: user.id,
+      sessionId: xSessionHeader || null,
+    });
 
     if (!session) {
       return unauthorized(res, "Session not found");
@@ -95,6 +105,11 @@ exports.auth = async (req, res, next) => {
     req.user = user;
     req.session = session.id;
     req.token = token;
+
+    // Attach session ID from x-session header for tracking
+    if (xSessionHeader) {
+      req.sessionHeader = xSessionHeader;
+    }
 
     // Attach tenant context from user
     if (user.tenantId) {

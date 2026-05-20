@@ -18,7 +18,7 @@ exports.updateUserAvatar = async (userId, filename, updatedBy) => {
     const user = await Users.findByPk(userId);
 
     if (!user) {
-      throw new AppError("User not found", 404);
+      throw new AppError(404, "User not found");
     }
 
     // Delete old avatar if exists
@@ -45,7 +45,7 @@ exports.updateUserAvatar = async (userId, filename, updatedBy) => {
   } catch (error) {
     if (error instanceof AppError) throw error;
     logger.error("Error updating user avatar", { error: error.message });
-    throw new AppError("Failed to update user avatar", 500);
+    throw new AppError(500, "Failed to update user avatar");
   }
 };
 
@@ -59,7 +59,7 @@ exports.removeUserAvatar = async (userId, updatedBy) => {
     const user = await Users.findByPk(userId);
 
     if (!user) {
-      throw new AppError("User not found", 404);
+      throw new AppError(404, "User not found");
     }
 
     // Delete avatar file if exists
@@ -83,6 +83,6 @@ exports.removeUserAvatar = async (userId, updatedBy) => {
   } catch (error) {
     if (error instanceof AppError) throw error;
     logger.error("Error removing user avatar", { error: error.message });
-    throw new AppError("Failed to remove user avatar", 500);
+    throw new AppError(500, "Failed to remove user avatar");
   }
 };

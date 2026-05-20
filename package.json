@@ -14,7 +14,8 @@
       "src/templates/**/*",
       "node_modules/swagger-ui-dist/**/*",
       "uploads/**/*",
-      "swagger.json"
+      "swagger.json",
+      "docs"
     ],
     "scripts": [
       "src/**/*.js"
