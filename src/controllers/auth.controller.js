@@ -1,7 +1,7 @@
 // auth.controller.js
 const authService = require("../services/auth.service");
 const { asyncHandlerWithMapping } = require("../utils/controllerWrapper");
-const { success, badRequest, error } = require("../utils/response");
+const { success, badRequest, error, login } = require("../utils/response");
 const { recordFailedAttempt } = require("../services/rateLimiter.service");
 
 // ==========================================
@@ -17,6 +17,7 @@ exports.register = asyncHandlerWithMapping(
 
     success(
       res,
+      null,
       null,
       "Registration successful. Please check your email for activation.",
       201,
@@ -41,7 +42,7 @@ exports.activation = asyncHandlerWithMapping(
 
     await authService.activateAccount(token);
 
-    success(res, null, "Account activated successfully", 200);
+    success(res, null, null, "Account activated successfully", 200);
   },
   {
     "not found": 404,
@@ -60,16 +61,7 @@ exports.login = asyncHandlerWithMapping(
       userAgent: req.headers["user-agent"],
     }); // service creates its own tx
 
-    success(
-      res,
-      {
-        token: result.token,
-        session: result.session.id,
-        data: result.data,
-      },
-      "Login successful",
-      200,
-    );
+    login(res, result.data, result.token, result.session);
   },
   {
     credentials: 401,
@@ -87,7 +79,7 @@ exports.sendOTP = asyncHandlerWithMapping(
   async (req, res) => {
     await authService.requestOTP(req.body); // service creates its own tx
 
-    success(res, null, "If the account exists, OTP has been sent", 200);
+    success(res, null, null, "If the account exists, OTP has been sent", 200);
   },
   {
     wait: 429,
@@ -102,7 +94,7 @@ exports.sendOTP = asyncHandlerWithMapping(
 exports.resetPassword = asyncHandlerWithMapping(async (req, res) => {
   await authService.processResetPassword(req.body); // service creates its own tx
 
-  success(res, null, "Password reset successful", 200);
+  success(res, null, null, "Password reset successful", 200);
 }, {});
 
 // ==========================================
@@ -111,7 +103,7 @@ exports.resetPassword = asyncHandlerWithMapping(async (req, res) => {
 
 exports.logout = asyncHandlerWithMapping(async (req, res) => {
   await authService.logoutSession(req.body.sessionId);
-  success(res, null, "Logout successful", 200);
+  success(res, null, null, "Logout successful", 200);
 }, {});
 
 // ==========================================
@@ -120,7 +112,7 @@ exports.logout = asyncHandlerWithMapping(async (req, res) => {
 
 exports.logoutAll = asyncHandlerWithMapping(async (req, res) => {
   await authService.logoutAllUserSessions(req.user.id);
-  success(res, null, "All sessions revoked successfully", 200);
+  success(res, null, null, "All sessions revoked successfully", 200);
 }, {});
 
 // ==========================================
@@ -134,7 +126,7 @@ exports.verify = asyncHandlerWithMapping(
       req.session,
     );
 
-    success(res, userData, "Token valid", 200);
+    success(res, userData, null, "Token valid", 200);
   },
   {
     banned: 403,
@@ -149,7 +141,7 @@ exports.justUpdatePassword = asyncHandlerWithMapping(async (req, res) => {
   const { id: userId } = req.user;
   const { newPassword } = req.body;
   const result = await authService.justUpdatePassword(userId, newPassword);
-  success(res, result.data, result.message, result.status);
+  success(res, result.data, null, result.message, result.status);
 }, {});
 
 // ==========================================
@@ -160,5 +152,5 @@ exports.passIsValid = asyncHandlerWithMapping(async (req, res) => {
   const { id: userId } = req.user;
   const { password } = req.body;
   const result = await authService.passIsValid(userId, password);
-  success(res, result.data, result.message, result.status);
+  success(res, result.data, null, result.message, result.status);
 }, {});

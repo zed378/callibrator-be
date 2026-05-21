@@ -1,25 +1,18 @@
-const { Up, Down } = require('../config/migrate');
-const migrationService = require('../services/migration.service');
+const { Up, Down } = require("../config/migrate");
+const migrationService = require("../services/migration.service");
+const { success } = require("../utils/response");
 
 // ==========================================
 // MIGRATE
 // ==========================================
 
-exports.migrate = async (req, res) => {
+exports.migrate = async (req, res, next) => {
   try {
     await Up();
 
-    res.status(200).send({
-      success: true,
-      status: 200,
-      message: 'Database table migrate success',
-    });
+    success(res, null, null, "Database table migrate success", 200);
   } catch (error) {
-    res.status(400).send({
-      success: false,
-      status: 400,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -27,21 +20,13 @@ exports.migrate = async (req, res) => {
 // DROP TABLE
 // ==========================================
 
-exports.dropTable = async (req, res) => {
+exports.dropTable = async (req, res, next) => {
   try {
     await Down();
 
-    res.status(200).send({
-      success: true,
-      status: 200,
-      message: 'Database table drop successfully',
-    });
+    success(res, null, null, "Database table drop successfully", 200);
   } catch (error) {
-    res.status(400).send({
-      success: false,
-      status: 400,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -49,22 +34,13 @@ exports.dropTable = async (req, res) => {
 // SEEDING
 // ==========================================
 
-exports.seeding = async (req, res) => {
+exports.seeding = async (req, res, next) => {
   try {
     const result = await migrationService.seedAll();
 
-    return res.status(200).send({
-      success: true,
-      status: 200,
-      message: 'Seeding success',
-      data: result,
-    });
+    success(res, result, null, "Seeding success", 200);
   } catch (error) {
-    return res.status(400).send({
-      success: false,
-      status: 400,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -72,21 +48,12 @@ exports.seeding = async (req, res) => {
 // UNSEEDING
 // ==========================================
 
-exports.unseeding = async (req, res) => {
+exports.unseeding = async (req, res, next) => {
   try {
     const result = await migrationService.unseedAll();
 
-    return res.status(200).send({
-      success: true,
-      status: 200,
-      message: 'Unseeding success',
-      data: result,
-    });
+    success(res, result, null, "Unseeding success", 200);
   } catch (error) {
-    return res.status(400).send({
-      success: false,
-      status: 400,
-      message: error.message,
-    });
+    next(error);
   }
 };

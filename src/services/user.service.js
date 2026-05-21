@@ -1,19 +1,19 @@
 // src/services/userService.js
-const { Op, Sequelize } = require('sequelize');
-const { db } = require('../config');
-const { Users, Roles, Sessions, UserPermissions } = require('../models');
-const { logger } = require('../middlewares/activityLog');
-const { hashPassword } = require('../utils/password');
-const { deleteUpload } = require('../utils/upload');
+const { Op, Sequelize } = require("sequelize");
+const { db } = require("../config");
+const { Users, Roles, Sessions, UserPermissions } = require("../models");
+const { logger } = require("../middlewares/activityLog");
+const { hashPassword } = require("../utils/password");
+const { deleteUpload } = require("../utils/upload");
 const {
   SUPER_ADMIN_ROLE_ID,
   DEFAULT_LIMIT,
   MAX_LIMIT,
-} = require('../utils/constants');
+} = require("../utils/constants");
 const {
   validate: validateInput,
   formatErrors,
-} = require('../validators/user.validator');
+} = require("../validators/user.validator");
 
 // ==========================================
 // VALIDATION HELPERS
@@ -30,7 +30,7 @@ const validate = (data, schema) => {
   if (error) {
     throw {
       status: 400,
-      message: 'Validation failed',
+      message: "Validation failed",
       errors: formatErrors(error.details),
     };
   }
@@ -46,18 +46,18 @@ const validate = (data, schema) => {
 // ------------------------------------------------------------------
 const safeUserAttributes = {
   exclude: [
-    'updatedAt',
-    'otpCode',
-    'otpExpiredAt',
-    'otpRequestCount',
-    'password',
-    'otpLastRequestedAt',
-    'lastLoginIp',
-    'failedLoginAttempts',
-    'lockedUntil',
-    'passwordChangedAt',
-    'status',
-    'roleId',
+    "updatedAt",
+    "otpCode",
+    "otpExpiredAt",
+    "otpRequestCount",
+    "password",
+    "otpLastRequestedAt",
+    "lastLoginIp",
+    "failedLoginAttempts",
+    "lockedUntil",
+    "passwordChangedAt",
+    "status",
+    "roleId",
   ],
 };
 
@@ -78,13 +78,13 @@ exports.fetchUsers = async ({
     // 1️⃣ Resolve role → roleId (if needed)
     // ----------------------------------------------------------------
     let roleId = null;
-    if (role && typeof role === 'object' && role.id) {
+    if (role && typeof role === "object" && role.id) {
       roleId = role.id;
-    } else if (typeof role === 'string') {
+    } else if (typeof role === "string") {
       // Assume the caller passed a role name; look it up once (could be cached)
       const roleRecord = await Roles.findOne({
         where: { name: role },
-        attributes: ['id'],
+        attributes: ["id"],
       });
       roleId = roleRecord ? roleRecord.id : null;
     }
@@ -103,7 +103,7 @@ exports.fetchUsers = async ({
     }
 
     // Free-text search (case-insensitive - MySQL compatible)
-    if (find && typeof find === 'string' && find.trim() !== '') {
+    if (find && typeof find === "string" && find.trim() !== "") {
       const searchTerm = `%${find.toLowerCase()}%`;
       whereClause[Op.or] = [
         { username: { [Op.like]: searchTerm } },
@@ -135,32 +135,27 @@ exports.fetchUsers = async ({
     const data = await Users.findAndCountAll({
       attributes: safeUserAttributes,
       where: whereClause,
-      order: [['firstName', 'ASC']],
+      order: [["firstName", "ASC"]],
       limit: safeLimit,
       offset: offset,
       include: [
         {
           model: Roles,
-          as: 'role',
-          attributes: ['id', 'name', 'description', 'nameToShow', 'isActive'],
+          as: "role",
+          attributes: ["id", "name", "description", "nameToShow", "isActive"],
         },
       ],
       transaction, // <-- Uncomment if you opened a transaction above
     });
 
     // ----------------------------------------------------------------
-    // 6️⃣ Commit transaction (if used)
+    // 6️⃣ Shape response
     // ----------------------------------------------------------------
-    if (transaction) await transaction.commit();
-
-    // ----------------------------------------------------------------
-    // 7️⃣ Shape response
-    // ----------------------------------------------------------------
-    const pictureBaseUrl = `${process.env.HOST_URL || ''}/uploads/profile/`;
+    const pictureBaseUrl = `${process.env.HOST_URL || ""}/uploads/profile/`;
     const rowsWithPicture = data.rows.map((user) => {
       const plain = user.get(); // sequelize instance → plain object
       // Adjust the field name if your picture column is named differently
-      const picture = plain.picture || '';
+      const picture = plain.picture || "";
       return {
         ...plain,
         pictureUrl: pictureBaseUrl + picture, // <-- convenient for the client
@@ -169,14 +164,62 @@ exports.fetchUsers = async ({
       };
     });
 
+    const totalPages = Math.ceil(data.count / safeLimit);
+
+    // ----------------------------------------------------------------
+    // 7️⃣ Commit transaction (if used) - commit BEFORE status count to avoid transaction abort issues
+    // ----------------------------------------------------------------
+    if (transaction) await transaction.commit();
+
+    // Count users by status (run outside transaction to avoid "transaction aborted" errors)
+    const statusCounts = {
+      ACTIVE: 0,
+      INACTIVE: 0,
+      LOCKED: 0,
+      SUSPENDED: 0,
+    };
+
+    try {
+      // Count each status separately using simple queries
+      const statusValues = ["ACTIVE", "INACTIVE", "SUSPENDED"];
+
+      // Get all users with their status (no transaction needed for this simple query)
+      const usersWithStatus = await Users.findAll({
+        attributes: ["status"],
+        paranoid: false,
+      });
+
+      usersWithStatus.forEach((user) => {
+        const status = user.status;
+        if (statusCounts.hasOwnProperty(status)) {
+          statusCounts[status]++;
+        }
+      });
+    } catch (statusErr) {
+      // Log but don't fail the request if status count fails
+      logger.error("Failed to fetch user status counts", {
+        error: statusErr.message,
+        stack: statusErr.stack,
+      });
+    }
+
     return {
       success: true,
       status: 200,
-      message: 'Fetch users successful',
+      message: "Fetch users successful",
       data: {
         count: data.count,
         rows: rowsWithPicture,
         pictureBaseUrl,
+      },
+      meta: {
+        total: data.count,
+        statusCounts,
+        page: Number(page) || 1,
+        limit: safeLimit,
+        totalPages,
+        hasNextPage: (Number(page) || 1) < totalPages,
+        hasPrevPage: (Number(page) || 1) > 1,
       },
     };
   } catch (err) {
@@ -185,7 +228,7 @@ exports.fetchUsers = async ({
     // ----------------------------------------------------------------
     if (transaction) await transaction.rollback();
 
-    logger.error('Error fetching users', {
+    logger.error("Error fetching users", {
       err: err.message,
       stack: err.stack,
       tenantId,
@@ -197,7 +240,7 @@ exports.fetchUsers = async ({
     // Re‑throw a shaped error (you could also use a custom AppError class)
     throw {
       status: err.status || 500,
-      message: err.message || 'Internal server error',
+      message: err.message || "Internal server error",
     };
   }
 };
@@ -213,8 +256,8 @@ exports.fetchSpecificUser = async (userId) => {
       include: [
         {
           model: Roles,
-          as: 'role',
-          attributes: ['id', 'name', 'description', 'nameToShow', 'isActive'],
+          as: "role",
+          attributes: ["id", "name", "description", "nameToShow", "isActive"],
         },
       ],
     });
@@ -222,25 +265,25 @@ exports.fetchSpecificUser = async (userId) => {
     if (!user) {
       throw {
         status: 404,
-        message: 'User not found',
+        message: "User not found",
       };
     }
 
     const plain = user.get();
 
-    const pictureBaseUrl = `${process.env.HOST_URL || ''}/uploads/profile/`;
+    const pictureBaseUrl = `${process.env.HOST_URL || ""}/uploads/profile/`;
 
     return {
       success: true,
       status: 200,
-      message: 'Fetch user successful',
+      message: "Fetch user successful",
       data: {
         ...plain,
-        pictureUrl: pictureBaseUrl + (plain.picture || ''),
+        pictureUrl: pictureBaseUrl + (plain.picture || ""),
       },
     };
   } catch (err) {
-    logger.error('Error fetching specific user', {
+    logger.error("Error fetching specific user", {
       err: err.message,
       stack: err.stack,
       userId,
@@ -248,7 +291,7 @@ exports.fetchSpecificUser = async (userId) => {
 
     throw {
       status: err.status || 500,
-      message: err.message || 'Internal server error',
+      message: err.message || "Internal server error",
     };
   }
 };
@@ -270,15 +313,15 @@ exports.checkUsernameAvailability = async (input) => {
         },
       },
 
-      attributes: ['id', 'username'],
+      attributes: ["id", "username"],
     });
 
     return {
       success: true,
       status: 200,
       message: existingUser
-        ? 'Username is already taken'
-        : 'Username is available',
+        ? "Username is already taken"
+        : "Username is available",
 
       data: {
         username: normalizedUsername,
@@ -286,7 +329,7 @@ exports.checkUsernameAvailability = async (input) => {
       },
     };
   } catch (err) {
-    logger.error('Error checking username availability', {
+    logger.error("Error checking username availability", {
       err: err.message,
       stack: err.stack,
       username,
@@ -294,7 +337,7 @@ exports.checkUsernameAvailability = async (input) => {
 
     throw {
       status: err.status || 500,
-      message: err.message || 'Internal server error',
+      message: err.message || "Internal server error",
     };
   }
 };
@@ -323,8 +366,8 @@ exports.userRoleUpdate = async (input) => {
       include: [
         {
           model: Roles,
-          as: 'role',
-          attributes: ['id', 'name'],
+          as: "role",
+          attributes: ["id", "name"],
         },
       ],
 
@@ -334,7 +377,7 @@ exports.userRoleUpdate = async (input) => {
     if (!user) {
       throw {
         status: 404,
-        message: 'User not found',
+        message: "User not found",
       };
     }
 
@@ -349,7 +392,7 @@ exports.userRoleUpdate = async (input) => {
     if (!role) {
       throw {
         status: 404,
-        message: 'Role not found',
+        message: "Role not found",
       };
     }
 
@@ -357,7 +400,7 @@ exports.userRoleUpdate = async (input) => {
     if (!role.isActive) {
       throw {
         status: 400,
-        message: 'Cannot assign inactive role to user',
+        message: "Cannot assign inactive role to user",
       };
     }
 
@@ -368,7 +411,7 @@ exports.userRoleUpdate = async (input) => {
     if (user.roleId === role.id) {
       throw {
         status: 400,
-        message: 'User already has this role',
+        message: "User already has this role",
       };
     }
 
@@ -391,7 +434,7 @@ exports.userRoleUpdate = async (input) => {
 
     await transaction.commit();
 
-    logger.info('User role updated', {
+    logger.info("User role updated", {
       userId: user.id,
       oldRoleId: user.roleId,
       newRoleId: role.id,
@@ -405,7 +448,7 @@ exports.userRoleUpdate = async (input) => {
     return {
       success: true,
       status: 200,
-      message: 'User role updated successfully',
+      message: "User role updated successfully",
 
       data: {
         userId: user.id,
@@ -422,7 +465,7 @@ exports.userRoleUpdate = async (input) => {
       await transaction.rollback();
     }
 
-    logger.error('Error updating user role', {
+    logger.error("Error updating user role", {
       err: err.message,
       stack: err.stack,
       userId,
@@ -432,7 +475,7 @@ exports.userRoleUpdate = async (input) => {
 
     throw {
       status: err.status || 500,
-      message: err.message || 'Internal server error',
+      message: err.message || "Internal server error",
     };
   }
 };
@@ -481,7 +524,7 @@ exports.userCreate = async (input) => {
     if (existingUsername) {
       throw {
         status: 409,
-        message: 'Username already used',
+        message: "Username already used",
       };
     }
 
@@ -502,7 +545,7 @@ exports.userCreate = async (input) => {
     if (existingEmail) {
       throw {
         status: 409,
-        message: 'Email already registered',
+        message: "Email already registered",
       };
     }
 
@@ -517,14 +560,14 @@ exports.userCreate = async (input) => {
     if (!role) {
       throw {
         status: 404,
-        message: 'Role not found',
+        message: "Role not found",
       };
     }
 
     if (!role.isActive) {
       throw {
         status: 400,
-        message: 'Cannot assign inactive role to user',
+        message: "Cannot assign inactive role to user",
       };
     }
 
@@ -547,7 +590,7 @@ exports.userCreate = async (input) => {
         email: email.trim().toLowerCase(),
         password: hashedPassword,
         roleId,
-        status: status || 'ACTIVE',
+        status: status || "ACTIVE",
         isEmailVerified: true,
       },
       {
@@ -573,7 +616,7 @@ exports.userCreate = async (input) => {
       });
     }
 
-    logger.info('User created', {
+    logger.info("User created", {
       userId: user.id,
       username: user.username,
       email: user.email,
@@ -589,7 +632,7 @@ exports.userCreate = async (input) => {
     return {
       success: true,
       status: 201,
-      message: 'User created successfully',
+      message: "User created successfully",
 
       data: {
         id: user.id,
@@ -613,7 +656,7 @@ exports.userCreate = async (input) => {
       await transaction.rollback();
     }
 
-    logger.error('Error creating user', {
+    logger.error("Error creating user", {
       err: err.message,
       stack: err.stack,
       username,
@@ -624,7 +667,7 @@ exports.userCreate = async (input) => {
 
     throw {
       status: err.status || 500,
-      message: err.message || 'Internal server error',
+      message: err.message || "Internal server error",
     };
   }
 };
@@ -668,7 +711,7 @@ exports.editUser = async (input) => {
     if (!user) {
       throw {
         status: 404,
-        message: 'User not found',
+        message: "User not found",
       };
     }
 
@@ -694,7 +737,7 @@ exports.editUser = async (input) => {
       if (existingUsername) {
         throw {
           status: 409,
-          message: 'Username already used',
+          message: "Username already used",
         };
       }
     }
@@ -721,7 +764,7 @@ exports.editUser = async (input) => {
       if (existingEmail) {
         throw {
           status: 409,
-          message: 'Email already registered',
+          message: "Email already registered",
         };
       }
     }
@@ -755,7 +798,7 @@ exports.editUser = async (input) => {
 
     await transaction.commit();
 
-    logger.info('User updated', {
+    logger.info("User updated", {
       userId: user.id,
       updatedBy,
     });
@@ -767,7 +810,7 @@ exports.editUser = async (input) => {
     return {
       success: true,
       status: 200,
-      message: 'User updated successfully',
+      message: "User updated successfully",
 
       data: {
         id: user.id,
@@ -792,7 +835,7 @@ exports.editUser = async (input) => {
       await transaction.rollback();
     }
 
-    logger.error('Error updating user', {
+    logger.error("Error updating user", {
       err: err.message,
       stack: err.stack,
       userId,
@@ -801,7 +844,7 @@ exports.editUser = async (input) => {
 
     throw {
       status: err.status || 500,
-      message: err.message || 'Internal server error',
+      message: err.message || "Internal server error",
     };
   }
 };
@@ -820,7 +863,7 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
     if (!userId) {
       throw {
         status: 400,
-        message: 'User ID is required',
+        message: "User ID is required",
       };
     }
 
@@ -838,8 +881,8 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
       include: [
         {
           model: Roles,
-          as: 'role',
-          attributes: ['id', 'name'],
+          as: "role",
+          attributes: ["id", "name"],
         },
       ],
 
@@ -849,7 +892,7 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
     if (!user) {
       throw {
         status: 404,
-        message: 'User not found',
+        message: "User not found",
       };
     }
 
@@ -860,7 +903,7 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
     if (deletedBy && deletedBy === user.id) {
       throw {
         status: 400,
-        message: 'You cannot delete your own account',
+        message: "You cannot delete your own account",
       };
     }
 
@@ -893,10 +936,10 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
     // --------------------------------------------------------------
 
     if (user.avatar) {
-      const avatarFilename = user.avatar.split('/').pop();
-      if (avatarFilename && avatarFilename !== 'default.svg') {
+      const avatarFilename = user.avatar.split("/").pop();
+      if (avatarFilename && avatarFilename !== "default.svg") {
         try {
-          await deleteUpload(avatarFilename, 'uploads/profile');
+          await deleteUpload(avatarFilename, "uploads/profile");
         } catch (err) {
           logger.warn(`Failed to delete user avatar: ${avatarFilename}`, err);
         }
@@ -917,7 +960,7 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
 
     await transaction.commit();
 
-    logger.info('User deleted', {
+    logger.info("User deleted", {
       userId: user.id,
       username: user.username,
       deletedBy,
@@ -930,7 +973,7 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
     return {
       success: true,
       status: 200,
-      message: 'User deleted successfully',
+      message: "User deleted successfully",
 
       data: {
         id: user.id,
@@ -947,7 +990,7 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
       await transaction.rollback();
     }
 
-    logger.error('Error deleting user', {
+    logger.error("Error deleting user", {
       err: err.message,
       stack: err.stack,
       userId,
@@ -956,7 +999,7 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
 
     throw {
       status: err.status || 500,
-      message: err.message || 'Internal server error',
+      message: err.message || "Internal server error",
     };
   }
 };

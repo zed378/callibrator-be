@@ -1,13 +1,14 @@
-const rolesService = require('../services/roles.service');
+const rolesService = require("../services/roles.service");
+const { success } = require("../utils/response");
 
 // ==========================================
 // GET ALL ROLES
 // GET /api/v1/roles?page=1&limit=20&search=xxx
 // ==========================================
 
-exports.getAllRoles = async (req, res) => {
+exports.getAllRoles = async (req, res, next) => {
   try {
-    const { page = 1, limit = 20, search = '' } = req.query;
+    const { page = 1, limit = 20, search = "" } = req.query;
 
     const result = await rolesService.getAllRoles({
       page,
@@ -15,12 +16,15 @@ exports.getAllRoles = async (req, res) => {
       search,
     });
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      result.meta,
+      result.message || "Roles fetched successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    return res.status(error.status || 500).json({
-      success: false,
-      message: error.message || 'Internal server error',
-    });
+    next(error);
   }
 };
 
@@ -29,18 +33,21 @@ exports.getAllRoles = async (req, res) => {
 // POST /api/v1/roles/detail
 // ==========================================
 
-exports.getRole = async (req, res) => {
+exports.getRole = async (req, res, next) => {
   try {
     const { roleId } = req.body;
 
     const result = await rolesService.getRoleById(roleId);
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Role fetched successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    return res.status(error.status || 400).json({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -49,16 +56,19 @@ exports.getRole = async (req, res) => {
 // POST /api/v1/roles
 // ==========================================
 
-exports.createRole = async (req, res) => {
+exports.createRole = async (req, res, next) => {
   try {
     const result = await rolesService.createRole(req.body);
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Role created successfully",
+      result.status || 201,
+    );
   } catch (error) {
-    return res.status(error.status || 400).json({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -67,7 +77,7 @@ exports.createRole = async (req, res) => {
 // PATCH /api/v1/roles
 // ==========================================
 
-exports.updateRole = async (req, res) => {
+exports.updateRole = async (req, res, next) => {
   try {
     const { id, ...data } = req.body;
 
@@ -76,12 +86,15 @@ exports.updateRole = async (req, res) => {
       data,
     });
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Role updated successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    return res.status(error.status || 400).json({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -90,18 +103,21 @@ exports.updateRole = async (req, res) => {
 // DELETE /api/v1/roles?id=xxx
 // ==========================================
 
-exports.deleteRole = async (req, res) => {
+exports.deleteRole = async (req, res, next) => {
   try {
     const { id } = req.query;
 
     const result = await rolesService.deleteRole(id);
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Role deleted successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    return res.status(error.status || 400).json({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -110,18 +126,21 @@ exports.deleteRole = async (req, res) => {
 // GET /api/v1/roles/:id/permissions
 // ==========================================
 
-exports.getRolePermissions = async (req, res) => {
+exports.getRolePermissions = async (req, res, next) => {
   try {
     const { id } = req.params;
 
     const result = await rolesService.getRolePermissions(id);
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Role permissions fetched successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    return res.status(error.status || 400).json({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -130,7 +149,7 @@ exports.getRolePermissions = async (req, res) => {
 // PUT /api/v1/roles/:id/permissions
 // ==========================================
 
-exports.assignPermissionsToRole = async (req, res) => {
+exports.assignPermissionsToRole = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { permissionIds } = req.body;
@@ -140,12 +159,15 @@ exports.assignPermissionsToRole = async (req, res) => {
       permissionIds,
     });
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Permissions assigned successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    return res.status(error.status || 400).json({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -154,18 +176,21 @@ exports.assignPermissionsToRole = async (req, res) => {
 // DELETE /api/v1/roles/:id/permissions
 // ==========================================
 
-exports.revokeAllPermissionsFromRole = async (req, res) => {
+exports.revokeAllPermissionsFromRole = async (req, res, next) => {
   try {
     const { id } = req.params;
 
     const result = await rolesService.revokeAllPermissionsFromRole(id);
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "All permissions revoked successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    return res.status(error.status || 400).json({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -174,18 +199,21 @@ exports.revokeAllPermissionsFromRole = async (req, res) => {
 // GET /api/v1/roles/:id/users
 // ==========================================
 
-exports.getRoleUsers = async (req, res) => {
+exports.getRoleUsers = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { page = 1, limit = 20 } = req.query;
 
     const result = await rolesService.getRoleUsers(id, { page, limit });
 
-    return res.status(result.status).json(result);
+    success(
+      res,
+      result.data,
+      result.meta,
+      result.message || "Role users fetched successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    return res.status(error.status || 400).json({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };

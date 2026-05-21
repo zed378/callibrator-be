@@ -22,7 +22,8 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
 
   success(
     res,
-    result.data,
+    result.data.rows || result.data,
+    result.meta,
     result.message || "Fetch users successful",
     result.status || 200,
   );
@@ -39,6 +40,7 @@ exports.getSpecificUser = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
+    null,
     result.message || "Fetch user successful",
     result.status || 200,
   );
@@ -54,6 +56,7 @@ exports.checkUsernameAvailability = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
+    null,
     result.message || "Username availability checked",
     200,
   );
@@ -69,7 +72,7 @@ exports.updateUserRole = asyncHandler(async (req, res) => {
     updatedBy: req.user.id,
   });
 
-  success(res, result.data, result.message || "User role updated", 200);
+  success(res, result.data, null, result.message || "User role updated", 200);
 });
 
 // ==========================================
@@ -85,6 +88,7 @@ exports.createUser = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
+    null,
     result.message || "User created successfully",
     result.status || 201,
   );
@@ -103,6 +107,7 @@ exports.editUser = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
+    null,
     result.message || "User updated successfully",
     result.status || 200,
   );
@@ -119,7 +124,13 @@ exports.deleteUser = asyncHandler(async (req, res) => {
 
   const result = await userService.deleteUser(userId, deletedBy);
 
-  success(res, result.data, result.message || "User deleted successfully", 200);
+  success(
+    res,
+    result.data,
+    null,
+    result.message || "User deleted successfully",
+    200,
+  );
 });
 
 // ==========================================
@@ -135,6 +146,7 @@ exports.uploadUserAvatar = asyncHandler(async (req, res) => {
       success: false,
       status: 400,
       message: "No file uploaded",
+      data: null,
     });
   }
 
@@ -147,6 +159,7 @@ exports.uploadUserAvatar = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
+    null,
     result.message || "User avatar uploaded successfully",
     result.status || 200,
   );
@@ -165,6 +178,7 @@ exports.removeUserAvatar = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
+    null,
     result.message || "User avatar removed successfully",
     result.status || 200,
   );

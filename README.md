@@ -23,6 +23,57 @@ A production-ready Express.js boilerplate with PostgreSQL/MySQL support, JWT aut
 - **Feature Flags**: Per-tenant feature management
 - **Tenant Backup & Restore**: Create, download, and restore tenant data backups
 
+## API Response Format
+
+All API responses follow a standardized format:
+
+### Success Response
+
+```json
+{
+  "success": true,
+  "status": 200,
+  "message": "Operation successful",
+  "data": { ... },
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 5,
+    "customCounts": { ... }
+  },
+  "token": "jwt_token",
+  "session": {
+    "id": "session_uuid",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "expiresAt": "2024-01-08T00:00:00Z"
+  }
+}
+```
+
+### Response Fields
+
+| Field     | Type    | Description                              |
+| --------- | ------- | ---------------------------------------- |
+| `success` | boolean | `true` for success, `false` for error    |
+| `status`  | integer | HTTP status code                         |
+| `message` | string  | Human-readable message                   |
+| `data`    | any     | The requested data (null for errors)     |
+| `meta`    | object  | Pagination and count metadata (optional) |
+| `token`   | string  | JWT token (only for login responses)     |
+| `session` | object  | Session data (only for login responses)  |
+
+### Error Response
+
+```json
+{
+  "success": false,
+  "status": 404,
+  "message": "Resource not found",
+  "data": null
+}
+```
+
 ## Endpoints
 
 ### Documentation

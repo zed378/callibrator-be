@@ -35,3 +35,7 @@ data/
 log/
 plans/
 backup/
+
+# Uploads (except default files)
+uploads/
+!uploads/**/default.*

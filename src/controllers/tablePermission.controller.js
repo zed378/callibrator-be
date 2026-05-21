@@ -1,4 +1,5 @@
 const tablePermissionService = require("../services/tablePermission.service");
+const { success } = require("../utils/response");
 
 // ==========================================
 // MODELS MANAGEMENT
@@ -8,7 +9,7 @@ const tablePermissionService = require("../services/tablePermission.service");
  * Get all models
  * GET /api/v1/table-permissions/models?page=1&limit=20&search=xxx
  */
-exports.getAllModels = async (req, res) => {
+exports.getAllModels = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search = "" } = req.query;
 
@@ -18,17 +19,15 @@ exports.getAllModels = async (req, res) => {
       search,
     });
 
-    return res.status(200).json({
-      success: true,
-      message: "Models fetched successfully",
-      ...result,
-    });
+    success(
+      res,
+      result.data,
+      result.meta,
+      result.message || "Models fetched successfully",
+      result.status || 200,
+    );
   } catch (error) {
-    console.error("getAllModels Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal Server Error",
-    });
+    next(error);
   }
 };
 
@@ -36,7 +35,7 @@ exports.getAllModels = async (req, res) => {
  * Get model by ID
  * POST /api/v1/table-permissions/models/detail
  */
-exports.getModelDetail = async (req, res) => {
+exports.getModelDetail = async (req, res, next) => {
   try {
     const { id } = req.body;
 
@@ -45,21 +44,15 @@ exports.getModelDetail = async (req, res) => {
     if (!model) {
       return res.status(404).json({
         success: false,
+        status: 404,
         message: "Model not found",
+        data: null,
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Model fetched successfully",
-      data: model,
-    });
+    success(res, model, null, "Model fetched successfully", 200);
   } catch (error) {
-    console.error("getModelDetail Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal Server Error",
-    });
+    next(error);
   }
 };
 
@@ -67,21 +60,13 @@ exports.getModelDetail = async (req, res) => {
  * Create model
  * POST /api/v1/table-permissions/models
  */
-exports.createModel = async (req, res) => {
+exports.createModel = async (req, res, next) => {
   try {
     const model = await tablePermissionService.createModel(req.body);
 
-    return res.status(201).json({
-      success: true,
-      message: "Model created successfully",
-      data: model,
-    });
+    success(res, model, null, "Model created successfully", 201);
   } catch (error) {
-    console.error("createModel Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to create model",
-    });
+    next(error);
   }
 };
 
@@ -89,23 +74,15 @@ exports.createModel = async (req, res) => {
  * Update model
  * PATCH /api/v1/table-permissions/models
  */
-exports.updateModel = async (req, res) => {
+exports.updateModel = async (req, res, next) => {
   try {
     const { id, ...data } = req.body;
 
     const model = await tablePermissionService.updateModel({ id, data });
 
-    return res.status(200).json({
-      success: true,
-      message: "Model updated successfully",
-      data: model,
-    });
+    success(res, model, null, "Model updated successfully", 200);
   } catch (error) {
-    console.error("updateModel Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to update model",
-    });
+    next(error);
   }
 };
 
@@ -113,22 +90,15 @@ exports.updateModel = async (req, res) => {
  * Delete model
  * DELETE /api/v1/table-permissions/models?id=xxx
  */
-exports.deleteModel = async (req, res) => {
+exports.deleteModel = async (req, res, next) => {
   try {
     const { id } = req.query;
 
     await tablePermissionService.deleteModel(id);
 
-    return res.status(200).json({
-      success: true,
-      message: "Model deleted successfully",
-    });
+    success(res, null, null, "Model deleted successfully", 200);
   } catch (error) {
-    console.error("deleteModel Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to delete model",
-    });
+    next(error);
   }
 };
 
@@ -140,24 +110,22 @@ exports.deleteModel = async (req, res) => {
  * Get table permissions for a model
  * POST /api/v1/table-permissions/permissions/detail
  */
-exports.getTablePermissions = async (req, res) => {
+exports.getTablePermissions = async (req, res, next) => {
   try {
     const { modelId } = req.body;
 
     const permissions =
       await tablePermissionService.getTablePermissions(modelId);
 
-    return res.status(200).json({
-      success: true,
-      message: "Table permissions fetched successfully",
-      data: permissions,
-    });
+    success(
+      res,
+      permissions,
+      null,
+      "Table permissions fetched successfully",
+      200,
+    );
   } catch (error) {
-    console.error("getTablePermissions Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal Server Error",
-    });
+    next(error);
   }
 };
 
@@ -165,7 +133,7 @@ exports.getTablePermissions = async (req, res) => {
  * Create or update table permissions for a model
  * POST /api/v1/table-permissions/permissions/upsert
  */
-exports.upsertTablePermissions = async (req, res) => {
+exports.upsertTablePermissions = async (req, res, next) => {
   try {
     const { modelId, permissions } = req.body;
 
@@ -174,17 +142,9 @@ exports.upsertTablePermissions = async (req, res) => {
       permissions,
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Table permissions updated successfully",
-      data: result,
-    });
+    success(res, result, null, "Table permissions updated successfully", 200);
   } catch (error) {
-    console.error("upsertTablePermissions Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to update table permissions",
-    });
+    next(error);
   }
 };
 
@@ -192,7 +152,7 @@ exports.upsertTablePermissions = async (req, res) => {
  * Update a specific table permission
  * PATCH /api/v1/table-permissions/permissions
  */
-exports.updateTablePermission = async (req, res) => {
+exports.updateTablePermission = async (req, res, next) => {
   try {
     const { id, ...data } = req.body;
 
@@ -201,17 +161,15 @@ exports.updateTablePermission = async (req, res) => {
       data,
     });
 
-    return res.status(200).json({
-      success: true,
-      message: "Table permission updated successfully",
-      data: permission,
-    });
+    success(
+      res,
+      permission,
+      null,
+      "Table permission updated successfully",
+      200,
+    );
   } catch (error) {
-    console.error("updateTablePermission Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to update table permission",
-    });
+    next(error);
   }
 };
 
@@ -219,22 +177,15 @@ exports.updateTablePermission = async (req, res) => {
  * Delete a table permission
  * DELETE /api/v1/table-permissions/permissions?id=xxx
  */
-exports.deleteTablePermission = async (req, res) => {
+exports.deleteTablePermission = async (req, res, next) => {
   try {
     const { id } = req.query;
 
     await tablePermissionService.deleteTablePermission(id);
 
-    return res.status(200).json({
-      success: true,
-      message: "Table permission deleted successfully",
-    });
+    success(res, null, null, "Table permission deleted successfully", 200);
   } catch (error) {
-    console.error("deleteTablePermission Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to delete table permission",
-    });
+    next(error);
   }
 };
 
@@ -246,7 +197,7 @@ exports.deleteTablePermission = async (req, res) => {
  * Grant permission to a role
  * POST /api/v1/table-permissions/role-permissions/grant
  */
-exports.grantRolePermission = async (req, res) => {
+exports.grantRolePermission = async (req, res, next) => {
   try {
     const { roleId, tablePermissionId, expiresAt, description } = req.body;
 
@@ -256,17 +207,9 @@ exports.grantRolePermission = async (req, res) => {
       { expiresAt, description },
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Permission granted to role successfully",
-      data: result,
-    });
+    success(res, result, null, "Permission granted to role successfully", 200);
   } catch (error) {
-    console.error("grantRolePermission Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to grant permission",
-    });
+    next(error);
   }
 };
 
@@ -274,7 +217,7 @@ exports.grantRolePermission = async (req, res) => {
  * Revoke permission from a role
  * POST /api/v1/table-permissions/role-permissions/revoke
  */
-exports.revokeRolePermission = async (req, res) => {
+exports.revokeRolePermission = async (req, res, next) => {
   try {
     const { roleId, tablePermissionId } = req.body;
 
@@ -283,17 +226,15 @@ exports.revokeRolePermission = async (req, res) => {
       tablePermissionId,
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Permission revoked from role successfully",
-      data: { revoked: result },
-    });
+    success(
+      res,
+      { revoked: result },
+      null,
+      "Permission revoked from role successfully",
+      200,
+    );
   } catch (error) {
-    console.error("revokeRolePermission Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to revoke permission",
-    });
+    next(error);
   }
 };
 
@@ -301,23 +242,21 @@ exports.revokeRolePermission = async (req, res) => {
  * Get all granted permissions for a role
  * POST /api/v1/table-permissions/role-permissions
  */
-exports.getRolePermissions = async (req, res) => {
+exports.getRolePermissions = async (req, res, next) => {
   try {
     const { roleId } = req.body;
 
     const permissions = await tablePermissionService.getRolePermissions(roleId);
 
-    return res.status(200).json({
-      success: true,
-      message: "Role permissions fetched successfully",
-      data: permissions,
-    });
+    success(
+      res,
+      permissions,
+      null,
+      "Role permissions fetched successfully",
+      200,
+    );
   } catch (error) {
-    console.error("getRolePermissions Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal Server Error",
-    });
+    next(error);
   }
 };
 
@@ -325,7 +264,7 @@ exports.getRolePermissions = async (req, res) => {
  * Bulk assign permissions to a role
  * POST /api/v1/table-permissions/role-permissions/bulk-assign
  */
-exports.bulkAssignRolePermissions = async (req, res) => {
+exports.bulkAssignRolePermissions = async (req, res, next) => {
   try {
     const { roleId, tablePermissionIds, expiresAt, description } = req.body;
 
@@ -335,17 +274,15 @@ exports.bulkAssignRolePermissions = async (req, res) => {
       { expiresAt, description },
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Permissions assigned to role successfully",
-      data: result,
-    });
+    success(
+      res,
+      result,
+      null,
+      "Permissions assigned to role successfully",
+      200,
+    );
   } catch (error) {
-    console.error("bulkAssignRolePermissions Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to assign permissions",
-    });
+    next(error);
   }
 };
 
@@ -357,7 +294,7 @@ exports.bulkAssignRolePermissions = async (req, res) => {
  * Grant permission to a tenant role
  * POST /api/v1/table-permissions/tenant-role-permissions/grant
  */
-exports.grantTenantRolePermission = async (req, res) => {
+exports.grantTenantRolePermission = async (req, res, next) => {
   try {
     const {
       tenantRoleId,
@@ -373,17 +310,15 @@ exports.grantTenantRolePermission = async (req, res) => {
       { expiresAt, abacRules, description },
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Permission granted to tenant role successfully",
-      data: result,
-    });
+    success(
+      res,
+      result,
+      null,
+      "Permission granted to tenant role successfully",
+      200,
+    );
   } catch (error) {
-    console.error("grantTenantRolePermission Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to grant permission",
-    });
+    next(error);
   }
 };
 
@@ -391,7 +326,7 @@ exports.grantTenantRolePermission = async (req, res) => {
  * Revoke permission from a tenant role
  * POST /api/v1/table-permissions/tenant-role-permissions/revoke
  */
-exports.revokeTenantRolePermission = async (req, res) => {
+exports.revokeTenantRolePermission = async (req, res, next) => {
   try {
     const { tenantRoleId, tablePermissionId } = req.body;
 
@@ -400,17 +335,15 @@ exports.revokeTenantRolePermission = async (req, res) => {
       tablePermissionId,
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Permission revoked from tenant role successfully",
-      data: { revoked: result },
-    });
+    success(
+      res,
+      { revoked: result },
+      null,
+      "Permission revoked from tenant role successfully",
+      200,
+    );
   } catch (error) {
-    console.error("revokeTenantRolePermission Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to revoke permission",
-    });
+    next(error);
   }
 };
 
@@ -418,24 +351,22 @@ exports.revokeTenantRolePermission = async (req, res) => {
  * Get all granted permissions for a tenant role
  * POST /api/v1/table-permissions/tenant-role-permissions
  */
-exports.getTenantRolePermissions = async (req, res) => {
+exports.getTenantRolePermissions = async (req, res, next) => {
   try {
     const { tenantRoleId } = req.body;
 
     const permissions =
       await tablePermissionService.getTenantRolePermissions(tenantRoleId);
 
-    return res.status(200).json({
-      success: true,
-      message: "Tenant role permissions fetched successfully",
-      data: permissions,
-    });
+    success(
+      res,
+      permissions,
+      null,
+      "Tenant role permissions fetched successfully",
+      200,
+    );
   } catch (error) {
-    console.error("getTenantRolePermissions Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal Server Error",
-    });
+    next(error);
   }
 };
 
@@ -443,7 +374,7 @@ exports.getTenantRolePermissions = async (req, res) => {
  * Update ABAC rules for a tenant role permission
  * PATCH /api/v1/table-permissions/tenant-role-permissions/abac-rules
  */
-exports.updateTenantRoleAbacRules = async (req, res) => {
+exports.updateTenantRoleAbacRules = async (req, res, next) => {
   try {
     const { tenantRoleId, tablePermissionId, abacRules } = req.body;
 
@@ -453,17 +384,9 @@ exports.updateTenantRoleAbacRules = async (req, res) => {
       abacRules,
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "ABAC rules updated successfully",
-      data: result,
-    });
+    success(res, result, null, "ABAC rules updated successfully", 200);
   } catch (error) {
-    console.error("updateTenantRoleAbacRules Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to update ABAC rules",
-    });
+    next(error);
   }
 };
 
@@ -471,7 +394,7 @@ exports.updateTenantRoleAbacRules = async (req, res) => {
  * Bulk assign permissions to a tenant role
  * POST /api/v1/table-permissions/tenant-role-permissions/bulk-assign
  */
-exports.bulkAssignTenantRolePermissions = async (req, res) => {
+exports.bulkAssignTenantRolePermissions = async (req, res, next) => {
   try {
     const {
       tenantRoleId,
@@ -487,17 +410,15 @@ exports.bulkAssignTenantRolePermissions = async (req, res) => {
       { expiresAt, abacRules, description },
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Permissions assigned to tenant role successfully",
-      data: result,
-    });
+    success(
+      res,
+      result,
+      null,
+      "Permissions assigned to tenant role successfully",
+      200,
+    );
   } catch (error) {
-    console.error("bulkAssignTenantRolePermissions Error:", error);
-    return res.status(400).json({
-      success: false,
-      message: error.message || "Failed to assign permissions",
-    });
+    next(error);
   }
 };
 
@@ -509,7 +430,7 @@ exports.bulkAssignTenantRolePermissions = async (req, res) => {
  * Check if user has permission for a model/action
  * POST /api/v1/table-permissions/check
  */
-exports.checkPermission = async (req, res) => {
+exports.checkPermission = async (req, res, next) => {
   try {
     const { modelName, action, userId, tenantId } = req.body;
 
@@ -520,21 +441,19 @@ exports.checkPermission = async (req, res) => {
       tenantId || req.user.tenantId,
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Permission check completed",
-      data: {
+    success(
+      res,
+      {
         allowed: result.allowed,
         permission: result.permission,
         abacRules: result.abacRules,
       },
-    });
+      null,
+      "Permission check completed",
+      200,
+    );
   } catch (error) {
-    console.error("checkPermission Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal Server Error",
-    });
+    next(error);
   }
 };
 
@@ -542,7 +461,7 @@ exports.checkPermission = async (req, res) => {
  * Get allowed attributes for a user on a model
  * POST /api/v1/table-permissions/allowed-attributes
  */
-exports.getAllowedAttributes = async (req, res) => {
+exports.getAllowedAttributes = async (req, res, next) => {
   try {
     const { modelName, action } = req.body;
 
@@ -553,16 +472,14 @@ exports.getAllowedAttributes = async (req, res) => {
       req.user.tenantId,
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Allowed attributes fetched successfully",
-      data: attributes || {},
-    });
+    success(
+      res,
+      attributes || {},
+      null,
+      "Allowed attributes fetched successfully",
+      200,
+    );
   } catch (error) {
-    console.error("getAllowedAttributes Error:", error);
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Internal Server Error",
-    });
+    next(error);
   }
 };

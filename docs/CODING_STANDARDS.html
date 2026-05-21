@@ -164,7 +164,7 @@
         <div class="page-header">
             <h1>Coding Standards & Guidelines</h1>
             <p class="subtitle">Comprehensive standards for the Boilerplate PG MySQL project</p>
-            <p class="generated">Generated on May 20, 2026</p>
+            <p class="generated">Generated on May 21, 2026</p>
         </div>
 
         <h1>Coding Standards &amp; Guidelines</h1>
@@ -194,7 +194,7 @@
 <li><a href="#22-unit-testing-standards">Unit Testing Standards</a></li>
 </ol>
 <hr>
-<a id="1-project-overview"></a><h2> 1. Project Overview</h2>
+<a id="1-project-overview"></a><h2> 1. Project Overview </h2>
 <h3>Technology Stack</h3>
 <table>
 <thead>
@@ -301,7 +301,7 @@
 └── index.js                      # Application entry point
 </code></pre>
 <hr>
-<a id="2-naming-conventions"></a><h2> 2. Naming Conventions</h2>
+<a id="2-naming-conventions"></a><h2> 2. Naming Conventions </h2>
 <h3>File Names</h3>
 <ul>
 <li><strong>Service files</strong>: <code>camelCase.service.js</code> (e.g., <code>auth.service.js</code>, <code>emailQueue.service.js</code>)</li>
@@ -371,11 +371,11 @@
 <li><strong>Backup actions</strong>: <code>tenant:backup:create</code>, <code>tenant:backup:restore</code></li>
 </ul>
 <hr>
-<a id="3-file-structure"></a><h2> 3. File Structure</h2>
+<a id="3-file-structure"></a><h2> 3. File Structure </h2>
 <h3>Service File Template</h3>
 <pre><code class="language-javascript">// service_name.service.js
-const { Model } = require('../models');
-const { helperFunction } = require('../utils/helper');
+const { Model } = require(&quot;../models&quot;);
+const { helperFunction } = require(&quot;../utils/helper&quot;);
 
 // ==========================================
 // VALIDATION HELPERS
@@ -404,7 +404,7 @@ exports.functionName = async (input) =&gt; {
     return {
       success: true,
       status: 200,
-      message: 'Operation successful',
+      message: &quot;Operation successful&quot;,
       data: result,
     };
   } catch (error) {
@@ -418,9 +418,9 @@ exports.functionName = async (input) =&gt; {
 </code></pre>
 <h3>Controller File Template</h3>
 <pre><code class="language-javascript">// controller_name.controller.js
-const service = require('../services/service_name.service');
-const { asyncHandlerWithMapping } = require('../utils/controllerWrapper');
-const { success, badRequest, error } = require('../utils/response');
+const service = require(&quot;../services/service_name.service&quot;);
+const { asyncHandlerWithMapping } = require(&quot;../utils/controllerWrapper&quot;);
+const { success, badRequest, error } = require(&quot;../utils/response&quot;);
 
 // ==========================================
 // FUNCTION NAME
@@ -433,17 +433,17 @@ exports.functionName = asyncHandlerWithMapping(
   },
   {
     // Error message patterns mapped to status codes
-    'not found': 404,
+    &quot;not found&quot;: 404,
     invalid: 400,
   },
 );
 </code></pre>
 <h3>Route File Template</h3>
 <pre><code class="language-javascript">// route_name.js
-const express = require('express');
+const express = require(&quot;express&quot;);
 const router = express.Router();
-const { controller } = require('../../controllers/controller_name');
-const { auth } = require('../../middlewares/auth');
+const { controller } = require(&quot;../../controllers/controller_name&quot;);
+const { auth } = require(&quot;../../middlewares/auth&quot;);
 
 // ==========================================
 // ENDPOINT
@@ -456,13 +456,13 @@ const { auth } = require('../../middlewares/auth');
  * @route /api/v1/resource/action
  * @access Private
  */
-router.post('/action', auth, controller.functionName);
+router.post(&quot;/action&quot;, auth, controller.functionName);
 
 module.exports = router;
 </code></pre>
 <h3>Validator File Template</h3>
 <pre><code class="language-javascript">// validator_name.validator.js
-const Joi = require('joi');
+const Joi = require(&quot;joi&quot;);
 
 // ==========================================
 // COMMON SCHEMAS
@@ -498,13 +498,13 @@ exports.validate = (body, schema) =&gt; {
 
 exports.formatErrors = (details) =&gt; {
   return details.map((item) =&gt; ({
-    field: item.path.join('.'),
+    field: item.path.join(&quot;.&quot;),
     message: item.message,
   }));
 };
 </code></pre>
 <hr>
-<a id="4-controller-standards"></a><h2> 4. Controller Standards</h2>
+<a id="4-controller-standards"></a><h2> 4. Controller Standards </h2>
 <h3>Import Order</h3>
 <ol>
 <li>Service imports</li>
@@ -514,10 +514,10 @@ exports.formatErrors = (details) =&gt; {
 </ol>
 <h3>Response Pattern</h3>
 <pre><code class="language-javascript">// Success response
-success(res, data, 'Message', statusCode);
+success(res, data, &quot;Message&quot;, statusCode);
 
 // Error thrown from service
-throw { status: 404, message: 'Resource not found' };
+throw { status: 404, message: &quot;Resource not found&quot; };
 </code></pre>
 <h3>Error Handling</h3>
 <ul>
@@ -538,15 +538,189 @@ throw { status: 404, message: 'Resource not found' };
 <li><code>req.headers[&quot;user-agent&quot;]</code> - User agent string</li>
 </ul>
 <h3>Response Format</h3>
+<p>All API responses MUST follow this standardized format:</p>
 <pre><code class="language-javascript">{
-  success: true,
-  status: 200,
-  message: &quot;Operation successful&quot;,
-  data: { ... }
+  success: true,                    // boolean - first field
+  status: 200,                      // integer - HTTP status code
+  message: &quot;Operation successful&quot;,  // string - descriptive message
+  data: { ... },                    // any - the actual requested data (null for errors)
+  meta: {                           // object - metadata with counts (optional)
+    total: 100,                     // integer - total count of items
+    page: 1,                        // integer - current page number
+    limit: 20,                      // integer - items per page
+    totalPages: 5,                  // integer - total number of pages
+    customCounts: {                 // object - optional custom counts
+      active: 50,
+      inactive: 50
+    }
+  },
+  token: &quot;jwt_token_here&quot;,          // string - only for login/auth responses
+  session: {                        // object - only for login/auth responses
+    id: &quot;uuid&quot;,
+    createdAt: &quot;2024-01-01T00:00:00Z&quot;,
+    expiresAt: &quot;2024-01-08T00:00:00Z&quot;
+  }
 }
 </code></pre>
+<h4>Response Field Descriptions</h4>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>success</code></td>
+<td>boolean</td>
+<td>Yes</td>
+<td><code>true</code> for success, <code>false</code> for error. Must be the first field.</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>integer</td>
+<td>Yes</td>
+<td>HTTP status code (200, 201, 400, 401, 403, 404, 429, 500)</td>
+</tr>
+<tr>
+<td><code>message</code></td>
+<td>string</td>
+<td>Yes</td>
+<td>Human-readable descriptive message</td>
+</tr>
+<tr>
+<td><code>data</code></td>
+<td>any/null</td>
+<td>Yes</td>
+<td>The actual requested data. <code>null</code> for error responses.</td>
+</tr>
+<tr>
+<td><code>meta</code></td>
+<td>object</td>
+<td>No</td>
+<td>Metadata with pagination and counts. Omitted if not applicable.</td>
+</tr>
+<tr>
+<td><code>meta.total</code></td>
+<td>integer</td>
+<td>No</td>
+<td>Total count of items (for paginated responses)</td>
+</tr>
+<tr>
+<td><code>meta.page</code></td>
+<td>integer</td>
+<td>No</td>
+<td>Current page number</td>
+</tr>
+<tr>
+<td><code>meta.limit</code></td>
+<td>integer</td>
+<td>No</td>
+<td>Items per page</td>
+</tr>
+<tr>
+<td><code>meta.totalPages</code></td>
+<td>integer</td>
+<td>No</td>
+<td>Total number of pages</td>
+</tr>
+<tr>
+<td><code>meta.customCounts</code></td>
+<td>object</td>
+<td>No</td>
+<td>Additional custom counts (e.g., active, inactive, pending)</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td>string</td>
+<td>No</td>
+<td>JWT access token (only for login/auth responses)</td>
+</tr>
+<tr>
+<td><code>session</code></td>
+<td>object</td>
+<td>No</td>
+<td>Session data (only for login/auth responses)</td>
+</tr>
+</tbody>
+</table>
+<h4>Success Response Examples</h4>
+<p><strong>Single Resource:</strong></p>
+<pre><code class="language-json">{
+  &quot;success&quot;: true,
+  &quot;status&quot;: 200,
+  &quot;message&quot;: &quot;Fetch user successful&quot;,
+  &quot;data&quot;: {
+    &quot;id&quot;: &quot;uuid&quot;,
+    &quot;username&quot;: &quot;johndoe&quot;,
+    &quot;email&quot;: &quot;john@example.com&quot;
+  }
+}
+</code></pre>
+<p><strong>Paginated List:</strong></p>
+<pre><code class="language-json">{
+  &quot;success&quot;: true,
+  &quot;status&quot;: 200,
+  &quot;message&quot;: &quot;Fetch users successful&quot;,
+  &quot;data&quot;: [
+    { &quot;id&quot;: &quot;uuid-1&quot;, &quot;username&quot;: &quot;user1&quot; },
+    { &quot;id&quot;: &quot;uuid-2&quot;, &quot;username&quot;: &quot;user2&quot; }
+  ],
+  &quot;meta&quot;: {
+    &quot;total&quot;: 100,
+    &quot;page&quot;: 1,
+    &quot;limit&quot;: 20,
+    &quot;totalPages&quot;: 5
+  }
+}
+</code></pre>
+<p><strong>Login Response:</strong></p>
+<pre><code class="language-json">{
+  &quot;success&quot;: true,
+  &quot;status&quot;: 200,
+  &quot;message&quot;: &quot;Login successful&quot;,
+  &quot;data&quot;: {
+    &quot;id&quot;: &quot;uuid&quot;,
+    &quot;username&quot;: &quot;johndoe&quot;,
+    &quot;email&quot;: &quot;john@example.com&quot;,
+    &quot;role&quot;: { &quot;id&quot;: &quot;uuid&quot;, &quot;name&quot;: &quot;admin&quot; }
+  },
+  &quot;token&quot;: &quot;eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...&quot;,
+  &quot;session&quot;: {
+    &quot;id&quot;: &quot;session-uuid&quot;,
+    &quot;createdAt&quot;: &quot;2024-01-01T00:00:00Z&quot;,
+    &quot;expiresAt&quot;: &quot;2024-01-08T00:00:00Z&quot;
+  }
+}
+</code></pre>
+<h4>Error Response Example</h4>
+<pre><code class="language-json">{
+  &quot;success&quot;: false,
+  &quot;status&quot;: 404,
+  &quot;message&quot;: &quot;Resource not found&quot;,
+  &quot;data&quot;: null
+}
+</code></pre>
+<h4>Using Response Helpers</h4>
+<pre><code class="language-javascript">const { success, error, login, paginated } = require(&quot;../utils/response&quot;);
+
+// Success response
+success(res, data, meta, &quot;Message&quot;, statusCode, authData);
+
+// Login response (includes token and session)
+login(res, data, token, session);
+
+// Paginated response
+paginated(res, rows, count, &quot;Message&quot;, statusCode, customCounts);
+
+// Error response
+error(res, &quot;Error message&quot;, statusCode, details);
+</code></pre>
 <hr>
-<a id="5-service-standards"></a><h2> 5. Service Standards</h2>
+<a id="5-service-standards"></a><h2> 5. Service Standards </h2>
 <h3>Transaction Pattern</h3>
 <pre><code class="language-javascript">let transaction;
 try {
@@ -556,7 +730,7 @@ try {
 
   await transaction.commit();
 
-  return { success: true, status: 200, message: '...' };
+  return { success: true, status: 200, message: &quot;...&quot; };
 } catch (error) {
   if (transaction) await transaction.rollback();
   throw { status: error.status || 500, message: error.message };
@@ -573,7 +747,7 @@ try {
 <h3>Error Format</h3>
 <pre><code class="language-javascript">throw {
   status: 400, // HTTP status code
-  message: 'Error description',
+  message: &quot;Error description&quot;,
 };
 </code></pre>
 <h3>Caching Pattern</h3>
@@ -593,7 +767,7 @@ await delPattern(`cache:resourceName:*`);
 <pre><code class="language-javascript">// Acquire lock
 const lockId = await acquireLock(`lock:key`, ttlMs);
 if (!lockId) {
-  throw { status: 429, message: 'Operation in progress' };
+  throw { status: 429, message: &quot;Operation in progress&quot; };
 }
 
 try {
@@ -614,13 +788,13 @@ try {
 queueEmail({
   email: user.email,
   firstName: user.firstName,
-  data: '...',
+  data: &quot;...&quot;,
 }).catch((err) =&gt; {
-  console.error('Failed to queue email:', err.message);
+  console.error(&quot;Failed to queue email:&quot;, err.message);
 });
 </code></pre>
 <hr>
-<a id="6-route-standards"></a><h2> 6. Route Standards</h2>
+<a id="6-route-standards"></a><h2> 6. Route Standards </h2>
 <h3>Route Definition</h3>
 <ul>
 <li>Use <code>express.Router()</code></li>
@@ -635,15 +809,15 @@ queueEmail({
 <li>Use resource identifiers: <code>/:userId/avatar</code></li>
 </ul>
 <h3>Route Structure</h3>
-<pre><code class="language-javascript">router.get('/all', auth, controller.getAll);
-router.post('/detail', auth, controller.getDetail);
-router.post('/create', auth, controller.create);
-router.patch('/edit', auth, controller.edit);
-router.delete('/delete', auth, controller.delete);
-router.post('/:id/action', auth, controller.action);
+<pre><code class="language-javascript">router.get(&quot;/all&quot;, auth, controller.getAll);
+router.post(&quot;/detail&quot;, auth, controller.getDetail);
+router.post(&quot;/create&quot;, auth, controller.create);
+router.patch(&quot;/edit&quot;, auth, controller.edit);
+router.delete(&quot;/delete&quot;, auth, controller.delete);
+router.post(&quot;/:id/action&quot;, auth, controller.action);
 </code></pre>
 <hr>
-<a id="7-validator-standards"></a><h2> 7. Validator Standards</h2>
+<a id="7-validator-standards"></a><h2> 7. Validator Standards </h2>
 <h3>Schema Organization</h3>
 <ol>
 <li>Common schemas (email, password, username, etc.)</li>
@@ -686,13 +860,13 @@ const username = Joi.string()
 
 exports.formatErrors = (details) =&gt; {
   return details.map((item) =&gt; ({
-    field: item.path.join('.'),
+    field: item.path.join(&quot;.&quot;),
     message: item.message,
   }));
 };
 </code></pre>
 <hr>
-<a id="8-utility-standards"></a><h2> 8. Utility Standards</h2>
+<a id="8-utility-standards"></a><h2> 8. Utility Standards </h2>
 <h3>File Organization</h3>
 <ul>
 <li>One utility per file</li>
@@ -717,7 +891,7 @@ module.exports = {
 <li><code>response.js</code> - <code>success</code>, <code>error</code>, <code>notFound</code>, <code>badRequest</code></li>
 </ul>
 <hr>
-<a id="9-middleware-standards"></a><h2> 9. Middleware Standards</h2>
+<a id="9-middleware-standards"></a><h2> 9. Middleware Standards </h2>
 <h3>Middleware Order</h3>
 <ol>
 <li><code>globalSanitizer</code> - Input sanitization</li>
@@ -740,7 +914,7 @@ module.exports = {
 };
 </code></pre>
 <hr>
-<a id="10-model-standards"></a><h2> 10. Model Standards</h2>
+<a id="10-model-standards"></a><h2> 10. Model Standards </h2>
 <h3>Model Naming</h3>
 <ul>
 <li>Use PascalCase for model class names</li>
@@ -748,11 +922,11 @@ module.exports = {
 <li>Models auto-loaded via <code>src/models/index.js</code></li>
 </ul>
 <h3>Model Definition</h3>
-<pre><code class="language-javascript">const { DataTypes } = require('sequelize');
+<pre><code class="language-javascript">const { DataTypes } = require(&quot;sequelize&quot;);
 
 const Model = (sequelize) =&gt; {
   return sequelize.define(
-    'ModelName',
+    &quot;ModelName&quot;,
     {
       id: {
         type: DataTypes.UUID,
@@ -765,10 +939,10 @@ const Model = (sequelize) =&gt; {
       },
     },
     {
-      tableName: 'table_name',
+      tableName: &quot;table_name&quot;,
       timestamps: true,
-      createdAt: 'created_at',
-      updatedAt: 'updated_at',
+      createdAt: &quot;created_at&quot;,
+      updatedAt: &quot;updated_at&quot;,
     },
   );
 };
@@ -777,16 +951,16 @@ module.exports = Model;
 </code></pre>
 <h3>Associations</h3>
 <p>Define associations in <code>src/models/index.js</code>:</p>
-<pre><code class="language-javascript">User.belongsTo(Tenant, { foreignKey: 'tenantId', as: 'tenant' });
-User.hasMany(Session, { foreignKey: 'userId', as: 'sessions' });
+<pre><code class="language-javascript">User.belongsTo(Tenant, { foreignKey: &quot;tenantId&quot;, as: &quot;tenant&quot; });
+User.hasMany(Session, { foreignKey: &quot;userId&quot;, as: &quot;sessions&quot; });
 </code></pre>
 <hr>
-<a id="11-error-handling"></a><h2> 11. Error Handling</h2>
+<a id="11-error-handling"></a><h2> 11. Error Handling </h2>
 <h3>Error Format</h3>
 <p>Services throw:</p>
 <pre><code class="language-javascript">throw {
   status: 400, // HTTP status code
-  message: 'Error description',
+  message: &quot;Error description&quot;,
 };
 </code></pre>
 <p>Controllers use:</p>
@@ -796,7 +970,7 @@ User.hasMany(Session, { foreignKey: 'userId', as: 'sessions' });
   },
   {
     // Error message patterns to status codes
-    'not found': 404,
+    &quot;not found&quot;: 404,
     invalid: 400,
   },
 );
@@ -859,7 +1033,7 @@ User.hasMany(Session, { foreignKey: 'userId', as: 'sessions' });
 </tbody>
 </table>
 <hr>
-<a id="12-response-format"></a><h2> 12. Response Format</h2>
+<a id="12-response-format"></a><h2> 12. Response Format </h2>
 <h3>Success Response</h3>
 <pre><code class="language-json">{
   &quot;success&quot;: true,
@@ -882,7 +1056,7 @@ User.hasMany(Session, { foreignKey: 'userId', as: 'sessions' });
 }
 </code></pre>
 <hr>
-<a id="13-permission-format"></a><h2> 13. Permission Format</h2>
+<a id="13-permission-format"></a><h2> 13. Permission Format </h2>
 <h3>Permission String Format</h3>
 <pre><code>module:action
 module:self:action
@@ -890,28 +1064,28 @@ module:tenant:action
 </code></pre>
 <h3>Examples</h3>
 <pre><code class="language-javascript">// Global permissions
-'user:create';
-'user:read';
-'user:update';
-'user:delete';
-'tenant:create';
-'tenant:read';
+&quot;user:create&quot;;
+&quot;user:read&quot;;
+&quot;user:update&quot;;
+&quot;user:delete&quot;;
+&quot;tenant:create&quot;;
+&quot;tenant:read&quot;;
 
 // Self permissions
-'user:self:update';
-'user:self:read';
-'tenant:self:update';
+&quot;user:self:update&quot;;
+&quot;user:self:read&quot;;
+&quot;tenant:self:update&quot;;
 
 // Tenant permissions
-'user:tenant:create';
-'user:tenant:assign';
-'tenant:tenant:read';
+&quot;user:tenant:create&quot;;
+&quot;user:tenant:assign&quot;;
+&quot;tenant:tenant:read&quot;;
 
 // Backup permissions
-'tenant:backup:create';
-'tenant:backup:read';
-'tenant:backup:restore';
-'tenant:backup:delete';
+&quot;tenant:backup:create&quot;;
+&quot;tenant:backup:read&quot;;
+&quot;tenant:backup:restore&quot;;
+&quot;tenant:backup:delete&quot;;
 </code></pre>
 <h3>Role Hierarchy</h3>
 <table>
@@ -941,7 +1115,7 @@ module:tenant:action
 </tbody>
 </table>
 <hr>
-<a id="14-database-standards"></a><h2> 14. Database Standards</h2>
+<a id="14-database-standards"></a><h2> 14. Database Standards </h2>
 <h3>Query Patterns</h3>
 <pre><code class="language-javascript">// Find with lock
 const record = await Model.findOne({
@@ -953,14 +1127,14 @@ const record = await Model.findOne({
 // Find with include
 const user = await Users.findOne({
   where: { id },
-  include: [{ model: Tenant, as: 'tenant' }],
+  include: [{ model: Tenant, as: &quot;tenant&quot; }],
 });
 
 // Pagination
 const { rows, count } = await Model.findAndCountAll({
   limit: limit,
   offset: (page - 1) * limit,
-  order: [['createdAt', 'DESC']],
+  order: [[&quot;createdAt&quot;, &quot;DESC&quot;]],
 });
 </code></pre>
 <h3>Index Guidelines</h3>
@@ -970,7 +1144,7 @@ const { rows, count } = await Model.findAndCountAll({
 <li>Add unique indexes on email, username, code fields</li>
 </ul>
 <hr>
-<a id="15-caching-standards"></a><h2> 15. Caching Standards</h2>
+<a id="15-caching-standards"></a><h2> 15. Caching Standards </h2>
 <h3>Redis Cache Keys</h3>
 <p>Use <code>cacheKeys</code> helper from <code>redis.service.js</code>:</p>
 <pre><code class="language-javascript">cacheKeys.userByEmail(email); // cache:user:email:{email}
@@ -1023,9 +1197,9 @@ cacheKeys.tenantSettings(id); // cache:tenant:settings:{id}
 <li>Always invalidate list caches when individual items change</li>
 </ul>
 <hr>
-<a id="16-message-queue-standards"></a><h2> 16. Message Queue Standards</h2>
+<a id="16-message-queue-standards"></a><h2> 16. Message Queue Standards </h2>
 <h3>RabbitMQ Configuration</h3>
-<pre><code class="language-javascript">const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://localhost:5672';
+<pre><code class="language-javascript">const RABBITMQ_URL = process.env.RABBITMQ_URL || &quot;amqp://localhost:5672&quot;;
 </code></pre>
 <h3>Queue Pattern</h3>
 <pre><code class="language-javascript">// Add job to queue
@@ -1064,7 +1238,7 @@ channel.consume(queueName, (msg) =&gt; {
 }
 </code></pre>
 <hr>
-<a id="17-documentation-standards"></a><h2> 17. Documentation Standards</h2>
+<a id="17-documentation-standards"></a><h2> 17. Documentation Standards </h2>
 <h3>When to Generate Documentation</h3>
 <p>After <strong>every</strong> code change that affects:</p>
 <ol>
@@ -1168,7 +1342,7 @@ node scripts/generate-pdf.js
 </tbody>
 </table>
 <hr>
-<a id="18-constants-standards"></a><h2> 18. Constants Standards</h2>
+<a id="18-constants-standards"></a><h2> 18. Constants Standards </h2>
 <h3>Constants Directory Structure</h3>
 <p>All application-wide constants must be centralized in the <code>src/constants/</code> directory. This ensures maintainability, consistency, and easy updates across the codebase.</p>
 <pre><code>src/constants/
@@ -1224,9 +1398,9 @@ const MAX_LIMIT = 200;
  * User status values
  */
 const USER_STATUS = {
-  ACTIVE: 'ACTIVE',
-  INACTIVE: 'INACTIVE',
-  SUSPENDED: 'SUSPENDED',
+  ACTIVE: &quot;ACTIVE&quot;,
+  INACTIVE: &quot;INACTIVE&quot;,
+  SUSPENDED: &quot;SUSPENDED&quot;,
 };
 
 /**
@@ -1255,15 +1429,15 @@ const {
   USER_PERMISSIONS,
   TENANT_PERMISSIONS,
   PASSWORD_SALT_ROUNDS,
-} = require('../constants');
+} = require(&quot;../constants&quot;);
 
 // Or destructured import
-const { DEFAULT_PAGE, DEFAULT_LIMIT } = require('../constants');
+const { DEFAULT_PAGE, DEFAULT_LIMIT } = require(&quot;../constants&quot;);
 </code></pre>
 <h3>Backward Compatibility</h3>
 <p>For backward compatibility, <code>src/utils/constants.js</code> re-exports all constants from <code>src/constants/</code>:</p>
 <pre><code class="language-javascript">// src/utils/constants.js
-const constants = require('../constants');
+const constants = require(&quot;../constants&quot;);
 
 module.exports = {
   SUPER_ADMIN_ROLE_ID: constants.SUPER_ADMIN_ROLE_ID,
@@ -1285,15 +1459,15 @@ module.exports = {
 <h3>Role Constants</h3>
 <pre><code class="language-javascript">// roleConstants.js
 const ROLE_NAMES = {
-  SUPER_ADMIN: 'SUPER_ADMIN',
-  TENANT_ADMIN: 'TENANT_ADMIN',
-  USER: 'USER',
+  SUPER_ADMIN: &quot;SUPER_ADMIN&quot;,
+  TENANT_ADMIN: &quot;TENANT_ADMIN&quot;,
+  USER: &quot;USER&quot;,
 };
 
 const ROLE_IDS = {
-  SUPER_ADMIN: '9be20605-cc6a-4d91-8246-9756b4a1754b',
-  TENANT_ADMIN: 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
-  USER: 'f6e5d4c3-b2a1-4987-6543-210fedcba987',
+  SUPER_ADMIN: &quot;9be20605-cc6a-4d91-8246-9756b4a1754b&quot;,
+  TENANT_ADMIN: &quot;a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d&quot;,
+  USER: &quot;f6e5d4c3-b2a1-4987-6543-210fedcba987&quot;,
 };
 
 const ROLE_LEVELS = {
@@ -1302,31 +1476,31 @@ const ROLE_LEVELS = {
   USER: 1,
 };
 
-const BUILTIN_ROLES = ['SUPER_ADMIN', 'TENANT_ADMIN', 'USER'];
+const BUILTIN_ROLES = [&quot;SUPER_ADMIN&quot;, &quot;TENANT_ADMIN&quot;, &quot;USER&quot;];
 </code></pre>
 <h3>Permission Constants</h3>
 <pre><code class="language-javascript">// permissionConstants.js
 const USER_PERMISSIONS = {
-  CREATE: 'user:create',
-  READ: 'user:read',
-  UPDATE: 'user:update',
-  DELETE: 'user:delete',
-  SELF_UPDATE: 'user:self:update',
-  SELF_READ: 'user:self:read',
-  TENANT_CREATE: 'user:tenant:create',
-  TENANT_READ: 'user:tenant:read',
-  TENANT_UPDATE: 'user:tenant:update',
-  TENANT_DELETE: 'user:tenant:delete',
-  TENANT_ASSIGN: 'user:tenant:assign',
+  CREATE: &quot;user:create&quot;,
+  READ: &quot;user:read&quot;,
+  UPDATE: &quot;user:update&quot;,
+  DELETE: &quot;user:delete&quot;,
+  SELF_UPDATE: &quot;user:self:update&quot;,
+  SELF_READ: &quot;user:self:read&quot;,
+  TENANT_CREATE: &quot;user:tenant:create&quot;,
+  TENANT_READ: &quot;user:tenant:read&quot;,
+  TENANT_UPDATE: &quot;user:tenant:update&quot;,
+  TENANT_DELETE: &quot;user:tenant:delete&quot;,
+  TENANT_ASSIGN: &quot;user:tenant:assign&quot;,
 };
 </code></pre>
 <hr>
-<h2>19. Migration &amp; Seeding Standards</h2>
+<a id="19-migration--seeding-standards"></a><h2> 19. Migration & Seeding Standards </h2>
 <h3>Migration Service</h3>
 <p>All database migration and seeding operations must be handled through the migration service (<code>src/services/migration.service.js</code>). This consolidates all seeding logic and provides a single source of truth for database initialization.</p>
 <h3>Service Structure</h3>
 <pre><code class="language-javascript">// migration.service.js
-const migrationService = require('../services/migration.service');
+const migrationService = require(&quot;../services/migration.service&quot;);
 
 // Seed all data (roles, permissions, users)
 const result = await migrationService.seedAll();
@@ -1346,7 +1520,7 @@ await migrationService.unseedUsers(emails);
 </code></pre>
 <h3>Controller Pattern</h3>
 <pre><code class="language-javascript">// migration.controller.js
-const migrationService = require('../services/migration.service');
+const migrationService = require(&quot;../services/migration.service&quot;);
 
 exports.seeding = async (req, res) =&gt; {
   try {
@@ -1355,7 +1529,7 @@ exports.seeding = async (req, res) =&gt; {
     return res.status(200).send({
       success: true,
       status: 200,
-      message: 'Seeding success',
+      message: &quot;Seeding success&quot;,
       data: result,
     });
   } catch (error) {
@@ -1369,13 +1543,13 @@ exports.seeding = async (req, res) =&gt; {
 </code></pre>
 <h3>Migration Config Pattern</h3>
 <pre><code class="language-javascript">// migrate.js
-const migrationService = require('../services/migration.service');
+const migrationService = require(&quot;../services/migration.service&quot;);
 
 async function Up() {
   await db.sync({ alter: true });
 
   const seedResult = await migrationService.seedAll();
-  console.log('Seed Results:', {
+  console.log(&quot;Seed Results:&quot;, {
     roles: seedResult.roles,
     permissions: seedResult.permissions,
     rolesPermissions: seedResult.rolesPermissions,
@@ -1445,7 +1619,7 @@ async function seedDefaultRoles() {
 <li><strong>Transaction safety</strong> - Use transactions for related operations</li>
 </ol>
 <hr>
-<a id="20-environment-variables"></a><h2> 20. Environment Variables</h2>
+<a id="20-environment-variables"></a><h2> 20. Environment Variables </h2>
 <h3>Required Variables</h3>
 <pre><code class="language-bash"># App
 PORT=3000
@@ -1497,7 +1671,7 @@ RABBITMQ_PASS=guest
 <li>Use descriptive names: <code>JWT_ACCESS_EXPIRED</code>, <code>BACKUP_SCHEDULER</code></li>
 </ul>
 <hr>
-<h2>21. Git &amp; Deployment</h2>
+<a id="21-git--deployment"></a><h2> 21. Git & Deployment </h2>
 <h3>Git Workflow</h3>
 <ol>
 <li>Create feature branch: <code>feature/add-email-queue</code></li>
@@ -1522,7 +1696,7 @@ docker-compose logs -f backend
 docker exec -it backend node scripts/generate-html-doc.js
 </code></pre>
 <hr>
-<a id="22-unit-testing-standards"></a><h2> 22. Unit Testing Standards</h2>
+<a id="22-unit-testing-standards"></a><h2> 22. Unit Testing Standards </h2>
 <h3>Test Framework &amp; Configuration</h3>
 <ul>
 <li><strong>Framework</strong>: Jest</li>
@@ -1626,23 +1800,23 @@ describe(&quot;Module Name&quot;, () =&gt; {
   count: jest.fn(),
 };
 
-jest.mock('../../models', () =&gt; ({
+jest.mock(&quot;../../models&quot;, () =&gt; ({
   ModelName: mockModel,
 }));
 </code></pre>
 <h4>Mocking Services</h4>
-<pre><code class="language-javascript">jest.mock('../../services/other_service', () =&gt; ({
+<pre><code class="language-javascript">jest.mock(&quot;../../services/other_service&quot;, () =&gt; ({
   otherFunction: jest.fn().mockResolvedValue({ success: true }),
 }));
 </code></pre>
 <h4>Mocking Request/Response</h4>
 <pre><code class="language-javascript">const mockReq = {
-  body: { fieldName: 'value' },
-  query: { page: '1' },
-  params: { id: '123' },
-  user: { id: 'user-1', tenantId: 'tenant-1' },
-  ip: '127.0.0.1',
-  headers: { 'user-agent': 'TestBrowser' },
+  body: { fieldName: &quot;value&quot; },
+  query: { page: &quot;1&quot; },
+  params: { id: &quot;123&quot; },
+  user: { id: &quot;user-1&quot;, tenantId: &quot;tenant-1&quot; },
+  ip: &quot;127.0.0.1&quot;,
+  headers: { &quot;user-agent&quot;: &quot;TestBrowser&quot; },
 };
 
 const mockRes = {
@@ -1656,53 +1830,53 @@ const mockRes = {
   commit: jest.fn().mockResolvedValue(undefined),
   rollback: jest.fn().mockResolvedValue(undefined),
   toObject: jest.fn().mockReturnValue({}),
-  LOCK: { UPDATE: 'UPDATE' },
+  LOCK: { UPDATE: &quot;UPDATE&quot; },
 };
 </code></pre>
 <h3>Test Patterns</h3>
 <h4>Testing Success Cases</h4>
-<pre><code class="language-javascript">it('should return user data when found', async () =&gt; {
-  const mockUser = { id: '1', email: 'test@example.com' };
+<pre><code class="language-javascript">it(&quot;should return user data when found&quot;, async () =&gt; {
+  const mockUser = { id: &quot;1&quot;, email: &quot;test@example.com&quot; };
   Users.findOne.mockResolvedValue(mockUser);
 
-  const result = await getUser('1');
+  const result = await getUser(&quot;1&quot;);
 
-  expect(Users.findOne).toHaveBeenCalledWith({ where: { id: '1' } });
+  expect(Users.findOne).toHaveBeenCalledWith({ where: { id: &quot;1&quot; } });
   expect(result).toEqual(mockUser);
 });
 </code></pre>
 <h4>Testing Error Cases</h4>
-<pre><code class="language-javascript">it('should throw NotFoundError when user not found', async () =&gt; {
+<pre><code class="language-javascript">it(&quot;should throw NotFoundError when user not found&quot;, async () =&gt; {
   Users.findOne.mockResolvedValue(null);
 
-  await expect(getUser('invalid-id')).rejects.toThrow('User not found');
+  await expect(getUser(&quot;invalid-id&quot;)).rejects.toThrow(&quot;User not found&quot;);
   // Or
-  await expect(getUser('invalid-id')).rejects.toEqual({
+  await expect(getUser(&quot;invalid-id&quot;)).rejects.toEqual({
     status: 404,
-    message: 'User not found',
+    message: &quot;User not found&quot;,
   });
 });
 </code></pre>
 <h4>Testing Conditional Logic</h4>
-<pre><code class="language-javascript">it('should return error without details in production', () =&gt; {
+<pre><code class="language-javascript">it(&quot;should return error without details in production&quot;, () =&gt; {
   const originalEnv = process.env.NODE_ENV;
-  process.env.NODE_ENV = 'production';
-  const error = new AppError(400, 'Bad request', true, { field: 'email' });
+  process.env.NODE_ENV = &quot;production&quot;;
+  const error = new AppError(400, &quot;Bad request&quot;, true, { field: &quot;email&quot; });
 
   const json = error.toJSON();
 
   expect(json).toEqual({
     success: false,
     status: 400,
-    message: 'Bad request',
+    message: &quot;Bad request&quot;,
   });
 
   process.env.NODE_ENV = originalEnv;
 });
 </code></pre>
 <h4>Testing Async Operations</h4>
-<pre><code class="language-javascript">it('should handle async operations correctly', async () =&gt; {
-  const mockData = { id: '1', name: 'test' };
+<pre><code class="language-javascript">it(&quot;should handle async operations correctly&quot;, async () =&gt; {
+  const mockData = { id: &quot;1&quot;, name: &quot;test&quot; };
   Model.create.mockResolvedValue(mockData);
 
   const result = await createResource(mockData);
@@ -1712,12 +1886,12 @@ const mockRes = {
 });
 </code></pre>
 <h4>Testing Multiple Scenarios</h4>
-<pre><code class="language-javascript">describe('logAuthEvent', () =&gt; {
-  it('should log login success with INFO severity', async () =&gt; {
+<pre><code class="language-javascript">describe(&quot;logAuthEvent&quot;, () =&gt; {
+  it(&quot;should log login success with INFO severity&quot;, async () =&gt; {
     // ...
   });
 
-  it('should log login failed with WARNING severity', async () =&gt; {
+  it(&quot;should log login failed with WARNING severity&quot;, async () =&gt; {
     // ...
   });
 });
@@ -1734,7 +1908,7 @@ const mockRes = {
   mockThrow,
   mockResolve,
   mockResolveThenThrow,
-} = require('../test.utils');
+} = require(&quot;../test.utils&quot;);
 </code></pre>
 <h3>Coverage Requirements</h3>
 <ul>
@@ -1824,7 +1998,7 @@ npx jest --watch
 </tbody>
 </table>
 <hr>
-<a id="quick-reference"></a><h2> Quick Reference</h2>
+<a id="quick-reference"></a><h2> Quick Reference </h2>
 <h3>Key Patterns</h3>
 <table>
 <thead>
@@ -1950,7 +2124,7 @@ npx jest --watch
 
         <hr>
         <footer style="text-align:center;padding:30px 0;color:var(--text-light);font-size:14px;">
-            <p>Generated on May 20, 2026</p>
+            <p>Generated on May 21, 2026</p>
             <p>Boilerplate PG MySQL - Enterprise Multi-Tenant Express.js Boilerplate</p>
             <p style="margin-top:10px;"><a href="/documentation" style="color:var(--primary);">← Back to Main Documentation</a></p>
         </footer>

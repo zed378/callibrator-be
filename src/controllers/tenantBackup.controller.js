@@ -8,12 +8,13 @@ const {
 } = require("../services/tenantBackup.service");
 const { AppError } = require("../utils/appError");
 const { TenantBackup, Users, Tenants } = require("../models");
+const { success } = require("../utils/response");
 
 /**
  * Create a new backup for a tenant
  * POST /api/v1/tenants/:tenantId/backups
  */
-async function createBackupController(req, res) {
+async function createBackupController(req, res, next) {
   try {
     const { tenantId } = req.params;
     const { name, description, backupType, retentionDays, tag } = req.body;
@@ -23,7 +24,9 @@ async function createBackupController(req, res) {
     if (!name) {
       return res.status(400).json({
         success: false,
+        status: 400,
         message: "Backup name is required",
+        data: null,
       });
     }
 
@@ -38,21 +41,15 @@ async function createBackupController(req, res) {
       models: req.models,
     });
 
-    return res.status(201).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Backup created successfully",
+      result.status || 201,
+    );
   } catch (error) {
-    console.error("createBackupController error:", error);
-
-    if (error instanceof AppError) {
-      return res.status(error.statusCode || 500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to create backup",
-    });
+    next(error);
   }
 }
 
@@ -60,7 +57,7 @@ async function createBackupController(req, res) {
  * Get all backups for a tenant
  * GET /api/v1/tenants/:tenantId/backups
  */
-async function getBackupsController(req, res) {
+async function getBackupsController(req, res, next) {
   try {
     const { tenantId } = req.params;
     const { status, backupType, tag, page = 1, limit = 20 } = req.query;
@@ -78,23 +75,16 @@ async function getBackupsController(req, res) {
       req.models,
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Backups retrieved successfully",
-      data: result.rows,
-      meta: {
-        total: result.count,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(result.count / parseInt(limit)),
-      },
-    });
+    const meta = {
+      total: result.count,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      totalPages: Math.ceil(result.count / parseInt(limit)),
+    };
+
+    success(res, result.rows, meta, "Backups retrieved successfully", 200);
   } catch (error) {
-    console.error("getBackupsController error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to retrieve backups",
-    });
+    next(error);
   }
 }
 
@@ -102,7 +92,7 @@ async function getBackupsController(req, res) {
  * Get a specific backup
  * GET /api/v1/tenants/:tenantId/backups/:backupId
  */
-async function getBackupController(req, res) {
+async function getBackupController(req, res, next) {
   try {
     const { backupId } = req.params;
 
@@ -123,21 +113,15 @@ async function getBackupController(req, res) {
     if (!backup) {
       return res.status(404).json({
         success: false,
+        status: 404,
         message: "Backup not found",
+        data: null,
       });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Backup retrieved successfully",
-      data: backup,
-    });
+    success(res, backup, null, "Backup retrieved successfully", 200);
   } catch (error) {
-    console.error("getBackupController error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to retrieve backup",
-    });
+    next(error);
   }
 }
 
@@ -145,7 +129,7 @@ async function getBackupController(req, res) {
  * Download a backup file
  * GET /api/v1/tenants/:tenantId/backups/:backupId/download
  */
-async function downloadBackupController(req, res) {
+async function downloadBackupController(req, res, next) {
   try {
     const { backupId } = req.params;
 
@@ -164,19 +148,7 @@ async function downloadBackupController(req, res) {
 
     return res.download(result.filePath);
   } catch (error) {
-    console.error("downloadBackupController error:", error);
-
-    if (error instanceof AppError) {
-      return res.status(error.statusCode || 500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to download backup",
-    });
+    next(error);
   }
 }
 
@@ -184,7 +156,7 @@ async function downloadBackupController(req, res) {
  * Restore a backup
  * POST /api/v1/tenants/:tenantId/backups/:backupId/restore
  */
-async function restoreBackupController(req, res) {
+async function restoreBackupController(req, res, next) {
   try {
     const { backupId } = req.params;
     const { mergeData = false } = req.body;
@@ -197,21 +169,15 @@ async function restoreBackupController(req, res) {
       models: req.models,
     });
 
-    return res.status(200).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Backup restored successfully",
+      200,
+    );
   } catch (error) {
-    console.error("restoreBackupController error:", error);
-
-    if (error instanceof AppError) {
-      return res.status(error.statusCode || 500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to restore backup",
-    });
+    next(error);
   }
 }
 
@@ -219,28 +185,22 @@ async function restoreBackupController(req, res) {
  * Delete a backup
  * DELETE /api/v1/tenants/:tenantId/backups/:backupId
  */
-async function deleteBackupController(req, res) {
+async function deleteBackupController(req, res, next) {
   try {
     const { backupId } = req.params;
     const user = req.user;
 
     const result = await deleteBackup(backupId, user.id, req.models);
 
-    return res.status(200).json(result);
+    success(
+      res,
+      result.data,
+      null,
+      result.message || "Backup deleted successfully",
+      200,
+    );
   } catch (error) {
-    console.error("deleteBackupController error:", error);
-
-    if (error instanceof AppError) {
-      return res.status(error.statusCode || 500).json({
-        success: false,
-        message: error.message,
-      });
-    }
-
-    return res.status(500).json({
-      success: false,
-      message: "Failed to delete backup",
-    });
+    next(error);
   }
 }
 
@@ -248,23 +208,15 @@ async function deleteBackupController(req, res) {
  * Get backup statistics
  * GET /api/v1/tenants/:tenantId/backups/stats
  */
-async function getBackupStatsController(req, res) {
+async function getBackupStatsController(req, res, next) {
   try {
     const { tenantId } = req.params;
 
     const stats = await getBackupStats(tenantId, req.models);
 
-    return res.status(200).json({
-      success: true,
-      message: "Backup statistics retrieved successfully",
-      data: stats,
-    });
+    success(res, stats, null, "Backup statistics retrieved successfully", 200);
   } catch (error) {
-    console.error("getBackupStatsController error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to retrieve backup statistics",
-    });
+    next(error);
   }
 }
 

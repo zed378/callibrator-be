@@ -1,7 +1,7 @@
-const tenantService = require('../services/tenant.service');
-const tenantUploadService = require('../services/tenantUpload.service');
-const { asyncHandler } = require('../utils/controllerWrapper');
-const { success } = require('../utils/response');
+const tenantService = require("../services/tenant.service");
+const tenantUploadService = require("../services/tenantUpload.service");
+const { asyncHandler } = require("../utils/controllerWrapper");
+const { success } = require("../utils/response");
 
 // ==========================================
 // FETCH ALL TENANTS WITH PAGINATION
@@ -18,10 +18,10 @@ exports.getAllTenants = asyncHandler(async (req, res) => {
 
   success(
     res,
-    result.data,
-    result.message || 'Fetch tenants successful',
+    result.data.data || result.data.rows,
+    result.data.meta || result.meta,
+    result.message || "Fetch tenants successful",
     result.status || 200,
-    result.meta,
   );
 });
 
@@ -39,13 +39,15 @@ exports.getSpecificTenant = asyncHandler(async (req, res) => {
       success: false,
       status: 404,
       message: result.message,
+      data: null,
     });
   }
 
   success(
     res,
     result.data,
-    result.message || 'Fetch tenant successful',
+    null,
+    result.message || "Fetch tenant successful",
     result.status || 200,
   );
 });
@@ -72,19 +74,20 @@ exports.createTenant = asyncHandler(async (req, res, next) => {
     success(
       res,
       result.data,
-      result.message || 'Tenant created successfully',
+      null,
+      result.message || "Tenant created successfully",
       result.status || 201,
     );
   } catch (err) {
     // Delete uploaded file if creation failed
     if (req.file) {
       try {
-        await require('../utils/upload').deleteUpload(
+        await require("../utils/upload").deleteUpload(
           req.uploadFilename,
-          'uploads/tenant',
+          "uploads/tenant",
         );
       } catch (deleteErr) {
-        require('../middlewares/activityLog').logger.warn(
+        require("../middlewares/activityLog").logger.warn(
           `Failed to delete uploaded file after failure: ${req.uploadFilename}`,
           deleteErr,
         );
@@ -102,11 +105,6 @@ exports.updateTenant = asyncHandler(async (req, res) => {
   const tenantId = req.params.tenantId || req.body.tenantId;
   const updatedBy = req.user?.id;
   const uploadedFilename = req.file ? req.uploadFilename : null;
-
-  // Debug logging
-  console.log('Update tenant request - tenantId:', tenantId);
-  console.log('Update tenant request - req.body:', req.body);
-  console.log('Update tenant request - req.params:', req.params);
 
   // Build input data from form-data or JSON body
   const inputData = { ...req.body };
@@ -127,13 +125,15 @@ exports.updateTenant = asyncHandler(async (req, res) => {
       success: false,
       status: 404,
       message: result.message,
+      data: null,
     });
   }
 
   success(
     res,
     result.data,
-    result.message || 'Tenant updated successfully',
+    null,
+    result.message || "Tenant updated successfully",
     result.status || 200,
   );
 });
@@ -153,6 +153,7 @@ exports.deleteTenant = asyncHandler(async (req, res) => {
       success: false,
       status: 404,
       message: result.message,
+      data: null,
     });
   }
 
@@ -161,13 +162,15 @@ exports.deleteTenant = asyncHandler(async (req, res) => {
       success: false,
       status: 400,
       message: result.message,
+      data: null,
     });
   }
 
   success(
     res,
     result.data,
-    result.message || 'Tenant deleted successfully',
+    null,
+    result.message || "Tenant deleted successfully",
     result.status || 200,
   );
 });
@@ -186,13 +189,15 @@ exports.getTenantSettings = asyncHandler(async (req, res) => {
       success: false,
       status: 404,
       message: result.message,
+      data: null,
     });
   }
 
   success(
     res,
     result.data,
-    result.message || 'Fetch tenant settings successful',
+    null,
+    result.message || "Fetch tenant settings successful",
     result.status || 200,
   );
 });
@@ -217,13 +222,15 @@ exports.updateTenantSettings = asyncHandler(async (req, res) => {
       success: false,
       status: 404,
       message: result.message,
+      data: null,
     });
   }
 
   success(
     res,
     result.data,
-    result.message || 'Tenant settings updated successfully',
+    null,
+    result.message || "Tenant settings updated successfully",
     result.status || 200,
   );
 });
@@ -242,13 +249,15 @@ exports.getTenantUserCount = asyncHandler(async (req, res) => {
       success: false,
       status: 404,
       message: result.message,
+      data: null,
     });
   }
 
   success(
     res,
     result.data,
-    result.message || 'Fetch tenant user count successful',
+    null,
+    result.message || "Fetch tenant user count successful",
     result.status || 200,
   );
 });
@@ -265,7 +274,8 @@ exports.uploadTenantLogo = asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       status: 400,
-      message: 'No file uploaded',
+      message: "No file uploaded",
+      data: null,
     });
   }
 
@@ -278,7 +288,8 @@ exports.uploadTenantLogo = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || 'Tenant logo uploaded successfully',
+    null,
+    result.message || "Tenant logo uploaded successfully",
     result.status || 200,
   );
 });
@@ -299,7 +310,8 @@ exports.removeTenantLogo = asyncHandler(async (req, res) => {
   success(
     res,
     result.data,
-    result.message || 'Tenant logo removed successfully',
+    null,
+    result.message || "Tenant logo removed successfully",
     result.status || 200,
   );
 });

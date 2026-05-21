@@ -1,11 +1,12 @@
 const permissionService = require("../services/permission.service");
+const { success } = require("../utils/response");
 
 // ==========================================
 // GET ALL PERMISSIONS
 // GET /api/v1/permissions?page=1&limit=20&search=xxx
 // ==========================================
 
-exports.getAllPermissions = async (req, res) => {
+exports.getAllPermissions = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, search = "" } = req.query;
 
@@ -15,16 +16,15 @@ exports.getAllPermissions = async (req, res) => {
       search,
     });
 
-    return res.status(200).send({
-      success: true,
-      message: "Permissions fetched successfully",
-      ...permissions,
-    });
+    success(
+      res,
+      permissions.data,
+      permissions.meta,
+      permissions.message || "Permissions fetched successfully",
+      permissions.status || 200,
+    );
   } catch (error) {
-    return res.status(500).send({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -33,22 +33,15 @@ exports.getAllPermissions = async (req, res) => {
 // POST /api/v1/permissions/detail
 // ==========================================
 
-exports.getPermission = async (req, res) => {
+exports.getPermission = async (req, res, next) => {
   try {
     const { permissionId } = req.body;
 
     const permission = await permissionService.getPermissionById(permissionId);
 
-    return res.status(200).send({
-      success: true,
-      message: "Permission fetched successfully",
-      data: permission,
-    });
+    success(res, permission, null, "Permission fetched successfully", 200);
   } catch (error) {
-    return res.status(400).send({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -57,20 +50,13 @@ exports.getPermission = async (req, res) => {
 // POST /api/v1/permissions
 // ==========================================
 
-exports.createPermission = async (req, res) => {
+exports.createPermission = async (req, res, next) => {
   try {
     const permission = await permissionService.createPermission(req.body);
 
-    return res.status(201).send({
-      success: true,
-      message: "Permission created successfully",
-      data: permission,
-    });
+    success(res, permission, null, "Permission created successfully", 201);
   } catch (error) {
-    return res.status(400).send({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -79,7 +65,7 @@ exports.createPermission = async (req, res) => {
 // PATCH /api/v1/permissions
 // ==========================================
 
-exports.updatePermission = async (req, res) => {
+exports.updatePermission = async (req, res, next) => {
   try {
     const { id, ...data } = req.body;
 
@@ -88,16 +74,9 @@ exports.updatePermission = async (req, res) => {
       data,
     });
 
-    return res.status(200).send({
-      success: true,
-      message: "Permission updated successfully",
-      data: permission,
-    });
+    success(res, permission, null, "Permission updated successfully", 200);
   } catch (error) {
-    return res.status(400).send({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
 
@@ -106,20 +85,14 @@ exports.updatePermission = async (req, res) => {
 // DELETE /api/v1/permissions?id=xxx
 // ==========================================
 
-exports.deletePermission = async (req, res) => {
+exports.deletePermission = async (req, res, next) => {
   try {
     const { id } = req.query;
 
     await permissionService.deletePermission(id);
 
-    return res.status(200).send({
-      success: true,
-      message: "Permission deleted successfully",
-    });
+    success(res, null, null, "Permission deleted successfully", 200);
   } catch (error) {
-    return res.status(400).send({
-      success: false,
-      message: error.message,
-    });
+    next(error);
   }
 };
