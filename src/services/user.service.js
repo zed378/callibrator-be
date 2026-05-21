@@ -13,7 +13,13 @@ const {
 const {
   validate: validateInput,
   formatErrors,
+  createUserSchema,
+  updateUserSchema,
+  updateUserRoleSchema,
+  checkUsernameSchema,
 } = require("../validators/user.validator");
+
+const { assignPermissionsToUser } = require("./permissionAssignment.service");
 
 // ==========================================
 // VALIDATION HELPERS
@@ -604,25 +610,54 @@ exports.userCreate = async (input) => {
 
     // Commit transaction first to ensure user exists before assigning permissions
     await transaction.commit();
+    await transaction.finished; // Wait for transaction to fully complete
+
+    // Verify user exists in database before assigning permissions
+    const existingUser = await Users.findByPk(user.id);
+    if (!existingUser) {
+      throw { status: 500, message: "User was not created successfully" };
+    }
 
     // Assign permissions outside transaction (permissions are separate from user creation)
-    const permissionResult = await assignPermissionsToUser(user, {
-      grantedBy: createdBy,
-    });
-
-    if (permissionResult.errors.length > 0) {
-      logger.warn(`Some permissions failed to assign for user ${user.id}:`, {
-        errors: permissionResult.errors,
+    let permissionResult = {
+      success: true,
+      data: { assignedPermissions: [], skippedPermissions: [], errors: [] },
+    };
+    try {
+      permissionResult = await assignPermissionsToUser(existingUser, {
+        grantedBy: createdBy,
       });
+      logger.info("Permission assignment result", {
+        userId: existingUser.id,
+        roleId: existingUser.roleId,
+        result: permissionResult,
+      });
+    } catch (permErr) {
+      logger.error("Failed to assign permissions to user", {
+        userId: existingUser.id,
+        roleId: existingUser.roleId,
+        error: permErr.message,
+      });
+      // Don't throw - user is already created, just log the error
+    }
+
+    if (permissionResult.data?.errors?.length > 0) {
+      logger.warn(
+        `Some permissions failed to assign for user ${existingUser.id}:`,
+        {
+          errors: permissionResult.data.errors,
+        },
+      );
     }
 
     logger.info("User created", {
-      userId: user.id,
-      username: user.username,
-      email: user.email,
+      userId: existingUser.id,
+      username: existingUser.username,
+      email: existingUser.email,
       roleId,
       createdBy,
-      permissionsAssigned: permissionResult.assignedPermissions?.length || 0,
+      permissionsAssigned:
+        permissionResult.data?.assignedPermissions?.length || 0,
     });
 
     // --------------------------------------------------------------
@@ -649,10 +684,10 @@ exports.userCreate = async (input) => {
     };
   } catch (err) {
     // --------------------------------------------------------------
-    // ROLLBACK
+    // ROLLBACK (only if transaction hasn't been committed)
     // --------------------------------------------------------------
 
-    if (transaction) {
+    if (transaction && !transaction.finished) {
       await transaction.rollback();
     }
 

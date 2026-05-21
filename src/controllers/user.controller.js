@@ -118,11 +118,11 @@ exports.editUser = asyncHandler(async (req, res) => {
 // ==========================================
 
 exports.deleteUser = asyncHandler(async (req, res) => {
-  const { userId } = req.params || req.query;
+  const { userId } = req.query;
 
   const deletedBy = req.user.id || null;
 
-  const result = await userService.deleteUser(userId, deletedBy);
+  const result = await userService.deleteUser({ userId, deletedBy });
 
   success(
     res,
@@ -138,7 +138,7 @@ exports.deleteUser = asyncHandler(async (req, res) => {
 // ==========================================
 
 exports.uploadUserAvatar = asyncHandler(async (req, res) => {
-  const { userId } = req.params || req.body;
+  const { userId } = req.body;
   const updatedBy = req.user?.id;
 
   if (!req.file) {

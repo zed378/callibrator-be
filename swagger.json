@@ -4390,6 +4390,40 @@
                   "maxUsers": {
                     "type": "integer",
                     "example": 50
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "contact@acmecorp.com"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "example": "+1-555-123-4567"
+                  },
+                  "address": {
+                    "type": "string",
+                    "example": "123 Business Ave, Suite 100"
+                  },
+                  "city": {
+                    "type": "string",
+                    "example": "New York"
+                  },
+                  "state": {
+                    "type": "string",
+                    "example": "NY"
+                  },
+                  "zipCode": {
+                    "type": "string",
+                    "example": "10001"
+                  },
+                  "country": {
+                    "type": "string",
+                    "example": "United States"
+                  },
+                  "website": {
+                    "type": "string",
+                    "format": "uri",
+                    "example": "https://www.acmecorp.com"
                   }
                 }
               }
@@ -4531,6 +4565,40 @@
                   "maxUsers": {
                     "type": "integer",
                     "example": 100
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "example": "contact@acmecorp.com"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "example": "+1-555-123-4567"
+                  },
+                  "address": {
+                    "type": "string",
+                    "example": "123 Business Ave, Suite 100"
+                  },
+                  "city": {
+                    "type": "string",
+                    "example": "New York"
+                  },
+                  "state": {
+                    "type": "string",
+                    "example": "NY"
+                  },
+                  "zipCode": {
+                    "type": "string",
+                    "example": "10001"
+                  },
+                  "country": {
+                    "type": "string",
+                    "example": "United States"
+                  },
+                  "website": {
+                    "type": "string",
+                    "format": "uri",
+                    "example": "https://www.acmecorp.com"
                   }
                 }
               }
@@ -5974,11 +6042,6 @@
         "tags": [
           "Users"
         ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -6168,6 +6231,8 @@
                 "type": "object",
                 "required": [
                   "username",
+                  "firstName",
+                  "lastName",
                   "email",
                   "password",
                   "roleId"
@@ -6175,21 +6240,50 @@
                 "properties": {
                   "tenantId": {
                     "type": "string",
-                    "format": "uuid"
+                    "format": "uuid",
+                    "description": "Optional tenant ID"
                   },
                   "username": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "Username (alphanumeric, 3-30 chars, lowercase)",
+                    "example": "johndoe"
+                  },
+                  "firstName": {
+                    "type": "string",
+                    "description": "User's first name (2-100 chars)",
+                    "example": "John"
+                  },
+                  "lastName": {
+                    "type": "string",
+                    "description": "User's last name (2-100 chars)",
+                    "example": "Doe"
                   },
                   "email": {
                     "type": "string",
-                    "format": "email"
+                    "format": "email",
+                    "description": "Email address (will be lowercased)",
+                    "example": "user@example.com"
                   },
                   "password": {
-                    "type": "string"
+                    "type": "string",
+                    "minLength": 8,
+                    "description": "Password (must contain uppercase, lowercase, and number)",
+                    "example": "Password123"
                   },
                   "roleId": {
                     "type": "string",
-                    "format": "uuid"
+                    "format": "uuid",
+                    "description": "Role ID (valid UUID)"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "ACTIVE",
+                      "INACTIVE",
+                      "SUSPENDED"
+                    ],
+                    "default": "ACTIVE",
+                    "description": "User status"
                   }
                 }
               }

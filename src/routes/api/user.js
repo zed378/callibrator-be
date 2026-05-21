@@ -10,12 +10,12 @@
  *       scheme: bearer
  *       bearerFormat: JWT
  */
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { auth } = require('../../middlewares/auth');
-const { dynamicAccess } = require('../../middlewares/dynamicAccess');
-const { upload } = require('../../utils/upload');
-const userController = require('../../controllers/user.controller');
+const { auth } = require("../../middlewares/auth");
+const { dynamicAccess } = require("../../middlewares/dynamicAccess");
+const { upload } = require("../../utils/upload");
+const userController = require("../../controllers/user.controller");
 
 /* ------------------------------------------------------------------ */
 /* GET ALL USERS (paginated, searchable, tenant‑scoped)               */
@@ -128,9 +128,9 @@ const userController = require('../../controllers/user.controller');
  *                   example: "Forbidden"
  */
 router.get(
-  '/all',
+  "/all",
   auth,
-  dynamicAccess('User', 'read', { checkTenant: true }),
+  dynamicAccess("User", "read", { checkTenant: true }),
   userController.getAllUsers,
 );
 
@@ -212,9 +212,9 @@ router.get(
  *                   example: "User not found"
  */
 router.post(
-  '/detail',
+  "/detail",
   auth,
-  dynamicAccess('User', 'read', { checkTenant: true }),
+  dynamicAccess("User", "read", { checkTenant: true }),
   userController.getSpecificUser,
 );
 
@@ -229,8 +229,6 @@ router.post(
  *     description: Requires authentication. No specific permission required - available to all authenticated users.
  *     tags:
  *       - Users
- *     security:
- *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -281,7 +279,7 @@ router.post(
  *                   type: string
  *                   example: "Username is required"
  */
-router.post('/username-check', auth, userController.checkUsernameAvailability);
+router.post("/username-check", userController.checkUsernameAvailability);
 
 /* ------------------------------------------------------------------ */
 /* UPDATE USER ROLE                                                   */
@@ -349,9 +347,9 @@ router.post('/username-check', auth, userController.checkUsernameAvailability);
  *                   example: "Forbidden"
  */
 router.post(
-  '/role-update',
+  "/role-update",
   auth,
-  dynamicAccess('User', 'update', { checkTenant: true }),
+  dynamicAccess("User", "update", { checkTenant: true }),
   userController.updateUserRole,
 );
 
@@ -376,6 +374,8 @@ router.post(
  *             type: object
  *             required:
  *               - username
+ *               - firstName
+ *               - lastName
  *               - email
  *               - password
  *               - roleId
@@ -383,16 +383,38 @@ router.post(
  *               tenantId:
  *                 type: string
  *                 format: uuid
+ *                 description: Optional tenant ID
  *               username:
  *                 type: string
+ *                 description: Username (alphanumeric, 3-30 chars, lowercase)
+ *                 example: johndoe
+ *               firstName:
+ *                 type: string
+ *                 description: User's first name (2-100 chars)
+ *                 example: John
+ *               lastName:
+ *                 type: string
+ *                 description: User's last name (2-100 chars)
+ *                 example: Doe
  *               email:
  *                 type: string
  *                 format: email
+ *                 description: Email address (will be lowercased)
+ *                 example: user@example.com
  *               password:
  *                 type: string
+ *                 minLength: 8
+ *                 description: Password (must contain uppercase, lowercase, and number)
+ *                 example: Password123
  *               roleId:
  *                 type: string
  *                 format: uuid
+ *                 description: Role ID (valid UUID)
+ *               status:
+ *                 type: string
+ *                 enum: [ACTIVE, INACTIVE, SUSPENDED]
+ *                 default: ACTIVE
+ *                 description: User status
  *     responses:
  *       '201':
  *         description: User created successfully
@@ -430,9 +452,9 @@ router.post(
  *                   example: "Forbidden"
  */
 router.post(
-  '/create',
+  "/create",
   auth,
-  dynamicAccess('User', 'create', { checkTenant: true }),
+  dynamicAccess("User", "create", { checkTenant: true }),
   userController.createUser,
 );
 
@@ -505,9 +527,9 @@ router.post(
  *                   example: "Forbidden"
  */
 router.patch(
-  '/edit',
+  "/edit",
   auth,
-  dynamicAccess('User', 'update', { checkSelf: true, checkTenant: true }),
+  dynamicAccess("User", "update", { checkSelf: true, checkTenant: true }),
   userController.editUser,
 );
 
@@ -566,9 +588,9 @@ router.patch(
  *                   example: "Forbidden"
  */
 router.delete(
-  '/delete',
+  "/delete",
   auth,
-  dynamicAccess('User', 'delete', { checkTenant: true }),
+  dynamicAccess("User", "delete", { checkTenant: true }),
   userController.deleteUser,
 );
 
@@ -671,13 +693,13 @@ router.delete(
  *                   example: "Forbidden"
  */
 router.post(
-  '/:userId/avatar',
+  "/:userId/avatar",
   auth,
-  dynamicAccess('User', 'update', { checkSelf: true, checkTenant: true }),
+  dynamicAccess("User", "update", { checkSelf: true, checkTenant: true }),
   upload({
-    folder: 'uploads/profile',
-    allowedMimes: ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-    allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+    folder: "uploads/profile",
+    allowedMimes: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+    allowedExtensions: [".jpg", ".jpeg", ".png", ".gif", ".webp"],
     maxFileSize: 2 * 1024 * 1024, // 2MB
   }),
   userController.uploadUserAvatar,
@@ -754,9 +776,9 @@ router.post(
  *                   example: "Forbidden"
  */
 router.delete(
-  '/:userId/avatar',
+  "/:userId/avatar",
   auth,
-  dynamicAccess('User', 'update', { checkSelf: true, checkTenant: true }),
+  dynamicAccess("User", "update", { checkSelf: true, checkTenant: true }),
   userController.removeUserAvatar,
 );
 

@@ -49,6 +49,41 @@ const Tenants = db.define(
       defaultValue: 10,
     },
 
+    // Basic contact information
+    email: {
+      type: DataTypes.STRING,
+      validate: { isEmail: true },
+    },
+
+    phone: {
+      type: DataTypes.STRING,
+    },
+
+    address: {
+      type: DataTypes.TEXT,
+    },
+
+    city: {
+      type: DataTypes.STRING,
+    },
+
+    state: {
+      type: DataTypes.STRING,
+    },
+
+    zipCode: {
+      type: DataTypes.STRING,
+    },
+
+    country: {
+      type: DataTypes.STRING,
+    },
+
+    website: {
+      type: DataTypes.STRING,
+      validate: { isUrl: true },
+    },
+
     createdBy: {
       type: DataTypes.UUID,
     },

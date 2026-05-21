@@ -10,12 +10,12 @@
  *       scheme: bearer
  *       bearerFormat: JWT
  */
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { auth } = require('../../middlewares/auth');
-const { dynamicAccess } = require('../../middlewares/dynamicAccess');
-const tenantController = require('../../controllers/tenant.controller');
-const { upload } = require('../../utils/upload');
+const { auth } = require("../../middlewares/auth");
+const { dynamicAccess } = require("../../middlewares/dynamicAccess");
+const tenantController = require("../../controllers/tenant.controller");
+const { upload } = require("../../utils/upload");
 
 /* ------------------------------------------------------------------ */
 /* GET ALL TENANTS                                                    */
@@ -115,9 +115,9 @@ const { upload } = require('../../utils/upload');
  *                   example: "Forbidden"
  */
 router.get(
-  '/all',
+  "/all",
   auth,
-  dynamicAccess('Tenant', 'read', { checkTenant: true }),
+  dynamicAccess("Tenant", "read", { checkTenant: true }),
   tenantController.getAllTenants,
 );
 
@@ -199,9 +199,9 @@ router.get(
  *                   example: "Forbidden"
  */
 router.post(
-  '/detail',
+  "/detail",
   auth,
-  dynamicAccess('Tenant', 'read', { checkTenant: true }),
+  dynamicAccess("Tenant", "read", { checkTenant: true }),
   tenantController.getSpecificTenant,
 );
 
@@ -244,6 +244,32 @@ router.post(
  *               maxUsers:
  *                 type: integer
  *                 example: 50
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "contact@acmecorp.com"
+ *               phone:
+ *                 type: string
+ *                 example: "+1-555-123-4567"
+ *               address:
+ *                 type: string
+ *                 example: "123 Business Ave, Suite 100"
+ *               city:
+ *                 type: string
+ *                 example: "New York"
+ *               state:
+ *                 type: string
+ *                 example: "NY"
+ *               zipCode:
+ *                 type: string
+ *                 example: "10001"
+ *               country:
+ *                 type: string
+ *                 example: "United States"
+ *               website:
+ *                 type: string
+ *                 format: uri
+ *                 example: "https://www.acmecorp.com"
  *     responses:
  *       '201':
  *         description: Tenant created successfully
@@ -297,19 +323,19 @@ router.post(
  *                   example: "Forbidden"
  */
 router.post(
-  '/create',
+  "/create",
   auth,
-  dynamicAccess('Tenant', 'create', { checkTenant: true }),
+  dynamicAccess("Tenant", "create", { checkTenant: true }),
   upload({
-    folder: 'uploads/tenant',
+    folder: "uploads/tenant",
     allowedMimes: [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'image/svg+xml',
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/svg+xml",
     ],
-    allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
+    allowedExtensions: [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"],
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024,
   }),
   tenantController.createTenant,
@@ -361,6 +387,32 @@ router.post(
  *               maxUsers:
  *                 type: integer
  *                 example: 100
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 example: "contact@acmecorp.com"
+ *               phone:
+ *                 type: string
+ *                 example: "+1-555-123-4567"
+ *               address:
+ *                 type: string
+ *                 example: "123 Business Ave, Suite 100"
+ *               city:
+ *                 type: string
+ *                 example: "New York"
+ *               state:
+ *                 type: string
+ *                 example: "NY"
+ *               zipCode:
+ *                 type: string
+ *                 example: "10001"
+ *               country:
+ *                 type: string
+ *                 example: "United States"
+ *               website:
+ *                 type: string
+ *                 format: uri
+ *                 example: "https://www.acmecorp.com"
  *     responses:
  *       '200':
  *         description: Tenant updated successfully
@@ -430,19 +482,19 @@ router.post(
  *                   example: "Forbidden"
  */
 router.patch(
-  '/edit',
+  "/edit",
   auth,
-  dynamicAccess('Tenant', 'update', { checkSelf: true, checkTenant: true }),
+  dynamicAccess("Tenant", "update", { checkSelf: true, checkTenant: true }),
   upload({
-    folder: 'uploads/tenant',
+    folder: "uploads/tenant",
     allowedMimes: [
-      'image/jpeg',
-      'image/png',
-      'image/gif',
-      'image/webp',
-      'image/svg+xml',
+      "image/jpeg",
+      "image/png",
+      "image/gif",
+      "image/webp",
+      "image/svg+xml",
     ],
-    allowedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'],
+    allowedExtensions: [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"],
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024,
   }),
   tenantController.updateTenant,
@@ -540,9 +592,9 @@ router.patch(
  *                   example: "Forbidden"
  */
 router.delete(
-  '/delete',
+  "/delete",
   auth,
-  dynamicAccess('Tenant', 'delete', { checkTenant: true }),
+  dynamicAccess("Tenant", "delete", { checkTenant: true }),
   tenantController.deleteTenant,
 );
 
