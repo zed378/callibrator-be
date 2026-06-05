@@ -138,7 +138,7 @@ exports.deleteUser = asyncHandler(async (req, res) => {
 // ==========================================
 
 exports.uploadUserAvatar = asyncHandler(async (req, res) => {
-  const { userId } = req.body;
+  const { userId } = req.params || req.body;
   const updatedBy = req.user?.id;
 
   if (!req.file) {

@@ -58,10 +58,22 @@ exports.createUserSchema = Joi.object({
 exports.updateUserSchema = Joi.object({
   userId: Joi.string().uuid().required(),
   tenantId: Joi.string().uuid().allow(null, ""),
-  username,
+  username: Joi.string()
+    .trim()
+    .lowercase()
+    .alphanum()
+    .min(3)
+    .max(30)
+    .allow(null, ""),
   firstName: Joi.string().trim().min(2).max(100),
   lastName: Joi.string().trim().min(2).max(100).allow(null, ""),
-  email,
+  email: Joi.string()
+    .trim()
+    .lowercase()
+    .email()
+    .min(6)
+    .max(255)
+    .allow(null, ""),
   password: Joi.string()
     .min(8)
     .max(100)

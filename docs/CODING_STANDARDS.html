@@ -151,12 +151,11 @@
             <a href="#16-message-queue-standards">16. Message Queue Standards</a>
             <a href="#17-documentation-standards">17. Documentation Standards</a>
             <a href="#18-constants-standards">18. Constants Standards</a>
-            <a href="#19-migration--seeding-standards">19. Migration & Seeding Standards</a>
+            <a href="#19-migration-seeding-standards">19. Migration & Seeding Standards</a>
             <a href="#20-environment-variables">20. Environment Variables</a>
-            <a href="#21-git--deployment">21. Git & Deployment</a>
+            <a href="#21-git-deployment">21. Git & Deployment</a>
             <a href="#22-unit-testing-standards">22. Unit Testing Standards</a>
-            <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0;"></div>
-            <a href="#quick-reference" style="opacity: 0.5; font-size: 12px;">Quick Reference</a>
+            <a href="#quick-reference">Quick Reference</a>
         </div>
     </nav>
     
@@ -164,7 +163,7 @@
         <div class="page-header">
             <h1>Coding Standards & Guidelines</h1>
             <p class="subtitle">Comprehensive standards for the Boilerplate PG MySQL project</p>
-            <p class="generated">Generated on May 21, 2026</p>
+            <p class="generated">Generated on June 5, 2026</p>
         </div>
 
         <h1>Coding Standards &amp; Guidelines</h1>
@@ -922,38 +921,105 @@ module.exports = {
 <li>Models auto-loaded via <code>src/models/index.js</code></li>
 </ul>
 <h3>Model Definition</h3>
-<pre><code class="language-javascript">const { DataTypes } = require(&quot;sequelize&quot;);
+<p>Each model file exports an object with the Sequelize model instance:</p>
+<pre><code class="language-javascript">// user.js
+const { Sequelize, DataTypes } = require(&quot;sequelize&quot;);
+const { db } = require(&quot;../config&quot;);
 
-const Model = (sequelize) =&gt; {
-  return sequelize.define(
-    &quot;ModelName&quot;,
-    {
-      id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true,
-      },
-      fieldName: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+const Users = db.define(
+  &quot;users&quot;,
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: Sequelize.UUIDV4,
+      primaryKey: true,
     },
-    {
-      tableName: &quot;table_name&quot;,
-      timestamps: true,
-      createdAt: &quot;created_at&quot;,
-      updatedAt: &quot;updated_at&quot;,
+    tenantId: {
+      type: DataTypes.UUID,
+      allowNull: true,
     },
-  );
+    username: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
+    },
+    // ... other fields
+  },
+  {
+    freezeTableName: true,
+    timestamps: true,
+  },
+);
+
+module.exports = {
+  Users,
+};
+</code></pre>
+<h3>Model Index Pattern</h3>
+<p><code>src/models/index.js</code> is <strong>ONLY for importing and exporting models</strong>. It must NOT define associations directly. Instead, associations are defined in each model file’s <code>associate</code> method.</p>
+<pre><code class="language-javascript">// src/models/index.js
+const { Users } = require(&quot;./user&quot;);
+const { Tenants } = require(&quot;./tenant&quot;);
+const { Roles } = require(&quot;./roles&quot;);
+// ... other imports
+
+// Collect models
+const models = {
+  Users,
+  Tenants,
+  Roles,
+  // ... other models
 };
 
-module.exports = Model;
+// Run associations defined in each model
+Object.keys(models).forEach((key) =&gt; {
+  if (models[key].associate) {
+    models[key].associate(models);
+  }
+});
+
+module.exports = {
+  ...models,
+  Op: require(&quot;sequelize&quot;).Op,
+  Sequelize: require(&quot;sequelize&quot;).Sequelize,
+};
 </code></pre>
-<h3>Associations</h3>
-<p>Define associations in <code>src/models/index.js</code>:</p>
-<pre><code class="language-javascript">User.belongsTo(Tenant, { foreignKey: &quot;tenantId&quot;, as: &quot;tenant&quot; });
-User.hasMany(Session, { foreignKey: &quot;userId&quot;, as: &quot;sessions&quot; });
+<h3>Association Pattern</h3>
+<p>Define associations in each model file using the <code>associate</code> method pattern:</p>
+<pre><code class="language-javascript">// user.js - Associations section
+Users.associate = (models) =&gt; {
+  Users.belongsTo(models.Roles, {
+    foreignKey: &quot;roleId&quot;,
+    as: &quot;role&quot;,
+  });
+
+  Users.belongsTo(models.TenantRoles, {
+    foreignKey: &quot;tenantRoleId&quot;,
+    as: &quot;tenantRole&quot;,
+  });
+
+  Users.belongsTo(models.Tenants, {
+    foreignKey: &quot;tenantId&quot;,
+    as: &quot;tenant&quot;,
+  });
+
+  Users.belongsToMany(models.Permissions, {
+    through: models.UserPermissions,
+    foreignKey: &quot;userId&quot;,
+    otherKey: &quot;permissionId&quot;,
+    as: &quot;permissions&quot;,
+  });
+};
 </code></pre>
+<h3>Guidelines</h3>
+<ol>
+<li><strong>Model index is import-only</strong> - <code>src/models/index.js</code> only imports, collects, and exports models</li>
+<li><strong>Associations in model files</strong> - Each model defines its own associations via the <code>associate</code> method</li>
+<li><strong>Auto-discovery pattern</strong> - <code>index.js</code> iterates over all models and calls <code>associate()</code> if it exists</li>
+<li><strong>Export as object</strong> - Each model exports <code>{ ModelName }</code> not the raw model</li>
+<li><strong>Use freezeTableName</strong> - Prevent Sequelize from auto-pluralizing table names</li>
+<li><strong>Define aliases</strong> - Use <code>as</code> for all associations to avoid confusion</li>
+</ol>
 <hr>
 <a id="11-error-handling"></a><h2> 11. Error Handling </h2>
 <h3>Error Format</h3>
@@ -1495,7 +1561,7 @@ const USER_PERMISSIONS = {
 };
 </code></pre>
 <hr>
-<a id="19-migration--seeding-standards"></a><h2> 19. Migration & Seeding Standards </h2>
+<h2>19. Migration &amp; Seeding Standards</h2>
 <h3>Migration Service</h3>
 <p>All database migration and seeding operations must be handled through the migration service (<code>src/services/migration.service.js</code>). This consolidates all seeding logic and provides a single source of truth for database initialization.</p>
 <h3>Service Structure</h3>
@@ -1671,7 +1737,7 @@ RABBITMQ_PASS=guest
 <li>Use descriptive names: <code>JWT_ACCESS_EXPIRED</code>, <code>BACKUP_SCHEDULER</code></li>
 </ul>
 <hr>
-<a id="21-git--deployment"></a><h2> 21. Git & Deployment </h2>
+<h2>21. Git &amp; Deployment</h2>
 <h3>Git Workflow</h3>
 <ol>
 <li>Create feature branch: <code>feature/add-email-queue</code></li>
@@ -2124,7 +2190,7 @@ npx jest --watch
 
         <hr>
         <footer style="text-align:center;padding:30px 0;color:var(--text-light);font-size:14px;">
-            <p>Generated on May 21, 2026</p>
+            <p>Generated on June 5, 2026</p>
             <p>Boilerplate PG MySQL - Enterprise Multi-Tenant Express.js Boilerplate</p>
             <p style="margin-top:10px;"><a href="/documentation" style="color:var(--primary);">← Back to Main Documentation</a></p>
         </footer>

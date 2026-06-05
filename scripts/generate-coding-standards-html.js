@@ -1,6 +1,9 @@
 /**
  * Coding Standards HTML Generator
  * Converts CODING_STANDARDS.md to CODING_STANDARDS.html
+ *
+ * This generator dynamically extracts section headings from the markdown file
+ * and generates sidebar navigation links automatically.
  */
 
 const fs = require("fs");
@@ -29,57 +32,96 @@ try {
   process.exit(1);
 }
 
-// Convert markdown to HTML
+// ==========================================
+// DYNAMIC HEADING EXTRACTION
+// ==========================================
+
+/**
+ * Extract all h2 headings from markdown and generate anchor IDs
+ * @param {string} content - Markdown content
+ * @returns {Array<{text: string, id: string}>}
+ */
+function extractHeadings(content) {
+  const headings = [];
+  // Normalize line endings and split
+  const normalizedContent = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines = normalizedContent.split("\n");
+
+  for (const line of lines) {
+    // Match h2 headings: ## Heading Text (with optional leading whitespace)
+    const h2Match = line.match(/^\s*##\s+(.+)$/);
+    if (h2Match) {
+      const headingText = h2Match[1].trim();
+      // Skip "Table of Contents" as it's not a section
+      if (headingText === "Table of Contents") {
+        continue;
+      }
+      // Generate anchor ID: lowercase, replace spaces with hyphens, remove special chars
+      const anchorId = headingText
+        .toLowerCase()
+        .replace(/[^\w\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-");
+      headings.push({ text: headingText, id: anchorId });
+    }
+  }
+
+  return headings;
+}
+
+const headings = extractHeadings(markdownContent);
+console.log(`Found ${headings.length} sections:`);
+headings.forEach((h) => console.log(`  - ${h.text} -> #${h.id}`));
+
+// ==========================================
+// CONVERT MARKDOWN TO HTML
+// ==========================================
+
 let htmlContent = md.render(markdownContent);
 
-// Map of heading text (as it appears in HTML) to desired ID for sidebar navigation
-const idMap = [
-  ["1. Project Overview", "1-project-overview"],
-  ["2. Naming Conventions", "2-naming-conventions"],
-  ["3. File Structure", "3-file-structure"],
-  ["4. Controller Standards", "4-controller-standards"],
-  ["5. Service Standards", "5-service-standards"],
-  ["6. Route Standards", "6-route-standards"],
-  ["7. Validator Standards", "7-validator-standards"],
-  ["8. Utility Standards", "8-utility-standards"],
-  ["9. Middleware Standards", "9-middleware-standards"],
-  ["10. Model Standards", "10-model-standards"],
-  ["11. Error Handling", "11-error-handling"],
-  ["12. Response Format", "12-response-format"],
-  ["13. Permission Format", "13-permission-format"],
-  ["14. Database Standards", "14-database-standards"],
-  ["15. Caching Standards", "15-caching-standards"],
-  ["16. Message Queue Standards", "16-message-queue-standards"],
-  ["17. Documentation Standards", "17-documentation-standards"],
-  ["18. Constants Standards", "18-constants-standards"],
-  ["19. Migration & Seeding Standards", "19-migration--seeding-standards"],
-  ["20. Environment Variables", "20-environment-variables"],
-  ["21. Git & Deployment", "21-git--deployment"],
-  ["22. Unit Testing Standards", "22-unit-testing-standards"],
-  ["Quick Reference", "quick-reference"],
-];
-
 // Add anchor IDs to h2 headings for sidebar navigation
-idMap.forEach(([headingText, id]) => {
-  // Escape special regex characters
-  let escapedHeading = headingText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+headings.forEach(({ text, id }) => {
+  // Escape special regex characters in heading text
+  let escapedText = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // Replace & with pattern that matches & or & (HTML entity)
-  escapedHeading = escapedHeading.replace(/&/g, "&amp;?");
+  escapedText = escapedText.replace(/&/g, "&?");
+
   // Match the entire h2 tag containing the heading text
-  const h2Regex = new RegExp(
-    `(<h2[^>]*>)\\s*${escapedHeading}\\s*(</h2>)`,
-    "is",
-  );
+  const h2Regex = new RegExp(`(<h2[^>]*>)\\s*${escapedText}\\s*(</h2>)`, "is");
 
   if (h2Regex.test(htmlContent)) {
     htmlContent = htmlContent.replace(
       h2Regex,
-      `<a id="${id}"></a>$1 ${headingText} $2`,
+      `<a id="${id}"></a>$1 ${text} $2`,
     );
   }
 });
 
-// Generate full HTML page
+// ==========================================
+// GENERATE SIDEBAR NAVIGATION
+// ==========================================
+
+/**
+ * Generate sidebar navigation HTML from headings
+ * @param {Array<{text: string, id: string}>} headings
+ * @returns {string}
+ */
+function generateSidebarNav(headings) {
+  const navItems = headings
+    .map(({ text, id }) => `            <a href="#${id}">${text}</a>`)
+    .join("\n");
+
+  return `        <div class="sidebar-nav">
+${navItems}
+        </div>`;
+}
+
+const sidebarNav = generateSidebarNav(headings);
+
+// ==========================================
+// GENERATE FULL HTML PAGE
+// ==========================================
+
 const generatedDate = new Date().toLocaleDateString("en-US", {
   year: "numeric",
   month: "long",
@@ -220,32 +262,7 @@ const fullHtml = `<!DOCTYPE html>
             <h2>Coding Standards</h2>
             <p>Boilerplate PG MySQL v1.0</p>
         </div>
-        <div class="sidebar-nav">
-            <a href="#1-project-overview">1. Project Overview</a>
-            <a href="#2-naming-conventions">2. Naming Conventions</a>
-            <a href="#3-file-structure">3. File Structure</a>
-            <a href="#4-controller-standards">4. Controller Standards</a>
-            <a href="#5-service-standards">5. Service Standards</a>
-            <a href="#6-route-standards">6. Route Standards</a>
-            <a href="#7-validator-standards">7. Validator Standards</a>
-            <a href="#8-utility-standards">8. Utility Standards</a>
-            <a href="#9-middleware-standards">9. Middleware Standards</a>
-            <a href="#10-model-standards">10. Model Standards</a>
-            <a href="#11-error-handling">11. Error Handling</a>
-            <a href="#12-response-format">12. Response Format</a>
-            <a href="#13-permission-format">13. Permission Format</a>
-            <a href="#14-database-standards">14. Database Standards</a>
-            <a href="#15-caching-standards">15. Caching Standards</a>
-            <a href="#16-message-queue-standards">16. Message Queue Standards</a>
-            <a href="#17-documentation-standards">17. Documentation Standards</a>
-            <a href="#18-constants-standards">18. Constants Standards</a>
-            <a href="#19-migration--seeding-standards">19. Migration & Seeding Standards</a>
-            <a href="#20-environment-variables">20. Environment Variables</a>
-            <a href="#21-git--deployment">21. Git & Deployment</a>
-            <a href="#22-unit-testing-standards">22. Unit Testing Standards</a>
-            <div style="border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0;"></div>
-            <a href="#quick-reference" style="opacity: 0.5; font-size: 12px;">Quick Reference</a>
-        </div>
+${sidebarNav}
     </nav>
     
     <main class="main-content">

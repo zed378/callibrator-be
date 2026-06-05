@@ -717,43 +717,115 @@ module.exports = {
 
 ### Model Definition
 
-```javascript
-const { DataTypes } = require("sequelize");
+Each model file exports an object with the Sequelize model instance:
 
-const Model = (sequelize) => {
-  return sequelize.define(
-    "ModelName",
-    {
-      id: {
-        type: DataTypes.UUID,
-        defaultValue: DataTypes.UUIDV4,
-        primaryKey: true,
-      },
-      fieldName: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+```javascript
+// user.js
+const { Sequelize, DataTypes } = require("sequelize");
+const { db } = require("../config");
+
+const Users = db.define(
+  "users",
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: Sequelize.UUIDV4,
+      primaryKey: true,
     },
-    {
-      tableName: "table_name",
-      timestamps: true,
-      createdAt: "created_at",
-      updatedAt: "updated_at",
+    tenantId: {
+      type: DataTypes.UUID,
+      allowNull: true,
     },
-  );
+    username: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
+    },
+    // ... other fields
+  },
+  {
+    freezeTableName: true,
+    timestamps: true,
+  },
+);
+
+module.exports = {
+  Users,
+};
+```
+
+### Model Index Pattern
+
+`src/models/index.js` is **ONLY for importing and exporting models**. It must NOT define associations directly. Instead, associations are defined in each model file's `associate` method.
+
+```javascript
+// src/models/index.js
+const { Users } = require("./user");
+const { Tenants } = require("./tenant");
+const { Roles } = require("./roles");
+// ... other imports
+
+// Collect models
+const models = {
+  Users,
+  Tenants,
+  Roles,
+  // ... other models
 };
 
-module.exports = Model;
+// Run associations defined in each model
+Object.keys(models).forEach((key) => {
+  if (models[key].associate) {
+    models[key].associate(models);
+  }
+});
+
+module.exports = {
+  ...models,
+  Op: require("sequelize").Op,
+  Sequelize: require("sequelize").Sequelize,
+};
 ```
 
-### Associations
+### Association Pattern
 
-Define associations in `src/models/index.js`:
+Define associations in each model file using the `associate` method pattern:
 
 ```javascript
-User.belongsTo(Tenant, { foreignKey: "tenantId", as: "tenant" });
-User.hasMany(Session, { foreignKey: "userId", as: "sessions" });
+// user.js - Associations section
+Users.associate = (models) => {
+  Users.belongsTo(models.Roles, {
+    foreignKey: "roleId",
+    as: "role",
+  });
+
+  Users.belongsTo(models.TenantRoles, {
+    foreignKey: "tenantRoleId",
+    as: "tenantRole",
+  });
+
+  Users.belongsTo(models.Tenants, {
+    foreignKey: "tenantId",
+    as: "tenant",
+  });
+
+  Users.belongsToMany(models.Permissions, {
+    through: models.UserPermissions,
+    foreignKey: "userId",
+    otherKey: "permissionId",
+    as: "permissions",
+  });
+};
 ```
+
+### Guidelines
+
+1. **Model index is import-only** - `src/models/index.js` only imports, collects, and exports models
+2. **Associations in model files** - Each model defines its own associations via the `associate` method
+3. **Auto-discovery pattern** - `index.js` iterates over all models and calls `associate()` if it exists
+4. **Export as object** - Each model exports `{ ModelName }` not the raw model
+5. **Use freezeTableName** - Prevent Sequelize from auto-pluralizing table names
+6. **Define aliases** - Use `as` for all associations to avoid confusion
 
 ---
 

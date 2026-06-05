@@ -1,7 +1,7 @@
-const { Users } = require('../models');
-const { logger } = require('../middlewares/activityLog');
-const { AppError } = require('../utils/appError');
-const { deleteUpload, getUploadUrl } = require('../utils/upload');
+const { Users } = require("../models");
+const { logger } = require("../middlewares/activityLog");
+const { AppError } = require("../utils/appError");
+const { deleteUpload, getUploadUrl } = require("../utils/upload");
 
 // ==========================================
 // USER AVATAR UPLOAD SERVICE
@@ -18,15 +18,15 @@ exports.updateUserAvatar = async (userId, filename, updatedBy) => {
     const user = await Users.findByPk(userId);
 
     if (!user) {
-      throw new AppError(404, 'User not found');
+      throw new AppError(404, "User not found");
     }
 
     // Delete old avatar if exists and not default
-    if (user.avatar) {
-      const oldFilename = user.avatar.split('/').pop();
-      if (oldFilename && oldFilename !== 'default.svg') {
+    if (user.picture) {
+      const oldFilename = user.picture.split("/").pop();
+      if (oldFilename && oldFilename !== "default.svg") {
         try {
-          await deleteUpload(oldFilename, 'uploads/profile');
+          await deleteUpload(oldFilename, "uploads/profile");
         } catch (err) {
           logger.warn(`Failed to delete old avatar: ${oldFilename}`, err);
         }
@@ -34,19 +34,19 @@ exports.updateUserAvatar = async (userId, filename, updatedBy) => {
     }
 
     // Update user with new avatar (store only filename)
-    await user.update({ avatar: filename }, { silent: true });
+    await user.update({ picture: filename }, { silent: true });
 
     logger.info(`User avatar updated: ${userId} by ${updatedBy}`);
 
     return {
       data: { avatar: filename },
-      message: 'User avatar updated successfully',
+      message: "User avatar updated successfully",
       status: 200,
     };
   } catch (error) {
     if (error instanceof AppError) throw error;
-    logger.error('Error updating user avatar', { error: error.message });
-    throw new AppError(500, 'Failed to update user avatar');
+    logger.error("Error updating user avatar", { error: error.message });
+    throw new AppError(500, "Failed to update user avatar");
   }
 };
 
@@ -60,32 +60,32 @@ exports.removeUserAvatar = async (userId, updatedBy) => {
     const user = await Users.findByPk(userId);
 
     if (!user) {
-      throw new AppError(404, 'User not found');
+      throw new AppError(404, "User not found");
     }
 
     // Delete avatar file if exists and not default
-    if (user.avatar) {
-      const filename = user.avatar.split('/').pop();
-      if (filename && filename !== 'default.svg') {
+    if (user.picture) {
+      const filename = user.picture.split("/").pop();
+      if (filename && filename !== "default.svg") {
         try {
-          await deleteUpload(filename, 'uploads/profile');
+          await deleteUpload(filename, "uploads/profile");
         } catch (err) {
           logger.warn(`Failed to delete avatar file: ${filename}`, err);
         }
       }
 
-      await user.update({ avatar: null }, { silent: true });
+      await user.update({ picture: "default.svg" }, { silent: true });
       logger.info(`User avatar removed: ${userId} by ${updatedBy}`);
     }
 
     return {
-      data: { avatar: null },
-      message: 'User avatar removed successfully',
+      data: { avatar: "default.svg" },
+      message: "User avatar removed successfully",
       status: 200,
     };
   } catch (error) {
     if (error instanceof AppError) throw error;
-    logger.error('Error removing user avatar', { error: error.message });
-    throw new AppError(500, 'Failed to remove user avatar');
+    logger.error("Error removing user avatar", { error: error.message });
+    throw new AppError(500, "Failed to remove user avatar");
   }
 };
