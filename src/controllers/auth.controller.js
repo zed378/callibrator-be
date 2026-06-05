@@ -121,12 +121,14 @@ exports.logoutAll = asyncHandlerWithMapping(async (req, res) => {
 
 exports.verify = asyncHandlerWithMapping(
   async (req, res) => {
-    const userData = await authService.verifyUserSession(
+    const result = await authService.verifyUserSession(
       req.user.id,
       req.session,
     );
 
-    success(res, userData, null, "Token valid", 200);
+    // Service returns { success, status, message, data: user }
+    // Extract just the user data to avoid double-wrapping
+    success(res, result.data, null, result.message, result.status);
   },
   {
     banned: 403,
