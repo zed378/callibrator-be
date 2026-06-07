@@ -10,8 +10,8 @@
  *   const result = await migrationService.seedAll();
  */
 
-const bcrypt = require('bcryptjs');
-const { Op } = require('sequelize');
+const bcrypt = require("bcryptjs");
+const { Op } = require("sequelize");
 const {
   Users,
   Roles,
@@ -21,7 +21,7 @@ const {
   TablePermission,
   RolePermission,
   LoginLogs,
-} = require('../models');
+} = require("../models");
 const {
   ROLE_NAMES,
   ROLE_IDS,
@@ -29,10 +29,12 @@ const {
   TENANT_PERMISSIONS,
   ROLE_MODULE_PERMISSIONS,
   PASSWORD_SALT_ROUNDS,
-} = require('../constants');
+} = require("../constants");
+const { MenuGroup, MenuGroupRole } = require("../models");
 const {
   DEFAULT_MODELS: TABLE_PERMISSION_MODELS,
-} = require('../utils/seedTablePermissions');
+} = require("../utils/seedTablePermissions");
+const modelDiscoveryService = require("./modelDiscovery.service");
 
 // ==========================================
 // CONSTANTS
@@ -44,82 +46,82 @@ const {
  */
 const APPLICATION_ROLES = [
   {
-    id: 'cd8ce1a8-138e-4d91-8ae2-2f52ad3a8d08',
-    name: 'HEALTHCARE ADMIN',
-    description: 'Healthcare Administrator',
-    nameToShow: 'Admin Faskes',
+    id: "cd8ce1a8-138e-4d91-8ae2-2f52ad3a8d08",
+    name: "HEALTHCARE ADMIN",
+    description: "Healthcare Administrator",
+    nameToShow: "Admin Faskes",
     isActive: true,
     roleLevel: 2,
     permissionIds: [], // Will be populated during seeding
   },
   {
-    id: 'ce5bc0f9-b342-45d1-b08a-b626c6026a7f',
-    name: 'CALIBRATOR ADMIN',
-    description: 'Calibrator Administrator',
-    nameToShow: 'Admin Kalibrator',
+    id: "ce5bc0f9-b342-45d1-b08a-b626c6026a7f",
+    name: "CALIBRATOR ADMIN",
+    description: "Calibrator Administrator",
+    nameToShow: "Admin Kalibrator",
     isActive: true,
     roleLevel: 2,
     permissionIds: [], // Will be populated during seeding
   },
   {
-    id: '752e324a-e426-4cc9-ae2d-639b1a7a2785',
-    name: 'TECHNICIAN',
-    description: 'Technician',
-    nameToShow: 'Teknisi',
+    id: "752e324a-e426-4cc9-ae2d-639b1a7a2785",
+    name: "TECHNICIAN",
+    description: "Technician",
+    nameToShow: "Teknisi",
     isActive: true,
     roleLevel: 1,
     permissionIds: [], // Will be populated during seeding
   },
   {
-    id: '137404e9-c995-4437-be17-d1af64ab3c30',
-    name: 'SUPERVISOR',
-    description: 'Supervisor',
-    nameToShow: 'Penyelia',
+    id: "137404e9-c995-4437-be17-d1af64ab3c30",
+    name: "SUPERVISOR",
+    description: "Supervisor",
+    nameToShow: "Penyelia",
     isActive: true,
     roleLevel: 1,
     permissionIds: [], // Will be populated during seeding
   },
   {
-    id: '74101285-c256-4cb9-951d-24ed6547a9cb',
-    name: 'ENGINEERING MANAGER',
-    description: 'Engineering Manager',
-    nameToShow: 'Manajer Teknik',
+    id: "74101285-c256-4cb9-951d-24ed6547a9cb",
+    name: "ENGINEERING MANAGER",
+    description: "Engineering Manager",
+    nameToShow: "Manajer Teknik",
     isActive: true,
     roleLevel: 1,
     permissionIds: [], // Will be populated during seeding
   },
   {
-    id: 'b85b324b-9b80-4c36-85b8-46db21872bdf',
-    name: 'HEALTHCARE TECHNICIAN',
-    description: 'Healthcare Technician',
-    nameToShow: 'Teknisi Faskes',
+    id: "b85b324b-9b80-4c36-85b8-46db21872bdf",
+    name: "HEALTHCARE TECHNICIAN",
+    description: "Healthcare Technician",
+    nameToShow: "Teknisi Faskes",
     isActive: true,
     roleLevel: 1,
     permissionIds: [], // Will be populated during seeding
   },
   {
-    id: '5e724805-02ba-498f-a7f0-6b415c8f69fe',
-    name: 'FACILITY MAINTENANCE',
-    description: 'Facility Maintenance',
-    nameToShow: 'IPSRS',
+    id: "5e724805-02ba-498f-a7f0-6b415c8f69fe",
+    name: "FACILITY MAINTENANCE",
+    description: "Facility Maintenance",
+    nameToShow: "IPSRS",
     isActive: true,
     roleLevel: 1,
     permissionIds: [], // Will be populated during seeding
   },
   {
-    id: 'e50b664b-451c-45a9-8c83-f65b94a8afdf',
-    name: 'WAREHOUSE STAFF',
-    description: 'Warehouse Staff',
-    nameToShow: 'Gudang',
+    id: "e50b664b-451c-45a9-8c83-f65b94a8afdf",
+    name: "WAREHOUSE STAFF",
+    description: "Warehouse Staff",
+    nameToShow: "Gudang",
     isActive: true,
     roleLevel: 1,
     permissionIds: [], // Will be populated during seeding
   },
   {
-    id: '6fdd1212-9c4f-45d5-b3bf-5335892be7c0',
-    name: 'ROOM USER',
-    description: 'Room User',
-    nameToShow: 'User Ruangan',
+    id: "6fdd1212-9c4f-45d5-b3bf-5335892be7c0",
+    name: "ROOM USER",
+    description: "Room User",
+    nameToShow: "User Ruangan",
     isActive: true,
     roleLevel: 1,
     permissionIds: [], // Will be populated during seeding
@@ -131,13 +133,13 @@ const APPLICATION_ROLES = [
  */
 const DEFAULT_SYSTEM_USERS = [
   {
-    username: 'sys',
-    firstName: 'Super',
-    lastName: 'System',
-    email: 'sys@mail.com',
-    password: '123123',
+    username: "sys",
+    firstName: "Super",
+    lastName: "System",
+    email: "sys@mail.com",
+    password: "123123",
     isActive: true,
-    status: 'ACTIVE',
+    status: "ACTIVE",
     isEmailVerified: true,
     roleId: ROLE_IDS.SUPER_ADMIN,
   },
@@ -150,71 +152,71 @@ const USER_MODULE_PERMISSIONS = [
   // Global permissions (module:action)
   {
     name: USER_PERMISSIONS.CREATE,
-    module: 'user',
-    action: 'create',
-    description: 'Global permission to create users',
+    module: "user",
+    action: "create",
+    description: "Global permission to create users",
   },
   {
     name: USER_PERMISSIONS.READ,
-    module: 'user',
-    action: 'read',
-    description: 'Global permission to read users',
+    module: "user",
+    action: "read",
+    description: "Global permission to read users",
   },
   {
     name: USER_PERMISSIONS.UPDATE,
-    module: 'user',
-    action: 'update',
-    description: 'Global permission to update users',
+    module: "user",
+    action: "update",
+    description: "Global permission to update users",
   },
   {
     name: USER_PERMISSIONS.DELETE,
-    module: 'user',
-    action: 'delete',
-    description: 'Global permission to delete users',
+    module: "user",
+    action: "delete",
+    description: "Global permission to delete users",
   },
   // Self permissions (module:self:action)
   {
     name: USER_PERMISSIONS.SELF_UPDATE,
-    module: 'user',
-    action: 'self:update',
-    description: 'Permission to update own profile',
+    module: "user",
+    action: "self:update",
+    description: "Permission to update own profile",
   },
   {
     name: USER_PERMISSIONS.SELF_READ,
-    module: 'user',
-    action: 'self:read',
-    description: 'Permission to read own profile',
+    module: "user",
+    action: "self:read",
+    description: "Permission to read own profile",
   },
   // Tenant permissions (module:tenant:action)
   {
     name: USER_PERMISSIONS.TENANT_CREATE,
-    module: 'user',
-    action: 'tenant:create',
-    description: 'Permission to create users within tenant',
+    module: "user",
+    action: "tenant:create",
+    description: "Permission to create users within tenant",
   },
   {
     name: USER_PERMISSIONS.TENANT_READ,
-    module: 'user',
-    action: 'tenant:read',
-    description: 'Permission to read users within tenant',
+    module: "user",
+    action: "tenant:read",
+    description: "Permission to read users within tenant",
   },
   {
     name: USER_PERMISSIONS.TENANT_UPDATE,
-    module: 'user',
-    action: 'tenant:update',
-    description: 'Permission to update users within tenant',
+    module: "user",
+    action: "tenant:update",
+    description: "Permission to update users within tenant",
   },
   {
     name: USER_PERMISSIONS.TENANT_DELETE,
-    module: 'user',
-    action: 'tenant:delete',
-    description: 'Permission to delete users within tenant',
+    module: "user",
+    action: "tenant:delete",
+    description: "Permission to delete users within tenant",
   },
   {
     name: USER_PERMISSIONS.TENANT_ASSIGN,
-    module: 'user',
-    action: 'tenant:assign',
-    description: 'Permission to assign users to tenant',
+    module: "user",
+    action: "tenant:assign",
+    description: "Permission to assign users to tenant",
   },
 ];
 
@@ -225,53 +227,53 @@ const TENANT_MODULE_PERMISSIONS = [
   // Global permissions (module:action)
   {
     name: TENANT_PERMISSIONS.CREATE,
-    module: 'tenant',
-    action: 'create',
-    description: 'Global permission to create tenants',
+    module: "tenant",
+    action: "create",
+    description: "Global permission to create tenants",
   },
   {
     name: TENANT_PERMISSIONS.READ,
-    module: 'tenant',
-    action: 'read',
-    description: 'Global permission to read tenants',
+    module: "tenant",
+    action: "read",
+    description: "Global permission to read tenants",
   },
   {
     name: TENANT_PERMISSIONS.UPDATE,
-    module: 'tenant',
-    action: 'update',
-    description: 'Global permission to update tenants',
+    module: "tenant",
+    action: "update",
+    description: "Global permission to update tenants",
   },
   {
     name: TENANT_PERMISSIONS.DELETE,
-    module: 'tenant',
-    action: 'delete',
-    description: 'Global permission to delete tenants',
+    module: "tenant",
+    action: "delete",
+    description: "Global permission to delete tenants",
   },
   // Self permissions (module:self:action)
   {
     name: TENANT_PERMISSIONS.SELF_UPDATE,
-    module: 'tenant',
-    action: 'self:update',
-    description: 'Permission to update own tenant profile',
+    module: "tenant",
+    action: "self:update",
+    description: "Permission to update own tenant profile",
   },
   {
     name: TENANT_PERMISSIONS.SELF_READ,
-    module: 'tenant',
-    action: 'self:read',
-    description: 'Permission to read own tenant profile',
+    module: "tenant",
+    action: "self:read",
+    description: "Permission to read own tenant profile",
   },
   // Tenant permissions (module:tenant:action)
   {
     name: TENANT_PERMISSIONS.TENANT_READ,
-    module: 'tenant',
-    action: 'tenant:read',
-    description: 'Permission to read tenants within scope',
+    module: "tenant",
+    action: "tenant:read",
+    description: "Permission to read tenants within scope",
   },
   {
     name: TENANT_PERMISSIONS.TENANT_ASSIGN,
-    module: 'tenant',
-    action: 'tenant:assign',
-    description: 'Permission to assign tenants',
+    module: "tenant",
+    action: "tenant:assign",
+    description: "Permission to assign tenants",
   },
 ];
 
@@ -282,8 +284,8 @@ const DEFAULT_ROLES = [
   {
     id: ROLE_IDS.SUPER_ADMIN,
     name: ROLE_NAMES.SUPER_ADMIN,
-    description: 'Super Admin - Has full access to all resources',
-    nameToShow: 'Super Admin',
+    description: "Super Admin - Has full access to all resources",
+    nameToShow: "Super Admin",
     isActive: true,
     roleLevel: 10,
     permissionIds: [], // Super admin gets all permissions implicitly
@@ -291,8 +293,8 @@ const DEFAULT_ROLES = [
   {
     id: ROLE_IDS.TENANT_ADMIN,
     name: ROLE_NAMES.TENANT_ADMIN,
-    description: 'Tenant Admin - Can manage users within their tenant',
-    nameToShow: 'Tenant Admin',
+    description: "Tenant Admin - Can manage users within their tenant",
+    nameToShow: "Tenant Admin",
     isActive: true,
     roleLevel: 2,
     permissionIds: [], // Will be populated during seeding
@@ -300,8 +302,8 @@ const DEFAULT_ROLES = [
   {
     id: ROLE_IDS.USER,
     name: ROLE_NAMES.USER,
-    description: 'Regular User - Can manage own profile',
-    nameToShow: 'User',
+    description: "Regular User - Can manage own profile",
+    nameToShow: "User",
     isActive: true,
     roleLevel: 1,
     permissionIds: [], // Will be populated during seeding
@@ -543,33 +545,33 @@ async function seedPermissions() {
     const roleModulePermissions = [
       {
         name: ROLE_MODULE_PERMISSIONS.CREATE,
-        module: 'role',
-        action: 'create',
-        description: 'Create new roles',
+        module: "role",
+        action: "create",
+        description: "Create new roles",
       },
       {
         name: ROLE_MODULE_PERMISSIONS.READ,
-        module: 'role',
-        action: 'read',
-        description: 'View roles',
+        module: "role",
+        action: "read",
+        description: "View roles",
       },
       {
         name: ROLE_MODULE_PERMISSIONS.UPDATE,
-        module: 'role',
-        action: 'update',
-        description: 'Update existing roles',
+        module: "role",
+        action: "update",
+        description: "Update existing roles",
       },
       {
         name: ROLE_MODULE_PERMISSIONS.DELETE,
-        module: 'role',
-        action: 'delete',
-        description: 'Delete roles',
+        module: "role",
+        action: "delete",
+        description: "Delete roles",
       },
       {
         name: ROLE_MODULE_PERMISSIONS.ASSIGN_PERMISSIONS,
-        module: 'role',
-        action: 'assign:permissions',
-        description: 'Assign permissions to roles',
+        module: "role",
+        action: "assign:permissions",
+        description: "Assign permissions to roles",
       },
     ];
 
@@ -622,7 +624,7 @@ async function seedRolesPermissions() {
   try {
     // Get all permissions by name
     const allPermissions = await Permissions.findAll({
-      attributes: ['id', 'name'],
+      attributes: ["id", "name"],
     });
 
     const permissionMap = new Map(allPermissions.map((p) => [p.name, p.id]));
@@ -827,7 +829,7 @@ async function seedTablePermissions() {
         include: [
           {
             model: Models,
-            as: 'model',
+            as: "model",
             where: {
               modelName: TABLE_PERMISSION_MODELS.map((m) => m.modelName),
             },
@@ -837,7 +839,7 @@ async function seedTablePermissions() {
 
       for (const perm of tenantScopedPermissions) {
         // Grant read, create, update for tenant-scoped resources
-        if (['read', 'create', 'update'].includes(perm.action)) {
+        if (["read", "create", "update"].includes(perm.action)) {
           await assignTablePermissionToRole(tenantAdminRole.id, perm.id, true);
           console.log(
             `[INFO] ${new Date().toISOString()} -   Assigned ${perm.action} to TENANT_ADMIN for ${perm.model?.modelName || perm.modelId}`,
@@ -856,11 +858,11 @@ async function seedTablePermissions() {
         include: [
           {
             model: Models,
-            as: 'model',
-            where: { modelName: 'User' },
+            as: "model",
+            where: { modelName: "User" },
           },
         ],
-        where: { action: ['read', 'update'] },
+        where: { action: ["read", "update"] },
       });
 
       for (const perm of selfPermissions) {
@@ -934,6 +936,131 @@ async function seedUsers() {
 }
 
 // ==========================================
+// MENU GROUP SEEDING
+// ==========================================
+
+/**
+ * Seed default menu group assignments
+ * Every role gets Account menu group (Profile page) assigned
+ * SUPER_ADMIN and TENANT_ADMIN also get Management and Security
+ * @returns {Promise<Object>} Result of seeding operation
+ */
+async function seedDefaultMenuGroupAssignments() {
+  const result = {
+    assignmentsCreated: 0,
+    assignmentsSkipped: 0,
+    errors: [],
+  };
+
+  try {
+    // Get all menu groups
+    const accountGroup = await MenuGroup.findOne({
+      where: { label: "Account" },
+    });
+    const managementGroup = await MenuGroup.findOne({
+      where: { label: "Management" },
+    });
+    const securityGroup = await MenuGroup.findOne({
+      where: { label: "Security" },
+    });
+
+    // Get all active roles
+    const allRoles = await Roles.findAll({
+      where: { isActive: true },
+      attributes: ["id", "name"],
+    });
+
+    // Assign Account menu group to ALL roles (so every user can access Profile)
+    if (accountGroup) {
+      for (const role of allRoles) {
+        const existing = await MenuGroupRole.findOne({
+          where: {
+            menuGroupId: accountGroup.id,
+            roleId: role.id,
+            isActive: true,
+          },
+        });
+
+        if (existing) {
+          result.assignmentsSkipped++;
+        } else {
+          await MenuGroupRole.create({
+            menuGroupId: accountGroup.id,
+            roleId: role.id,
+            assignedBy: "seed",
+            isActive: true,
+          });
+          result.assignmentsCreated++;
+        }
+      }
+    }
+
+    // Assign Management menu group to SUPER_ADMIN and TENANT_ADMIN
+    if (managementGroup) {
+      const eligibleRoles = allRoles.filter(
+        (r) => r.name === "SUPER_ADMIN" || r.name === "TENANT_ADMIN",
+      );
+      for (const role of eligibleRoles) {
+        const existing = await MenuGroupRole.findOne({
+          where: {
+            menuGroupId: managementGroup.id,
+            roleId: role.id,
+            isActive: true,
+          },
+        });
+
+        if (existing) {
+          result.assignmentsSkipped++;
+        } else {
+          await MenuGroupRole.create({
+            menuGroupId: managementGroup.id,
+            roleId: role.id,
+            assignedBy: "seed",
+            isActive: true,
+          });
+          result.assignmentsCreated++;
+        }
+      }
+    }
+
+    // Assign Security menu group to SUPER_ADMIN and TENANT_ADMIN
+    if (securityGroup) {
+      const eligibleRoles = allRoles.filter(
+        (r) => r.name === "SUPER_ADMIN" || r.name === "TENANT_ADMIN",
+      );
+      for (const role of eligibleRoles) {
+        const existing = await MenuGroupRole.findOne({
+          where: {
+            menuGroupId: securityGroup.id,
+            roleId: role.id,
+            isActive: true,
+          },
+        });
+
+        if (existing) {
+          result.assignmentsSkipped++;
+        } else {
+          await MenuGroupRole.create({
+            menuGroupId: securityGroup.id,
+            roleId: role.id,
+            assignedBy: "seed",
+            isActive: true,
+          });
+          result.assignmentsCreated++;
+        }
+      }
+    }
+
+    return result;
+  } catch (error) {
+    result.errors.push(
+      `Error seeding menu group assignments: ${error.message}`,
+    );
+    return result;
+  }
+}
+
+// ==========================================
 // UNSEEDING
 // ==========================================
 
@@ -980,7 +1107,7 @@ async function unseedUsers(emails) {
   try {
     // First, get user IDs for the emails
     const users = await Users.findAll({
-      attributes: ['id'],
+      attributes: ["id"],
       where: {
         email: {
           [Op.in]: emails,
@@ -1035,9 +1162,177 @@ async function seedAll() {
     rolesPermissions: await seedRolesPermissions(),
     tablePermissions: await seedTablePermissions(),
     users: await seedUsers(),
+    menuGroupAssignments: await seedDefaultMenuGroupAssignments(),
   };
 
   return result;
+}
+
+/**
+ * Seed all using model auto-discovery
+ * Discovers all models from src/models/, creates entries in the models table,
+ * creates table permissions for all actions (create, read, update, delete, export, import),
+ * and assigns them to default roles with global permissions.
+ * @returns {Promise<Object>} Complete seeding result with model discovery
+ */
+async function seedAllWithDiscovery() {
+  const result = {
+    roles: await seedAllRoles(),
+    permissions: await seedPermissions(),
+    rolesPermissions: await seedRolesPermissions(),
+    modelDiscovery: await modelDiscoveryService.discoverAndSeedModels(true),
+    users: await seedUsers(),
+  };
+
+  return result;
+}
+
+/**
+ * Sync table permissions based on existing permissions
+ * For each permission in the system, creates corresponding table permissions
+ * with appropriate scope based on the permission pattern.
+ * @returns {Promise<Object>} Result of permission sync
+ */
+async function syncTablePermissionsFromPermissions() {
+  const result = {
+    permissionsAnalyzed: 0,
+    permissionsMapped: 0,
+    tablePermissionsCreated: 0,
+    tablePermissionsUpdated: 0,
+    errors: [],
+  };
+
+  try {
+    console.log(
+      `[INFO] ${new Date().toISOString()} - Starting table permission sync from existing permissions...`,
+    );
+
+    // Get all permissions
+    const allPermissions = await Permissions.findAll({
+      attributes: ["id", "name", "module", "action", "description"],
+    });
+
+    for (const permission of allPermissions) {
+      result.permissionsAnalyzed++;
+
+      try {
+        // Find or create corresponding model
+        let model = await Models.findOne({
+          where: { module: permission.module },
+        });
+
+        if (!model) {
+          // Auto-discover model from module name
+          const modelName =
+            permission.module
+              .split("_")
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join("") + "Module";
+          const tableName = permission.module;
+
+          model = await Models.create({
+            modelName,
+            tableName,
+            module: permission.module,
+            description: `${permission.module} module`,
+          });
+          result.tablePermissionsCreated++;
+        }
+
+        // Map permission action to table permission
+        const actionMap = mapPermissionToAction(permission.action);
+
+        if (actionMap) {
+          for (const action of actionMap) {
+            let tablePerm = await TablePermission.findOne({
+              where: { modelId: model.id, action },
+            });
+
+            if (!tablePerm) {
+              // Determine scope based on permission pattern
+              const scope = determineScopeFromPermission(
+                permission.name,
+                permission.action,
+              );
+
+              await TablePermission.create({
+                modelId: model.id,
+                action,
+                scope,
+                attributes: {},
+                description: permission.description || `${action} permission`,
+              });
+              result.tablePermissionsCreated++;
+              result.permissionsMapped++;
+            } else {
+              result.tablePermissionsUpdated++;
+            }
+          }
+        }
+      } catch (error) {
+        result.errors.push(
+          `Error syncing permission ${permission.name}: ${error.message}`,
+        );
+      }
+    }
+
+    console.log(
+      `[INFO] ${new Date().toISOString()} - Table permission sync completed!`,
+    );
+    console.log(`  - Permissions analyzed: ${result.permissionsAnalyzed}`);
+    console.log(`  - Permissions mapped: ${result.permissionsMapped}`);
+    console.log(
+      `  - Table permissions created: ${result.tablePermissionsCreated}`,
+    );
+    console.log(`  - Errors: ${result.errors.length}`);
+
+    return result;
+  } catch (error) {
+    result.errors.push(`Fatal error during sync: ${error.message}`);
+    console.error(
+      `[ERROR] ${new Date().toISOString()} - Fatal error: ${error.message}`,
+    );
+    return result;
+  }
+}
+
+/**
+ * Map permission action to table permission actions
+ * @param {string} permissionAction - Permission action string
+ * @returns {Array<string>|null} Array of table permission actions
+ */
+function mapPermissionToAction(permissionAction) {
+  const mapping = {
+    create: ["create"],
+    read: ["read"],
+    update: ["update"],
+    delete: ["delete"],
+    "self:update": ["update"],
+    "self:read": ["read"],
+    "tenant:create": ["create"],
+    "tenant:read": ["read"],
+    "tenant:update": ["update"],
+    "tenant:delete": ["delete"],
+    "tenant:assign": ["create", "update"],
+  };
+
+  return mapping[permissionAction] || null;
+}
+
+/**
+ * Determine scope based on permission name pattern
+ * @param {string} permissionName - Full permission name
+ * @param {string} action - Permission action
+ * @returns {string} Scope: global, tenant, self, or custom
+ */
+function determineScopeFromPermission(permissionName, action) {
+  if (permissionName.includes(":self:")) {
+    return "self";
+  }
+  if (permissionName.includes(":tenant:")) {
+    return "tenant";
+  }
+  return "global";
 }
 
 /**
@@ -1079,6 +1374,13 @@ module.exports = {
 
   // Table permission seeding
   seedTablePermissions,
+
+  // Menu group seeding
+  seedDefaultMenuGroupAssignments,
+
+  // Model discovery seeding
+  seedAllWithDiscovery,
+  syncTablePermissionsFromPermissions,
 
   // User seeding
   seedUsers,

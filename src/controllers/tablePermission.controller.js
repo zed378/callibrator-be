@@ -119,7 +119,7 @@ exports.getTablePermissions = async (req, res, next) => {
 
     success(
       res,
-      permissions,
+      permissions.data,
       null,
       "Table permissions fetched successfully",
       200,

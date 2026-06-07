@@ -14,6 +14,9 @@ const { Models } = require("./model");
 const { TablePermission } = require("./table_permission");
 const { RolePermission } = require("./role_permission");
 const { TenantRolePermission } = require("./tenant_role_permission");
+const { MenuGroup } = require("./menu_group");
+const { MenuItem } = require("./menu_item");
+const { MenuGroupRole } = require("./menu_group_role");
 // const {} = require("");
 
 // ==========================================
@@ -37,6 +40,9 @@ const models = {
   TablePermission,
   RolePermission,
   TenantRolePermission,
+  MenuGroup,
+  MenuItem,
+  MenuGroupRole,
 };
 
 // ==========================================

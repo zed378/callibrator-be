@@ -1,50 +1,52 @@
-require('./src/utils/env');
+require("./src/utils/env");
 
 // debugging
-process.on('uncaughtException', console.error);
+process.on("uncaughtException", console.error);
 
-process.on('unhandledRejection', console.error);
+process.on("unhandledRejection", console.error);
 
-const express = require('express');
+const express = require("express");
 
-const compression = require('compression');
-const crypto = require('crypto');
-const timeout = require('connect-timeout');
-const hpp = require('hpp');
+const compression = require("compression");
+const crypto = require("crypto");
+const timeout = require("connect-timeout");
+const hpp = require("hpp");
 
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 
-const { swaggerDocs } = require('./src/docs/swagger');
-const path = require('path');
+const { swaggerDocs } = require("./src/docs/swagger");
+const path = require("path");
 
-const { Connection, db } = require('./src/config');
+const { Connection, db } = require("./src/config");
 
-const { globalSanitizer } = require('./src/middlewares/globalSanitizer');
+const { globalSanitizer } = require("./src/middlewares/globalSanitizer");
 
-const { ensureFolderExisted } = require('./src/middlewares/createFolder');
+const { ensureFolderExisted } = require("./src/middlewares/createFolder");
 
-const { notFound } = require('./src/middlewares/notFound');
+const { notFound } = require("./src/middlewares/notFound");
 
-const { errorHandler } = require('./src/middlewares/errorHandlers');
+const { errorHandler } = require("./src/middlewares/errorHandlers");
 
-const { cronBackup } = require('./src/middlewares/backup');
+const { cronBackup } = require("./src/middlewares/backup");
 
-const { initSessionCleanup } = require('./src/middlewares/sessionCleanup');
+const { initSessionCleanup } = require("./src/middlewares/sessionCleanup");
 
-const { initRedis, closeRedis } = require('./src/services/redis.service');
+const { initRedis, closeRedis } = require("./src/services/redis.service");
 
 const {
   processEmailQueue,
   closeRabbitMQ,
-} = require('./src/services/emailQueue.service');
+} = require("./src/services/emailQueue.service");
 
-const { accessLog } = require('./src/middlewares/accessLog');
+const { accessLog } = require("./src/middlewares/accessLog");
 
-const { activityLogger, logger } = require('./src/middlewares/activityLog');
+const { activityLogger, logger } = require("./src/middlewares/activityLog");
 
-const storagePath = require('./src/utils/storagePath');
+const storagePath = require("./src/utils/storagePath");
+
+const { seedMenuGroups } = require("./src/utils/seedMenuGroups");
 
 // ======================================================
 // INITIALIZATION
@@ -66,11 +68,11 @@ const app = express();
 // - Nginx
 // - Cloudflare
 // - Rate limiter
-app.set('trust proxy', 1);
+app.set("trust proxy", 1);
 
 // Pretty JSON in development
-if (process.env.NODE_ENV !== 'production') {
-  app.set('json spaces', 2);
+if (process.env.NODE_ENV !== "production") {
+  app.set("json spaces", 2);
 }
 
 // ======================================================
@@ -97,7 +99,7 @@ app.use(hpp());
 // ======================================================
 
 const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
   : [];
 
 app.use(
@@ -109,7 +111,7 @@ app.use(
       }
 
       // Allow all if no CORS_ORIGIN specified (development)
-      if (allowedOrigins.length === 0 || allowedOrigins.includes('*')) {
+      if (allowedOrigins.length === 0 || allowedOrigins.includes("*")) {
         return callback(null, true);
       }
 
@@ -123,11 +125,11 @@ app.use(
         allowedOrigins,
       );
 
-      return callback(new Error('Not allowed by CORS'));
+      return callback(new Error("Not allowed by CORS"));
     },
 
     credentials: true,
-    exposedHeaders: ['X-Request-Id'],
+    exposedHeaders: ["X-Request-Id"],
     optionsSuccessStatus: 200,
   }),
 );
@@ -143,8 +145,8 @@ const defaultLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    status: 'Error',
-    message: 'Too many requests, please try again later',
+    status: "Error",
+    message: "Too many requests, please try again later",
   },
 });
 
@@ -155,8 +157,8 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    status: 'Error',
-    message: 'Too many authentication attempts, please try again later',
+    status: "Error",
+    message: "Too many authentication attempts, please try again later",
   },
 });
 
@@ -167,8 +169,8 @@ const otpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    status: 'Error',
-    message: 'Too many requests, please try again later',
+    status: "Error",
+    message: "Too many requests, please try again later",
   },
 });
 
@@ -181,14 +183,14 @@ app.use(defaultLimiter);
 
 app.use(
   express.json({
-    limit: '10mb',
+    limit: "10mb",
   }),
 );
 
 app.use(
   express.urlencoded({
     extended: true,
-    limit: '10mb',
+    limit: "10mb",
   }),
 );
 
@@ -196,7 +198,7 @@ app.use(
 // REQUEST TIMEOUT
 // ======================================================
 
-app.use(timeout('30s'));
+app.use(timeout("30s"));
 
 app.use((req, res, next) => {
   if (!req.timedout) {
@@ -207,8 +209,8 @@ app.use((req, res, next) => {
 app.use((err, req, res, next) => {
   if (err.timeout) {
     return res.status(408).json({
-      status: 'Error',
-      message: 'Request timeout',
+      status: "Error",
+      message: "Request timeout",
     });
   }
 
@@ -222,7 +224,7 @@ app.use((err, req, res, next) => {
 app.use((req, res, next) => {
   req.requestId = crypto.randomUUID();
 
-  res.setHeader('X-Request-Id', req.requestId);
+  res.setHeader("X-Request-Id", req.requestId);
 
   next();
 });
@@ -239,7 +241,7 @@ app.use(activityLogger);
 // STATIC FILES
 // ======================================================
 
-app.use('/uploads', express.static(storagePath('uploads')));
+app.use("/uploads", express.static(storagePath("uploads")));
 
 // ======================================================
 // SANITIZER
@@ -256,51 +258,55 @@ swaggerDocs(app);
 // ======================================================
 // ROUTES
 // ======================================================
-const migrationRoutes = require('./src/routes/internal/migration');
-const authRoutes = require('./src/routes/api/auth');
-const userRoutes = require('./src/routes/api/user');
-const permissionRoutes = require('./src/routes/api/permission');
-const tenantRoutes = require('./src/routes/api/tenant');
-const tenantBackupRoutes = require('./src/routes/api/tenantBackup');
-const tablePermissionRoutes = require('./src/routes/api/tablePermission');
-const rolesRoutes = require('./src/routes/api/roles');
+const migrationRoutes = require("./src/routes/internal/migration");
+const authRoutes = require("./src/routes/api/auth");
+const userRoutes = require("./src/routes/api/user");
+const permissionRoutes = require("./src/routes/api/permission");
+const tenantRoutes = require("./src/routes/api/tenant");
+const tenantBackupRoutes = require("./src/routes/api/tenantBackup");
+const tablePermissionRoutes = require("./src/routes/api/tablePermission");
+const rolesRoutes = require("./src/routes/api/roles");
+const modelDiscoveryRoutes = require("./src/routes/api/modelDiscovery");
+const menuGroupRoutes = require("./src/routes/api/menuGroup");
 
 // ======================================================
 // ROUTES ENDPOINT
 // ======================================================
 
-if (process.env.NODE_ENV !== 'production') {
-  app.use('/api/v1/migration', migrationRoutes);
+if (process.env.NODE_ENV !== "production") {
+  app.use("/api/v1/migration", migrationRoutes);
 }
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/permissions', permissionRoutes);
-app.use('/api/v1/tenants', tenantRoutes);
-app.use('/api/v1/tenants', tenantBackupRoutes);
-app.use('/api/v1/table-permissions', tablePermissionRoutes);
-app.use('/api/v1/roles', rolesRoutes);
+app.use("/api/v1/auth", authRoutes);
+app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/permissions", permissionRoutes);
+app.use("/api/v1/tenants", tenantRoutes);
+app.use("/api/v1/tenants", tenantBackupRoutes);
+app.use("/api/v1/table-permissions", tablePermissionRoutes);
+app.use("/api/v1/roles", rolesRoutes);
+app.use("/api/v1/model-discovery", modelDiscoveryRoutes);
+app.use("/api/v1/menu-groups", menuGroupRoutes);
 
 // ======================================================
 // HEALTHCHECK
 // ======================================================
 
-app.get('/health', async (req, res) => {
+app.get("/health", async (req, res) => {
   try {
     await db.authenticate();
 
     return res.status(200).json({
-      status: 'OK',
+      status: "OK",
       uptime: process.uptime(),
       timestamp: new Date(),
       memory: process.memoryUsage(),
       pid: process.pid,
       node: process.version,
-      database: 'connected',
+      database: "connected",
     });
   } catch (error) {
     return res.status(503).json({
-      status: 'ERROR',
-      database: 'disconnected',
+      status: "ERROR",
+      database: "disconnected",
       message: error.message,
     });
   }
@@ -310,10 +316,10 @@ app.get('/health', async (req, res) => {
 // ROOT
 // ======================================================
 
-app.get('/', (req, res) => {
+app.get("/", (req, res) => {
   return res.status(200).json({
-    status: 'Success',
-    message: 'Your API is running',
+    status: "Success",
+    message: "Your API is running",
   });
 });
 
@@ -321,21 +327,21 @@ app.get('/', (req, res) => {
 // LIVENESS
 // ======================================================
 
-app.get('/live', (req, res) => {
-  return res.status(200).send('OK');
+app.get("/live", (req, res) => {
+  return res.status(200).send("OK");
 });
 
 // ======================================================
 // READINESS
 // ======================================================
 
-app.get('/ready', async (req, res) => {
+app.get("/ready", async (req, res) => {
   try {
     await db.authenticate();
 
-    return res.status(200).send('READY');
+    return res.status(200).send("READY");
   } catch {
-    return res.status(503).send('NOT READY');
+    return res.status(503).send("NOT READY");
   }
 });
 
@@ -343,27 +349,36 @@ app.get('/ready', async (req, res) => {
 // DOCUMENTATION (HTML)
 // ======================================================
 
-const htmlDocPath = path.join(__dirname, 'docs', 'DOCUMENTATION.html');
+const htmlDocPath = path.join(__dirname, "docs", "DOCUMENTATION.html");
 const codingStandardsPath = path.join(
   __dirname,
-  'docs',
-  'CODING_STANDARDS.html',
+  "docs",
+  "CODING_STANDARDS.html",
+);
+const tablePermissionsDocPath = path.join(
+  __dirname,
+  "docs",
+  "TABLE_PERMISSIONS.html",
 );
 
-app.get('/documentation', (req, res) => {
+app.get("/documentation", (req, res) => {
   return res.sendFile(htmlDocPath);
 });
 
-app.get('/standards', (req, res) => {
+app.get("/standards", (req, res) => {
   return res.sendFile(codingStandardsPath);
+});
+
+app.get("/tab-permissions", (req, res) => {
+  return res.sendFile(tablePermissionsDocPath);
 });
 
 // ======================================================
 // TEST ERROR ROUTE
 // ======================================================
 
-app.get('/error', (req, res, next) => {
-  const err = new Error('This is a test error');
+app.get("/error", (req, res, next) => {
+  const err = new Error("This is a test error");
 
   err.status = 500;
 
@@ -396,6 +411,15 @@ async function startServer() {
     // Redis Connection
     await initRedis();
 
+    // Seed Menu Groups
+    try {
+      await seedMenuGroups();
+      logger.info("Menu groups seeded successfully");
+    } catch (seedError) {
+      logger.error(`Failed to seed menu groups: ${seedError.message}`);
+      // Don't fail startup if seeding fails
+    }
+
     // Start Cron Jobs
     cronBackup();
     initSessionCleanup();
@@ -409,7 +433,7 @@ async function startServer() {
       logger.info(`Server running on port ${port}`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error.message);
+    console.error("Failed to start server:", error.message);
 
     logger.error(`Failed to start server: ${error.message}`);
 
@@ -434,7 +458,7 @@ async function shutdown(signal) {
             return reject(err);
           }
 
-          logger.info('HTTP server closed');
+          logger.info("HTTP server closed");
 
           resolve();
         });
@@ -443,15 +467,15 @@ async function shutdown(signal) {
 
     await db.close();
 
-    logger.info('Database connection closed.');
+    logger.info("Database connection closed.");
 
     await closeRedis();
 
-    logger.info('Redis connection closed.');
+    logger.info("Redis connection closed.");
 
     await closeRabbitMQ();
 
-    logger.info('RabbitMQ connection closed.');
+    logger.info("RabbitMQ connection closed.");
 
     process.exit(0);
   } catch (error) {
@@ -465,20 +489,20 @@ async function shutdown(signal) {
 // PROCESS HANDLERS
 // ======================================================
 
-process.on('SIGINT', () => shutdown('SIGINT'));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
 
-process.on('uncaughtException', async (err) => {
+process.on("uncaughtException", async (err) => {
   logger.error(`uncaughtException: ${err.stack || err.message}`);
 
-  await shutdown('UNCAUGHT_EXCEPTION');
+  await shutdown("UNCAUGHT_EXCEPTION");
 });
 
-process.on('unhandledRejection', async (reason) => {
+process.on("unhandledRejection", async (reason) => {
   logger.error(
     `unhandledRejection: ${reason?.stack || JSON.stringify(reason)}`,
   );
 
-  await shutdown('UNHANDLED_REJECTION');
+  await shutdown("UNHANDLED_REJECTION");
 });

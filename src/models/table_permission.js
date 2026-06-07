@@ -206,16 +206,16 @@ TablePermission.bulkUpsert = async (modelId, permissions, models) => {
       description,
     } = perm;
 
-    const [created, updated] = await TablePermission.findOrCreate({
+    const [permission, created] = await TablePermission.findOrCreate({
       where: { modelId, action },
       defaults: { scope, attributes, abacRules, description },
     });
 
     if (!created) {
-      await updated.update({ scope, attributes, abacRules, description });
+      await permission.update({ scope, attributes, abacRules, description });
     }
 
-    results.push(created || updated);
+    results.push(permission);
   }
 
   return results;

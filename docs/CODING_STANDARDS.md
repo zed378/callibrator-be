@@ -24,6 +24,7 @@
 20. [Environment Variables](#20-environment-variables)
 21. [Git & Deployment](#21-git--deployment)
 22. [Unit Testing Standards](#22-unit-testing-standards)
+23. [Model Discovery Standards](#23-model-discovery-standards)
 
 ---
 
@@ -51,6 +52,7 @@ callibrator-be/
 │   ├── DOCUMENTATION.md          # Markdown documentation
 │   ├── DOCUMENTATION.html        # Generated HTML documentation
 │   ├── CODING_STANDARDS.md       # This file
+│   ├── TABLE_PERMISSIONS.md      # Table permissions documentation
 │   └── illustrations/            # SVG diagrams
 ├── scripts/
 │   ├── generate-html-doc.js      # HTML doc generator
@@ -68,17 +70,62 @@ callibrator-be/
 │   │   ├── roleConstants.js      # Role-related constants
 │   │   └── permissionConstants.js # Permission naming conventions
 │   ├── controllers/              # Request handlers
+│   │   ├── auth.controller.js
+│   │   ├── menuGroup.controller.js
+│   │   ├── migration.controller.js
+│   │   ├── modelDiscovery.controller.js
+│   │   ├── permission.controller.js
+│   │   ├── roles.controller.js
+│   │   ├── tablePermission.controller.js
+│   │   ├── tenant.controller.js
+│   │   ├── tenantBackup.controller.js
+│   │   └── user.controller.js
 │   ├── docs/                     # Swagger configuration
 │   ├── middlewares/              # Express middlewares
+│   │   ├── abac.js
+│   │   ├── accessLog.js
+│   │   ├── activityLog.js
+│   │   ├── auth.js
+│   │   ├── backup.js
+│   │   ├── createFolder.js
+│   │   ├── dynamicAccess.js
+│   │   ├── errorHandlers.js
+│   │   ├── globalSanitizer.js
+│   │   ├── inputValidation.js
+│   │   ├── modelDiscoveryCron.js
+│   │   ├── notFound.js
+│   │   ├── rbac.js
+│   │   ├── sessionCleanup.js
+│   │   ├── tenantContext.js
+│   │   ├── tenantScope.js
+│   │   ├── tokenRateLimiter.js
+│   │   └── validation.js
 │   ├── models/                   # Sequelize models
 │   ├── routes/
 │   │   ├── api/                  # Public API routes
 │   │   └── internal/             # Internal routes
 │   ├── services/                 # Business logic
-│   │   ├── migration.service.js  # Migration & seeding service
-│   │   ├── auth.service.js       # Authentication service
-│   │   ├── user.service.js       # User service
-│   │   └── ...                   # Other services
+│   │   ├── auth.service.js
+│   │   ├── email.service.js
+│   │   ├── emailQueue.service.js
+│   │   ├── menuGroupRole.service.js
+│   │   ├── migration.service.js
+│   │   ├── modelDiscovery.service.js
+│   │   ├── permission.service.js
+│   │   ├── permissionAssignment.service.js
+│   │   ├── rateLimiter.service.js
+│   │   ├── redis.service.js
+│   │   ├── roles.service.js
+│   │   ├── session.service.js
+│   │   ├── tablePermission.service.js
+│   │   ├── tenant.service.js
+│   │   ├── tenantAudit.service.js
+│   │   ├── tenantBackup.service.js
+│   │   ├── tenantFeature.service.js
+│   │   ├── tenantOnboarding.service.js
+│   │   ├── tenantUpload.service.js
+│   │   ├── user.service.js
+│   │   └── userUpload.service.js
 │   ├── templates/                # Email HTML templates
 │   ├── tests/                    # Jest tests
 │   ├── utils/                    # Utility functions
@@ -1811,6 +1858,103 @@ npx jest --watch
 | Validator Tests  | `src/tests/validators/`  | Test Joi schemas           |
 | Middleware Tests | `src/tests/middleware/`  | Test middleware functions  |
 | Controller Tests | `src/tests/controllers/` | Test request/response flow |
+
+---
+
+## 23. Model Discovery Standards
+
+### Overview
+
+Model Discovery is a system that automatically detects and registers database models/tables at startup. It provides dynamic permission management by discovering all models and making them available for the table permission system.
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Application Startup                     │
+├─────────────────────────────────────────────────────────────┤
+│  1. Models loaded from src/models/                          │
+│  2. ModelDiscoveryService scans all models                   │
+│  3. Registered models → Models table                         │
+│  4. Table permissions auto-seeded                            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Model Discovery Service
+
+**File**: `src/services/modelDiscovery.service.js`
+
+```javascript
+const modelDiscoveryService = require("../services/modelDiscovery.service");
+
+// Discover and register all models
+const result = await modelDiscoveryService.discoverAllModels();
+
+// Get registered models
+const models = await modelDiscoveryService.getAllModels();
+
+// Get model by name
+const model = await modelDiscoveryService.getModelByName("Users");
+
+// Register single model
+const registered = await modelDiscoveryService.registerModel({
+  modelName: "Users",
+  tableName: "users",
+  module: "user",
+  description: "User management",
+});
+```
+
+### Controller Pattern
+
+**File**: `src/controllers/modelDiscovery.controller.js`
+
+```javascript
+const {
+  ModelDiscoveryController,
+} = require("../controllers/modelDiscovery.controller");
+
+// GET /api/v1/model-discovery/models
+const { models } = await ModelDiscoveryController.getAllModels(req, res);
+
+// POST /api/v1/model-discovery/discover
+const discovered = await ModelDiscoveryController.discoverModels(req, res);
+```
+
+### Model Registration Attributes
+
+When models are registered, they include:
+
+| Attribute        | Description                | Example                                    |
+| ---------------- | -------------------------- | ------------------------------------------ |
+| `modelName`      | Sequelize model class name | `Users`, `Tenants`                         |
+| `tableName`      | Actual database table name | `users`, `tenants`                         |
+| `module`         | Logical grouping           | `user`, `tenant`                           |
+| `attributeCount` | Number of columns          | `12`                                       |
+| `attributes`     | List of column names       | `["id", "email", ...]`                     |
+| `relationCount`  | Number of associations     | `5`                                        |
+| `relations`      | List of relation details   | `[{ model: "Roles", type: "BELONGS_TO" }]` |
+
+### Model Discovery Cron
+
+**File**: `src/middlewares/modelDiscoveryCron.js`
+
+Periodic re-discovery can be enabled for dynamic model registration:
+
+```javascript
+const modelDiscoveryCron = require("../middlewares/modelDiscoveryCron");
+
+// Configuration
+const CRON_EXPRESSION = "0 */5 * * *"; // Every 5 minutes
+```
+
+### Best Practices
+
+1. **Model naming consistency**: Use PascalCase for model class names
+2. **Module grouping**: Group related models by module name
+3. **Relation definitions**: Ensure all `associate()` methods are defined
+4. **Auto-seeding**: Table permissions are automatically seeded on startup
+5. **SUPER_ADMIN bypass**: SUPER_ADMIN role bypasses all permission checks
 
 ---
 

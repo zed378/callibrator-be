@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Table Permissions System Documentation</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --text: #1e293b;
+      --border: #e2e8f0;
+      --code-bg: #f1f5f9;
+      --accent: #6366f1;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --text: #e2e8f0;
+        --border: #334155;
+        --code-bg: #1e293b;
+        --accent: #818cf8;
+      }
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    h1 { font-size: 2rem; margin: 2rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--border); }
+    h2 { font-size: 1.5rem; margin: 2rem 0 1rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1.2rem; margin: 1.5rem 0 0.5rem; }
+    p { margin: 1rem 0; }
+    pre {
+      background: var(--code-bg);
+      padding: 1rem;
+      border-radius: 8px;
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+    code {
+      background: var(--code-bg);
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 0.9em;
+    }
+    pre code { background: none; padding: 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+    }
+    th, td {
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    th { background: var(--code-bg); font-weight: 600; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+    .diagram {
+      text-align: center;
+      margin: 2rem 0;
+      padding: 1rem;
+      background: var(--code-bg);
+      border-radius: 8px;
+    }
+    .diagram-image {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    ul, ol { margin: 1rem 0; padding-left: 2rem; }
+    li { margin: 0.5rem 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>Table Permissions System Documentation</h1>
+<h2>Table of Contents</h2>
+<ol>
+<li>[Overview](#overview)</li>
+<li>[Architecture](#architecture)</li>
+<li>[Terminology](#terminology)</li>
+<li>[Data Model](#data-model)</li>
+<li>[Permission Scopes](#permission-scopes)</li>
+<li>[ABAC Rules](#abac-rules)</li>
+<li>[API Endpoints](#api-endpoints)</li>
+<li>[Usage Guide](#usage-guide)</li>
+<li>[Implementation Guide](#implementation-guide)</li>
+<li>[Middleware Usage](#middleware-usage)</li>
+</ol>
+<hr>
+<h2>Overview</h2>
+<p>The Table Permissions system is a <strong>dynamic RBAC/ABAC (Role-Based + Attribute-Based Access Control)</strong> framework that allows fine-grained permission management at the table/model and action level. Unlike traditional static permission systems, permissions are stored in the database and can be modified at runtime without code changes.</p>
+<h3>Key Features</h3>
+<ul>
+<li><strong>Model-based permissions</strong>: Each database model (table) can have independent permissions</li>
+<li><strong>Action-level control</strong>: Granular control over create, read, update, delete, export, import actions</li>
+<li><strong>Scope-based access</strong>: Global, tenant-scoped, self-only, or custom ABAC rules</li>
+<li><strong>Column-level permissions</strong>: Hide or restrict specific columns/attributes</li>
+<li><strong>Role assignment</strong>: Assign permissions to global roles or tenant-specific roles</li>
+<li><strong>Temporary permissions</strong>: Time-limited permissions with expiration dates</li>
+<li><strong>Multi-tenancy</strong>: Full tenant isolation with per-tenant permission overrides</li>
+</ul>
+<hr>
+<h2>Architecture</h2>
+<p>&lt;div class=&quot;diagram&quot;&gt;</p>
+<p>  &lt;img src=&quot;illustrations/12-table-permissions-architecture.svg&quot; alt=&quot;Table Permissions Architecture&quot; class=&quot;diagram-image&quot;&gt;</p>
+<p>&lt;/div&gt;</p>
+<h3>Flow Diagram</h3>
+<p>&lt;div class=&quot;diagram&quot;&gt;</p>
+<p>  &lt;img src=&quot;illustrations/13-table-permissions-flow-diagram.svg&quot; alt=&quot;Permission Check Flow&quot; class=&quot;diagram-image&quot;&gt;</p>
+<p>&lt;/div&gt;</p>
+<hr>
+<h2>Terminology</h2>
+<table>
+<thead><tr><th>Term</th><th>Definition</th><th>Example</th></tr></thead><tbody><tr><td><strong>Model</strong></td><td>A database table/entity that can have permissions</td><td><code>User</code>, <code>Invoice</code>, <code>Device</code></td></tr><tr><td><strong>TablePermission</strong></td><td>A permission entry defining who can do what on a model</td><td><code>User:read</code>, <code>Invoice:write</code></td></tr><tr><td><strong>Action</strong></td><td>The operation allowed on a model</td><td><code>create</code>, <code>read</code>, <code>update</code>, <code>delete</code>, <code>export</code>, <code>import</code></td></tr><tr><td><strong>Scope</strong></td><td>The access level/boundary for a permission</td><td><code>global</code>, <code>tenant</code>, <code>self</code>, <code>custom</code></td></tr><tr><td><strong>Role</strong></td><td>A named set of permissions (global)</td><td><code>SUPER_ADMIN</code>, <code>TENANT_ADMIN</code>, <code>USER</code></td></tr><tr><td><strong>TenantRole</strong></td><td>A named set of permissions scoped to a tenant</td><td><code>admin</code>, <code>manager</code>, <code>staff</code></td></tr><tr><td><strong>ABAC Rules</strong></td><td>Attribute-Based Access Control rules for dynamic conditions</td><td>Owner check, attribute comparison</td></tr><tr><td><strong>Attributes</strong></td><td>Column-level permissions (which fields are visible/editable)</td><td><code>allowed: ['name', 'email']</code></td></tr><tr><td><strong>RolePermission</strong></td><td>Junction table linking Roles to TablePermissions</td><td>Links SUPER_ADMIN → User:read</td></tr><tr><td><strong>TenantRolePermission</strong></td><td>Junction table linking TenantRoles to TablePermissions</td><td>Links tenant admin → Device:export</td></tr></tbody></table>
+<hr>
+<h2>Data Model</h2>
+<h3>Entity Relationship Diagram</h3>
+<p>&lt;div class=&quot;diagram&quot;&gt;</p>
+<p>  &lt;img src=&quot;illustrations/14-table-permissions-erd.svg&quot; alt=&quot;Entity Relationship Diagram&quot; class=&quot;diagram-image&quot;&gt;</p>
+<p>&lt;/div&gt;</p>
+<h3>Model: `Models`</h3>
+<p>Defines all application models (tables) that can have permissions.</p>
+<pre><code class="language-javascript">{
+  id: &quot;uuid&quot;,
+  modelName: &quot;User&quot;,           // Class name
+  tableName: &quot;users&quot;,          // Database table name
+  module: &quot;user&quot;,              // Logical grouping
+  description: &quot;User management&quot;,
+  isActive: true
+}</code></pre>
+<h3>Model: `TablePermission`</h3>
+<p>Defines permissions for specific actions on models.</p>
+<pre><code class="language-javascript">{
+  id: &quot;uuid&quot;,
+  modelId: &quot;uuid&quot;,             // FK to Models
+  action: &quot;read&quot;,              // create | read | update | delete | export | import
+  scope: &quot;tenant&quot;,             // global | tenant | self | custom
+  attributes: {               // Column-level permissions
+    allowed: [&quot;id&quot;, &quot;name&quot;, &quot;email&quot;],
+    hidden: [&quot;password&quot;, &quot;ssn&quot;],
+    editable: [&quot;name&quot;, &quot;email&quot;]
+  },
+  abacRules: null,            // ABAC configuration
+  description: &quot;Allow reading user records&quot;
+}</code></pre>
+<h3>Model: `RolePermission`</h3>
+<p>Links global roles to table permissions.</p>
+<pre><code class="language-javascript">{
+  id: &quot;uuid&quot;,
+  roleId: &quot;uuid&quot;,                    // FK to Roles
+  tablePermissionId: &quot;uuid&quot;,        // FK to TablePermission
+  isGranted: true,
+  expiresAt: null,                  // Optional expiration
+  description: &quot;Admin can read users&quot;
+}</code></pre>
+<h3>Model: `TenantRolePermission`</h3>
+<p>Links tenant roles to table permissions (with ABAC support).</p>
+<pre><code class="language-javascript">{
+  id: &quot;uuid&quot;,
+  tenantRoleId: &quot;uuid&quot;,
+  tablePermissionId: &quot;uuid&quot;,
+  isGranted: true,
+  expiresAt: null,
+  abacRules: {                      // Optional ABAC rules
+    condition: &quot;owner&quot;,
+    fields: [&quot;userId&quot;],
+    operator: &quot;eq&quot;
+  },
+  description: &quot;Tenant staff can only own records&quot;
+}</code></pre>
+<hr>
+<h2>Permission Scopes</h2>
+<h3>`global`</h3>
+<p>Accessible by anyone with the role, no restrictions.</p>
+<pre><code class="language-javascript">{
+  action: &quot;read&quot;,
+  scope: &quot;global&quot;,
+  attributes: { allowed: [&quot;id&quot;, &quot;name&quot;, &quot;email&quot;] }
+}</code></pre>
+<h3>`tenant`</h3>
+<p>Restricted to the user&#39;s tenant only.</p>
+<pre><code class="language-javascript">{
+  action: &quot;read&quot;,
+  scope: &quot;tenant&quot;,
+  attributes: {}
+}</code></pre>
+<h3>`self`</h3>
+<p>User can only access their own records.</p>
+<pre><code class="language-javascript">{
+  action: &quot;update&quot;,
+  scope: &quot;self&quot;,
+  attributes: { editable: [&quot;name&quot;, &quot;email&quot;] }
+}</code></pre>
+<h3>`custom`</h3>
+<p>Custom ABAC rules apply.</p>
+<pre><code class="language-javascript">{
+  action: &quot;read&quot;,
+  scope: &quot;custom&quot;,
+  abacRules: {
+    condition: &quot;attribute&quot;,
+    fields: [&quot;status&quot;],
+    operator: &quot;in&quot;,
+    value: [&quot;active&quot;, &quot;pending&quot;]
+  }
+}</code></pre>
+<hr>
+<h2>ABAC Rules</h2>
+<p>ABAC (Attribute-Based Access Control) rules enable dynamic, condition-based access control.</p>
+<h3>Condition Types</h3>
+<table>
+<thead><tr><th>Condition</th><th>Description</th><th>Required Fields</th></tr></thead><tbody><tr><td><code>owner</code></td><td>User can only access their own records</td><td><code>fields: ["userId"]</code></td></tr><tr><td><code>attribute</code></td><td>Check resource attribute against value</td><td><code>fields</code>, <code>operator</code>, <code>value</code></td></tr><tr><td><code>custom</code></td><td>Custom JavaScript expression</td><td><code>expression</code></td></tr><tr><td><code>tenant</code></td><td>User must be in the same tenant</td><td>-</td></tr></tbody></table>
+<h3>ABAC Rule Examples</h3>
+<p>#### Owner Rule</p>
+<pre><code class="language-json">{
+  &quot;condition&quot;: &quot;owner&quot;,
+  &quot;fields&quot;: [&quot;userId&quot;],
+  &quot;operator&quot;: &quot;eq&quot;
+}</code></pre>
+<p>User can only access records where <code>userId === currentUser.id</code>.</p>
+<p>#### Attribute Rule</p>
+<pre><code class="language-json">{
+  &quot;condition&quot;: &quot;attribute&quot;,
+  &quot;fields&quot;: [&quot;status&quot;],
+  &quot;operator&quot;: &quot;in&quot;,
+  &quot;value&quot;: [&quot;active&quot;, &quot;pending&quot;]
+}</code></pre>
+<p>User can only access records where <code>status</code> is in <code>["active", "pending"]</code>.</p>
+<p>#### Custom Expression Rule</p>
+<pre><code class="language-json">{
+  &quot;condition&quot;: &quot;custom&quot;,
+  &quot;expression&quot;: &quot;record.departmentId === user.departmentId&quot;,
+  &quot;fields&quot;: [&quot;departmentId&quot;]
+}</code></pre>
+<p>User can only access records in their department.</p>
+<h3>Supported Operators</h3>
+<table>
+<thead><tr><th>Operator</th><th>Description</th><th>Example</th></tr></thead><tbody><tr><td><code>eq</code> / <code>==</code></td><td>Equal</td><td><code>status === "active"</code></td></tr><tr><td><code>neq</code> / <code>!=</code></td><td>Not equal</td><td><code>status !== "deleted"</code></td></tr><tr><td><code>in</code></td><td>In array</td><td><code>status in ["active", "pending"]</code></td></tr><tr><td><code>nin</code></td><td>Not in array</td><td><code>status nin ["deleted"]</code></td></tr><tr><td><code>gt</code></td><td>Greater than</td><td><code>amount > 1000</code></td></tr><tr><td><code>lt</code></td><td>Less than</td><td><code>amount < 10000</code></td></tr><tr><td><code>gte</code></td><td>Greater or equal</td><td><code>level >= 3</code></td></tr><tr><td><code>lte</code></td><td>Less or equal</td><td><code>level <= 5</code></td></tr></tbody></table>
+<hr>
+<h2>API Endpoints</h2>
+<p>Base path: <code>/api/v1/table-permissions</code></p>
+<h3>Models Management</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth Required</th></tr></thead><tbody><tr><td>GET</td><td><code>/models</code></td><td>Get all models (paginated, searchable)</td><td>Yes</td></tr><tr><td>POST</td><td><code>/models</code></td><td>Create a new model</td><td>Yes</td></tr><tr><td>POST</td><td><code>/models/detail</code></td><td>Get model detail by ID</td><td>Yes</td></tr><tr><td>PATCH</td><td><code>/models</code></td><td>Update a model</td><td>Yes</td></tr><tr><td>DELETE</td><td><code>/models?id=xxx</code></td><td>Delete a model</td><td>Yes</td></tr></tbody></table>
+<h3>Table Permissions Management</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth Required</th></tr></thead><tbody><tr><td>POST</td><td><code>/permissions/detail</code></td><td>Get permissions for a model</td><td>Yes</td></tr><tr><td>POST</td><td><code>/permissions/upsert</code></td><td>Create/update permissions for a model</td><td>Yes</td></tr><tr><td>PATCH</td><td><code>/permissions</code></td><td>Update a specific permission</td><td>Yes</td></tr><tr><td>DELETE</td><td><code>/permissions?id=xxx</code></td><td>Delete a permission</td><td>Yes</td></tr></tbody></table>
+<h3>Role Permissions Management</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth Required</th></tr></thead><tbody><tr><td>POST</td><td><code>/role-permissions/grant</code></td><td>Grant permission to global role</td><td>Yes</td></tr><tr><td>POST</td><td><code>/role-permissions/revoke</code></td><td>Revoke permission from global role</td><td>Yes</td></tr><tr><td>POST</td><td><code>/role-permissions</code></td><td>Get all permissions for a role</td><td>Yes</td></tr><tr><td>POST</td><td><code>/role-permissions/bulk-assign</code></td><td>Bulk assign permissions to role</td><td>Yes</td></tr></tbody></table>
+<h3>Tenant Role Permissions Management</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth Required</th></tr></thead><tbody><tr><td>POST</td><td><code>/tenant-role-permissions/grant</code></td><td>Grant permission to tenant role</td><td>Yes</td></tr><tr><td>POST</td><td><code>/tenant-role-permissions/revoke</code></td><td>Revoke permission from tenant role</td><td>Yes</td></tr><tr><td>POST</td><td><code>/tenant-role-permissions</code></td><td>Get all permissions for a tenant role</td><td>Yes</td></tr><tr><td>PATCH</td><td><code>/tenant-role-permissions/abac-rules</code></td><td>Update ABAC rules for tenant role</td><td>Yes</td></tr><tr><td>POST</td><td><code>/tenant-role-permissions/bulk-assign</code></td><td>Bulk assign permissions to tenant role</td><td>Yes</td></tr></tbody></table>
+<h3>Permission Checking</h3>
+<table>
+<thead><tr><th>Method</th><th>Endpoint</th><th>Description</th><th>Auth Required</th></tr></thead><tbody><tr><td>POST</td><td><code>/check</code></td><td>Check if user has permission</td><td>Yes</td></tr><tr><td>POST</td><td><code>/allowed-attributes</code></td><td>Get allowed attributes for user</td><td>Yes</td></tr></tbody></table>
+<hr>
+<h2>Usage Guide</h2>
+<h3>Step 1: Register a Model</h3>
+<p>First, register the model in the system:</p>
+<pre><code class="language-javascript">// POST /api/v1/table-permissions/models
+{
+  &quot;modelName&quot;: &quot;Device&quot;,
+  &quot;tableName&quot;: &quot;devices&quot;,
+  &quot;module&quot;: &quot;device&quot;,
+  &quot;description&quot;: &quot;Hospital device management&quot;
+}</code></pre>
+<h3>Step 2: Define Table Permissions</h3>
+<p>Create permissions for each action:</p>
+<pre><code class="language-javascript">// POST /api/v1/table-permissions/permissions/upsert
+{
+  &quot;modelId&quot;: &quot;&lt;model-uuid&gt;&quot;,
+  &quot;permissions&quot;: [
+    {
+      &quot;action&quot;: &quot;create&quot;,
+      &quot;scope&quot;: &quot;global&quot;,
+      &quot;attributes&quot;: {},
+      &quot;description&quot;: &quot;Anyone can create devices&quot;
+    },
+    {
+      &quot;action&quot;: &quot;read&quot;,
+      &quot;scope&quot;: &quot;tenant&quot;,
+      &quot;attributes&quot;: {
+        &quot;allowed&quot;: [&quot;id&quot;, &quot;name&quot;, &quot;type&quot;, &quot;status&quot;, &quot;location&quot;],
+        &quot;hidden&quot;: [&quot;internalNotes&quot;]
+      },
+      &quot;description&quot;: &quot;Tenant users can read devices in their tenant&quot;
+    },
+    {
+      &quot;action&quot;: &quot;update&quot;,
+      &quot;scope&quot;: &quot;self&quot;,
+      &quot;attributes&quot;: {
+        &quot;editable&quot;: [&quot;status&quot;, &quot;location&quot;]
+      },
+      &quot;description&quot;: &quot;Users can only update their own devices&quot;
+    },
+    {
+      &quot;action&quot;: &quot;delete&quot;,
+      &quot;scope&quot;: &quot;custom&quot;,
+      &quot;abacRules&quot;: {
+        &quot;condition&quot;: &quot;attribute&quot;,
+        &quot;fields&quot;: [&quot;status&quot;],
+        &quot;operator&quot;: &quot;eq&quot;,
+        &quot;value&quot;: &quot;retired&quot;
+      },
+      &quot;description&quot;: &quot;Can only delete retired devices&quot;
+    },
+    {
+      &quot;action&quot;: &quot;export&quot;,
+      &quot;scope&quot;: &quot;global&quot;,
+      &quot;description&quot;: &quot;Allow exporting device data&quot;
+    },
+    {
+      &quot;action&quot;: &quot;import&quot;,
+      &quot;scope&quot;: &quot;global&quot;,
+      &quot;description&quot;: &quot;Allow importing device data&quot;
+    }
+  ]
+}</code></pre>
+<h3>Step 3: Assign Permissions to Roles</h3>
+<pre><code class="language-javascript">// First, get the table permission IDs from the response of step 2
+
+// POST /api/v1/table-permissions/role-permissions/grant
+{
+  &quot;roleId&quot;: &quot;&lt;super-admin-role-uuid&gt;&quot;,
+  &quot;tablePermissionId&quot;: &quot;&lt;device-read-permission-uuid&gt;&quot;,
+  &quot;description&quot;: &quot;SUPER_ADMIN can read all devices&quot;
+}
+
+// POST /api/v1/table-permissions/role-permissions/grant
+{
+  &quot;roleId&quot;: &quot;&lt;user-role-uuid&gt;&quot;,
+  &quot;tablePermissionId&quot;: &quot;&lt;device-read-permission-uuid&gt;&quot;,
+  &quot;description&quot;: &quot;Regular users can read devices&quot;
+}</code></pre>
+<h3>Step 4: Assign Permissions to Tenant Roles (with ABAC)</h3>
+<pre><code class="language-javascript">// POST /api/v1/table-permissions/tenant-role-permissions/grant
+{
+  &quot;tenantRoleId&quot;: &quot;&lt;tenant-admin-role-uuid&gt;&quot;,
+  &quot;tablePermissionId&quot;: &quot;&lt;device-update-permission-uuid&gt;&quot;,
+  &quot;abacRules&quot;: {
+    &quot;condition&quot;: &quot;owner&quot;
+  },
+  &quot;description&quot;: &quot;Tenant admin can update devices they own&quot;
+}</code></pre>
+<hr>
+<h2>Implementation Guide</h2>
+<h3>Adding Table Permissions to a New Module</h3>
+<p>#### 1. Seed the Model</p>
+<p>Create a seed entry in <code>utils/seedTablePermissions.js</code>:</p>
+<pre><code class="language-javascript">{
+  modelName: &quot;Device&quot;,
+  tableName: &quot;devices&quot;,
+  module: &quot;device&quot;,
+  description: &quot;Hospital device management&quot;,
+  isActive: true
+}</code></pre>
+<p>#### 2. Define Default Permissions</p>
+<pre><code class="language-javascript">{
+  modelName: &quot;Device&quot;,
+  permissions: [
+    { action: &quot;create&quot;, scope: &quot;global&quot; },
+    { action: &quot;read&quot;, scope: &quot;tenant&quot; },
+    { action: &quot;update&quot;, scope: &quot;self&quot; },
+    { action: &quot;delete&quot;, scope: &quot;global&quot; },
+    { action: &quot;export&quot;, scope: &quot;global&quot; },
+    { action: &quot;import&quot;, scope: &quot;global&quot; }
+  ]
+}</code></pre>
+<p>#### 3. Use Dynamic Access Middleware</p>
+<p>In your route file:</p>
+<pre><code class="language-javascript">const express = require(&quot;express&quot;);
+const router = express.Router();
+const { auth } = require(&quot;../../middlewares/auth&quot;);
+const { dynamicAccess } = require(&quot;../../middlewares/dynamicAccess&quot;);
+const controller = require(&quot;../../controllers/device.controller&quot;);
+
+// GET /api/v1/devices - Read devices (tenant-scoped)
+router.get(
+  &quot;/&quot;,
+  auth,
+  dynamicAccess(&quot;Device&quot;, &quot;read&quot;, { checkTenant: true }),
+  controller.getAll,
+);
+
+// POST /api/v1/devices/create - Create device
+router.post(
+  &quot;/create&quot;,
+  auth,
+  dynamicAccess(&quot;Device&quot;, &quot;create&quot;),
+  controller.create,
+);
+
+// PATCH /api/v1/devices/edit - Update device (self-only)
+router.patch(
+  &quot;/edit&quot;,
+  auth,
+  dynamicAccess(&quot;Device&quot;, &quot;update&quot;, { checkSelf: true }),
+  controller.update,
+);
+
+// DELETE /api/v1/devices/delete - Delete device
+router.delete(
+  &quot;/delete&quot;,
+  auth,
+  dynamicAccess(&quot;Device&quot;, &quot;delete&quot;),
+  controller.delete,
+);
+
+// GET /api/v1/devices/export - Export devices
+router.get(
+  &quot;/export&quot;,
+  auth,
+  dynamicAccess(&quot;Device&quot;, &quot;export&quot;),
+  controller.export,
+);
+
+module.exports = router;</code></pre>
+<p>#### 4. Apply Column Filtering in Controllers</p>
+<pre><code class="language-javascript">// GET /api/v1/devices
+exports.getAll = async (req, res, next) =&gt; {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    // Get allowed attributes from request context
+    const allowedAttrs = req.allowedAttributes?.allowed || [
+      &quot;id&quot;,
+      &quot;name&quot;,
+      &quot;type&quot;,
+      &quot;status&quot;,
+    ];
+
+    const devices = await Device.findAll({
+      attributes: allowedAttrs,
+      where: { tenantId: req.user.tenantId },
+      limit: Number(limit),
+      offset: (Number(page) - 1) * limit,
+    });
+
+    // Response helper
+    success(res, devices, null, &quot;Devices fetched successfully&quot;, 200);
+  } catch (error) {
+    next(error);
+  }
+};</code></pre>
+<hr>
+<h2>Middleware Usage</h2>
+<h3>dynamicAccess Middleware</h3>
+<p>The primary middleware for checking table permissions.</p>
+<pre><code class="language-javascript">const { dynamicAccess } = require(&quot;./middlewares/dynamicAccess&quot;);
+
+// Simple check
+router.get(
+  &quot;/&quot;,
+  auth,
+  dynamicAccess(&quot;Invoice&quot;, &quot;read&quot;, { checkTenant: true }),
+  controller,
+);
+
+// Self-check (user can only access their own record)
+router.patch(
+  &quot;/:id&quot;,
+  auth,
+  dynamicAccess(&quot;User&quot;, &quot;update&quot;, { checkSelf: true }),
+  controller,
+);
+
+// Multiple actions (OR - user needs any one)
+router.get(&quot;/&quot;, auth, dynamicAccess(&quot;Product&quot;, [&quot;read&quot;, &quot;export&quot;]), controller);
+
+// Multiple actions (AND - user needs all)
+router.post(
+  &quot;/bulk&quot;,
+  auth,
+  dynamicAccess(&quot;Report&quot;, [&quot;read&quot;, &quot;export&quot;], { requireAll: true }),
+  controller,
+);
+
+// Custom ID field
+router.get(
+  &quot;/:userId&quot;,
+  auth,
+  dynamicAccess(&quot;UserProfile&quot;, &quot;read&quot;, { idField: &quot;userId&quot; }),
+  controller,
+);</code></pre>
+<h3>ABAC Middleware</h3>
+<p>For legacy permission-based checks:</p>
+<pre><code class="language-javascript">const { abac } = require(&quot;./middlewares/abac&quot;);
+
+router.post(
+  &quot;/create&quot;,
+  auth,
+  abac([&quot;user:create&quot;, &quot;user:tenant:create&quot;], { checkTenant: true }),
+  controller,
+);
+router.patch(
+  &quot;/:id&quot;,
+  auth,
+  abac([&quot;user:update&quot;], { checkSelf: true }),
+  controller,
+);</code></pre>
+<h3>hasDynamicPermission</h3>
+<p>For checking permissions without blocking access (useful for UI rendering):</p>
+<pre><code class="language-javascript">router.post(&quot;/check&quot;, auth, controller.hasDynamicPermission);
+
+// Request body:
+{ &quot;modelName&quot;: &quot;Device&quot;, &quot;action&quot;: &quot;read&quot; }
+
+// Response:
+{
+  &quot;success&quot;: true,
+  &quot;data&quot;: {
+    &quot;allowed&quot;: true,
+    &quot;permission&quot;: { scope: &quot;tenant&quot;, attributes: { allowed: [...] } },
+    &quot;abacRules&quot;: null
+  }
+}</code></pre>
+<hr>
+<h2>Super Admin Bypass</h2>
+<p>Users with the <code>SUPER_ADMIN</code> role automatically bypass all permission checks and have access to everything. This is checked first in both <code>dynamicAccess</code> middleware and <code>checkUserPermission</code> service.</p>
+<pre><code class="language-javascript">if (user.role?.name === &quot;SUPER_ADMIN&quot;) {
+  return { allowed: true, permission: { scope: &quot;global&quot; }, abacRules: null };
+}</code></pre>
+<hr>
+<h2>Best Practices</h2>
+<ol>
+<li><strong>Always register models first</strong>: Before defining permissions, ensure the model is registered in the <code>Models</code> table.</li>
+</ol>
+<ol>
+<li><strong>Use scoping appropriately</strong>:</li>
+<li><code>global</code> for system-wide access</li>
+<li><code>tenant</code> for tenant-isolated resources</li>
+<li><code>self</code> for user-owned records</li>
+<li><code>custom</code> for complex ABAC conditions</li>
+</ol>
+<ol>
+<li><strong>Define column-level permissions</strong>: Always specify <code>allowed</code> and <code>hidden</code> attributes to prevent data leakage.</li>
+</ol>
+<ol>
+<li><strong>Use ABAC rules for dynamic conditions</strong>: Don&#39;t hardcode business rules; use ABAC for runtime evaluation.</li>
+</ol>
+<ol>
+<li><strong>Set expiration for temporary access</strong>: Use <code>expiresAt</code> for time-limited permissions (e.g., audit access).</li>
+</ol>
+<ol>
+<li><strong>Document permission assignments</strong>: Always provide descriptions when granting permissions.</li>
+</ol>
+<ol>
+<li><strong>Prefer AND logic for sensitive operations</strong>: Use <code>requireAll: true</code> when multiple permissions are required.</li>
+</ol>
+<ol>
+<li><strong>Audit permission changes</strong>: Track who changed what permissions and when.</li>
+</ol>
+
+</body>
+</html>

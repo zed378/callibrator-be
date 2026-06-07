@@ -100,7 +100,7 @@ const accessLog = morgan(customFormat, {
 
   // Skip noisy endpoints
   skip: (req) => {
-    return [
+    const skipPaths = [
       "/health",
       "/live",
       "/ready",
@@ -109,7 +109,15 @@ const accessLog = morgan(customFormat, {
       "/",
       "/documentation",
       "/standards",
-    ].includes(req.originalUrl);
+      "/tab-permissions",
+    ];
+
+    // Skip table permission docs endpoint (frequently accessed)
+    const isTablePermissionEndpoint = req.originalUrl.startsWith(
+      "/api/v1/permissions/tables",
+    );
+
+    return skipPaths.includes(req.originalUrl) || isTablePermissionEndpoint;
   },
 });
 

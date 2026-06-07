@@ -86,6 +86,31 @@ if (!isProduction) {
 // HTTP LOGGER MIDDLEWARE
 // ======================================================
 
+/**
+ * Endpoints to exclude from activity logging
+ */
+const EXCLUDED_PATHS = [
+  "/health",
+  "/live",
+  "/ready",
+  "/favicon.ico",
+  "/docs",
+  "/",
+  "/documentation",
+  "/standards",
+  "/tab-permissions",
+];
+
+/**
+ * Check if request should be excluded from logging
+ */
+const shouldExcludeFromLogging = (url) => {
+  // Exact match
+  if (EXCLUDED_PATHS.includes(url)) {
+    return true;
+  }
+};
+
 const activityLogger = (req, res, next) => {
   const start = Date.now();
 
@@ -98,31 +123,34 @@ const activityLogger = (req, res, next) => {
 
   const { ip, method, originalUrl } = req;
 
-  logger.http({
-    requestId,
-
-    type: "REQUEST",
-
-    ip,
-
-    method,
-
-    url: originalUrl,
-  });
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-
+  // Skip logging for excluded endpoints
+  if (!shouldExcludeFromLogging(originalUrl)) {
     logger.http({
       requestId,
-      type: "RESPONSE",
+
+      type: "REQUEST",
+
       ip,
+
       method,
+
       url: originalUrl,
-      statusCode: res.statusCode,
-      duration: `${duration}ms`,
     });
-  });
+
+    res.on("finish", () => {
+      const duration = Date.now() - start;
+
+      logger.http({
+        requestId,
+        type: "RESPONSE",
+        ip,
+        method,
+        url: originalUrl,
+        statusCode: res.statusCode,
+        duration: `${duration}ms`,
+      });
+    });
+  }
 
   next();
 };

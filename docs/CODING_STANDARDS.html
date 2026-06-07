@@ -155,6 +155,7 @@
             <a href="#20-environment-variables">20. Environment Variables</a>
             <a href="#21-git-deployment">21. Git & Deployment</a>
             <a href="#22-unit-testing-standards">22. Unit Testing Standards</a>
+            <a href="#23-model-discovery-standards">23. Model Discovery Standards</a>
             <a href="#quick-reference">Quick Reference</a>
         </div>
     </nav>
@@ -163,7 +164,7 @@
         <div class="page-header">
             <h1>Coding Standards & Guidelines</h1>
             <p class="subtitle">Comprehensive standards for the Boilerplate PG MySQL project</p>
-            <p class="generated">Generated on June 5, 2026</p>
+            <p class="generated">Generated on June 7, 2026</p>
         </div>
 
         <h1>Coding Standards &amp; Guidelines</h1>
@@ -191,6 +192,7 @@
 <li><a href="#20-environment-variables">Environment Variables</a></li>
 <li><a href="#21-git--deployment">Git &amp; Deployment</a></li>
 <li><a href="#22-unit-testing-standards">Unit Testing Standards</a></li>
+<li><a href="#23-model-discovery-standards">Model Discovery Standards</a></li>
 </ol>
 <hr>
 <a id="1-project-overview"></a><h2> 1. Project Overview </h2>
@@ -257,6 +259,7 @@
 │   ├── DOCUMENTATION.md          # Markdown documentation
 │   ├── DOCUMENTATION.html        # Generated HTML documentation
 │   ├── CODING_STANDARDS.md       # This file
+│   ├── TABLE_PERMISSIONS.md      # Table permissions documentation
 │   └── illustrations/            # SVG diagrams
 ├── scripts/
 │   ├── generate-html-doc.js      # HTML doc generator
@@ -274,17 +277,62 @@
 │   │   ├── roleConstants.js      # Role-related constants
 │   │   └── permissionConstants.js # Permission naming conventions
 │   ├── controllers/              # Request handlers
+│   │   ├── auth.controller.js
+│   │   ├── menuGroup.controller.js
+│   │   ├── migration.controller.js
+│   │   ├── modelDiscovery.controller.js
+│   │   ├── permission.controller.js
+│   │   ├── roles.controller.js
+│   │   ├── tablePermission.controller.js
+│   │   ├── tenant.controller.js
+│   │   ├── tenantBackup.controller.js
+│   │   └── user.controller.js
 │   ├── docs/                     # Swagger configuration
 │   ├── middlewares/              # Express middlewares
+│   │   ├── abac.js
+│   │   ├── accessLog.js
+│   │   ├── activityLog.js
+│   │   ├── auth.js
+│   │   ├── backup.js
+│   │   ├── createFolder.js
+│   │   ├── dynamicAccess.js
+│   │   ├── errorHandlers.js
+│   │   ├── globalSanitizer.js
+│   │   ├── inputValidation.js
+│   │   ├── modelDiscoveryCron.js
+│   │   ├── notFound.js
+│   │   ├── rbac.js
+│   │   ├── sessionCleanup.js
+│   │   ├── tenantContext.js
+│   │   ├── tenantScope.js
+│   │   ├── tokenRateLimiter.js
+│   │   └── validation.js
 │   ├── models/                   # Sequelize models
 │   ├── routes/
 │   │   ├── api/                  # Public API routes
 │   │   └── internal/             # Internal routes
 │   ├── services/                 # Business logic
-│   │   ├── migration.service.js  # Migration &amp; seeding service
-│   │   ├── auth.service.js       # Authentication service
-│   │   ├── user.service.js       # User service
-│   │   └── ...                   # Other services
+│   │   ├── auth.service.js
+│   │   ├── email.service.js
+│   │   ├── emailQueue.service.js
+│   │   ├── menuGroupRole.service.js
+│   │   ├── migration.service.js
+│   │   ├── modelDiscovery.service.js
+│   │   ├── permission.service.js
+│   │   ├── permissionAssignment.service.js
+│   │   ├── rateLimiter.service.js
+│   │   ├── redis.service.js
+│   │   ├── roles.service.js
+│   │   ├── session.service.js
+│   │   ├── tablePermission.service.js
+│   │   ├── tenant.service.js
+│   │   ├── tenantAudit.service.js
+│   │   ├── tenantBackup.service.js
+│   │   ├── tenantFeature.service.js
+│   │   ├── tenantOnboarding.service.js
+│   │   ├── tenantUpload.service.js
+│   │   ├── user.service.js
+│   │   └── userUpload.service.js
 │   ├── templates/                # Email HTML templates
 │   ├── tests/                    # Jest tests
 │   ├── utils/                    # Utility functions
@@ -2064,6 +2112,117 @@ npx jest --watch
 </tbody>
 </table>
 <hr>
+<a id="23-model-discovery-standards"></a><h2> 23. Model Discovery Standards </h2>
+<h3>Overview</h3>
+<p>Model Discovery is a system that automatically detects and registers database models/tables at startup. It provides dynamic permission management by discovering all models and making them available for the table permission system.</p>
+<h3>Architecture</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                      Application Startup                     │
+├─────────────────────────────────────────────────────────────┤
+│  1. Models loaded from src/models/                          │
+│  2. ModelDiscoveryService scans all models                   │
+│  3. Registered models → Models table                         │
+│  4. Table permissions auto-seeded                            │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<h3>Model Discovery Service</h3>
+<p><strong>File</strong>: <code>src/services/modelDiscovery.service.js</code></p>
+<pre><code class="language-javascript">const modelDiscoveryService = require(&quot;../services/modelDiscovery.service&quot;);
+
+// Discover and register all models
+const result = await modelDiscoveryService.discoverAllModels();
+
+// Get registered models
+const models = await modelDiscoveryService.getAllModels();
+
+// Get model by name
+const model = await modelDiscoveryService.getModelByName(&quot;Users&quot;);
+
+// Register single model
+const registered = await modelDiscoveryService.registerModel({
+  modelName: &quot;Users&quot;,
+  tableName: &quot;users&quot;,
+  module: &quot;user&quot;,
+  description: &quot;User management&quot;,
+});
+</code></pre>
+<h3>Controller Pattern</h3>
+<p><strong>File</strong>: <code>src/controllers/modelDiscovery.controller.js</code></p>
+<pre><code class="language-javascript">const {
+  ModelDiscoveryController,
+} = require(&quot;../controllers/modelDiscovery.controller&quot;);
+
+// GET /api/v1/model-discovery/models
+const { models } = await ModelDiscoveryController.getAllModels(req, res);
+
+// POST /api/v1/model-discovery/discover
+const discovered = await ModelDiscoveryController.discoverModels(req, res);
+</code></pre>
+<h3>Model Registration Attributes</h3>
+<p>When models are registered, they include:</p>
+<table>
+<thead>
+<tr>
+<th>Attribute</th>
+<th>Description</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>modelName</code></td>
+<td>Sequelize model class name</td>
+<td><code>Users</code>, <code>Tenants</code></td>
+</tr>
+<tr>
+<td><code>tableName</code></td>
+<td>Actual database table name</td>
+<td><code>users</code>, <code>tenants</code></td>
+</tr>
+<tr>
+<td><code>module</code></td>
+<td>Logical grouping</td>
+<td><code>user</code>, <code>tenant</code></td>
+</tr>
+<tr>
+<td><code>attributeCount</code></td>
+<td>Number of columns</td>
+<td><code>12</code></td>
+</tr>
+<tr>
+<td><code>attributes</code></td>
+<td>List of column names</td>
+<td><code>[&quot;id&quot;, &quot;email&quot;, ...]</code></td>
+</tr>
+<tr>
+<td><code>relationCount</code></td>
+<td>Number of associations</td>
+<td><code>5</code></td>
+</tr>
+<tr>
+<td><code>relations</code></td>
+<td>List of relation details</td>
+<td><code>[{ model: &quot;Roles&quot;, type: &quot;BELONGS_TO&quot; }]</code></td>
+</tr>
+</tbody>
+</table>
+<h3>Model Discovery Cron</h3>
+<p><strong>File</strong>: <code>src/middlewares/modelDiscoveryCron.js</code></p>
+<p>Periodic re-discovery can be enabled for dynamic model registration:</p>
+<pre><code class="language-javascript">const modelDiscoveryCron = require(&quot;../middlewares/modelDiscoveryCron&quot;);
+
+// Configuration
+const CRON_EXPRESSION = &quot;0 */5 * * *&quot;; // Every 5 minutes
+</code></pre>
+<h3>Best Practices</h3>
+<ol>
+<li><strong>Model naming consistency</strong>: Use PascalCase for model class names</li>
+<li><strong>Module grouping</strong>: Group related models by module name</li>
+<li><strong>Relation definitions</strong>: Ensure all <code>associate()</code> methods are defined</li>
+<li><strong>Auto-seeding</strong>: Table permissions are automatically seeded on startup</li>
+<li><strong>SUPER_ADMIN bypass</strong>: SUPER_ADMIN role bypasses all permission checks</li>
+</ol>
+<hr>
 <a id="quick-reference"></a><h2> Quick Reference </h2>
 <h3>Key Patterns</h3>
 <table>
@@ -2190,7 +2349,7 @@ npx jest --watch
 
         <hr>
         <footer style="text-align:center;padding:30px 0;color:var(--text-light);font-size:14px;">
-            <p>Generated on June 5, 2026</p>
+            <p>Generated on June 7, 2026</p>
             <p>Boilerplate PG MySQL - Enterprise Multi-Tenant Express.js Boilerplate</p>
             <p style="margin-top:10px;"><a href="/documentation" style="color:var(--primary);">← Back to Main Documentation</a></p>
         </footer>

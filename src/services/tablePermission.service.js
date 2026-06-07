@@ -1,10 +1,10 @@
-const { Op } = require('sequelize');
+const { Op } = require("sequelize");
 const {
   Models,
   TablePermission,
   RolePermission,
   TenantRolePermission,
-} = require('../models');
+} = require("../models");
 
 // ==========================================
 // MODELS MANAGEMENT
@@ -13,7 +13,7 @@ const {
 /**
  * Get all models with pagination and search
  */
-exports.getAllModels = async ({ page = 1, limit = 20, search = '' }) => {
+exports.getAllModels = async ({ page = 1, limit = 20, search = "" }) => {
   const offset = (page - 1) * limit;
   const where = search
     ? {
@@ -29,13 +29,13 @@ exports.getAllModels = async ({ page = 1, limit = 20, search = '' }) => {
     where,
     limit: Number(limit),
     offset: Number(offset),
-    order: [['modelName', 'ASC']],
+    order: [["modelName", "ASC"]],
   });
 
   return {
     success: true,
     status: 200,
-    message: 'Fetch models successful',
+    message: "Fetch models successful",
     data: {
       rows,
       meta: {
@@ -56,24 +56,24 @@ exports.getModelById = async (id) => {
     include: [
       {
         model: TablePermission,
-        as: 'tablePermissions',
+        as: "tablePermissions",
         include: [
           {
-            model: require('../models').Roles,
-            through: { attributes: ['isGranted', 'expiresAt', 'description'] },
-            as: 'roles',
+            model: require("../models").Roles,
+            through: { attributes: ["isGranted", "expiresAt", "description"] },
+            as: "roles",
           },
           {
-            model: require('../models').TenantRoles,
+            model: require("../models").TenantRoles,
             through: {
               attributes: [
-                'isGranted',
-                'expiresAt',
-                'abacRules',
-                'description',
+                "isGranted",
+                "expiresAt",
+                "abacRules",
+                "description",
               ],
             },
-            as: 'tenantRoles',
+            as: "tenantRoles",
           },
         ],
       },
@@ -81,13 +81,13 @@ exports.getModelById = async (id) => {
   });
 
   if (!model) {
-    throw { status: 404, message: 'Model not found' };
+    throw { status: 404, message: "Model not found" };
   }
 
   return {
     success: true,
     status: 200,
-    message: 'Fetch model successful',
+    message: "Fetch model successful",
     data: model,
   };
 };
@@ -101,19 +101,19 @@ exports.getModelByName = async (modelName) => {
     include: [
       {
         model: TablePermission,
-        as: 'tablePermissions',
+        as: "tablePermissions",
       },
     ],
   });
 
   if (!model) {
-    throw { status: 404, message: 'Model not found' };
+    throw { status: 404, message: "Model not found" };
   }
 
   return {
     success: true,
     status: 200,
-    message: 'Fetch model by name successful',
+    message: "Fetch model by name successful",
     data: model,
   };
 };
@@ -127,7 +127,7 @@ exports.createModel = async (payload) => {
   });
 
   if (existing) {
-    throw { status: 409, message: 'Model already exists' };
+    throw { status: 409, message: "Model already exists" };
   }
 
   const model = await Models.create(payload);
@@ -135,7 +135,7 @@ exports.createModel = async (payload) => {
   return {
     success: true,
     status: 201,
-    message: 'Model created successfully',
+    message: "Model created successfully",
     data: model,
   };
 };
@@ -146,14 +146,14 @@ exports.createModel = async (payload) => {
 exports.updateModel = async ({ id, data }) => {
   const model = await Models.findByPk(id);
   if (!model) {
-    throw { status: 404, message: 'Model not found' };
+    throw { status: 404, message: "Model not found" };
   }
   await model.update(data);
 
   return {
     success: true,
     status: 200,
-    message: 'Model updated successfully',
+    message: "Model updated successfully",
     data: model,
   };
 };
@@ -164,14 +164,14 @@ exports.updateModel = async ({ id, data }) => {
 exports.deleteModel = async (id) => {
   const model = await Models.findByPk(id);
   if (!model) {
-    throw { status: 404, message: 'Model not found' };
+    throw { status: 404, message: "Model not found" };
   }
   await model.destroy();
 
   return {
     success: true,
     status: 200,
-    message: 'Model deleted successfully',
+    message: "Model deleted successfully",
     data: null,
   };
 };
@@ -189,29 +189,29 @@ exports.getTablePermissions = async (modelId) => {
     include: [
       {
         model: Models,
-        as: 'model',
-        attributes: ['id', 'modelName', 'tableName', 'module'],
+        as: "model",
+        attributes: ["id", "modelName", "tableName", "module"],
       },
       {
-        model: require('../models').Roles,
-        through: { attributes: ['isGranted', 'expiresAt', 'description'] },
-        as: 'roles',
+        model: require("../models").Roles,
+        through: { attributes: ["isGranted", "expiresAt", "description"] },
+        as: "roles",
       },
       {
-        model: require('../models').TenantRoles,
+        model: require("../models").TenantRoles,
         through: {
-          attributes: ['isGranted', 'expiresAt', 'abacRules', 'description'],
+          attributes: ["isGranted", "expiresAt", "abacRules", "description"],
         },
-        as: 'tenantRoles',
+        as: "tenantRoles",
       },
     ],
-    order: [['action', 'ASC']],
+    order: [["action", "ASC"]],
   });
 
   return {
     success: true,
     status: 200,
-    message: 'Fetch table permissions successful',
+    message: "Fetch table permissions successful",
     data: permissions,
   };
 };
@@ -225,28 +225,28 @@ exports.upsertTablePermissions = async (modelId, permissions) => {
   for (const perm of permissions) {
     const {
       action,
-      scope = 'global',
+      scope = "global",
       attributes = {},
       abacRules = null,
       description,
     } = perm;
 
-    const [created, updated] = await TablePermission.findOrCreate({
+    const [permission, created] = await TablePermission.findOrCreate({
       where: { modelId, action },
       defaults: { scope, attributes, abacRules, description },
     });
 
     if (!created) {
-      await updated.update({ scope, attributes, abacRules, description });
+      await permission.update({ scope, attributes, abacRules, description });
     }
 
-    results.push(created || updated);
+    results.push(permission);
   }
 
   return {
     success: true,
     status: 200,
-    message: 'Table permissions upserted successfully',
+    message: "Table permissions upserted successfully",
     data: results,
   };
 };
@@ -257,14 +257,14 @@ exports.upsertTablePermissions = async (modelId, permissions) => {
 exports.updateTablePermission = async ({ id, data }) => {
   const permission = await TablePermission.findByPk(id);
   if (!permission) {
-    throw { status: 404, message: 'Table permission not found' };
+    throw { status: 404, message: "Table permission not found" };
   }
   await permission.update(data);
 
   return {
     success: true,
     status: 200,
-    message: 'Table permission updated successfully',
+    message: "Table permission updated successfully",
     data: permission,
   };
 };
@@ -275,14 +275,14 @@ exports.updateTablePermission = async ({ id, data }) => {
 exports.deleteTablePermission = async (id) => {
   const permission = await TablePermission.findByPk(id);
   if (!permission) {
-    throw { status: 404, message: 'Table permission not found' };
+    throw { status: 404, message: "Table permission not found" };
   }
   await permission.destroy();
 
   return {
     success: true,
     status: 200,
-    message: 'Table permission deleted successfully',
+    message: "Table permission deleted successfully",
     data: null,
   };
 };
@@ -303,7 +303,7 @@ exports.grantRolePermission = async (
     roleId,
     tablePermissionId,
     options,
-    require('../models'),
+    require("../models"),
   );
 };
 
@@ -314,7 +314,7 @@ exports.revokeRolePermission = async (roleId, tablePermissionId) => {
   return RolePermission.revokePermission(
     roleId,
     tablePermissionId,
-    require('../models'),
+    require("../models"),
   );
 };
 
@@ -325,7 +325,7 @@ exports.hasRolePermission = async (roleId, tablePermissionId) => {
   return RolePermission.hasPermission(
     roleId,
     tablePermissionId,
-    require('../models'),
+    require("../models"),
   );
 };
 
@@ -333,7 +333,7 @@ exports.hasRolePermission = async (roleId, tablePermissionId) => {
  * Get all granted permissions for a role
  */
 exports.getRolePermissions = async (roleId) => {
-  return RolePermission.getGrantedPermissions(roleId, require('../models'));
+  return RolePermission.getGrantedPermissions(roleId, require("../models"));
 };
 
 /**
@@ -355,7 +355,7 @@ exports.bulkAssignRolePermissions = async (
         roleId,
         tablePermissionId,
         options,
-        require('../models'),
+        require("../models"),
       );
       results.granted.push(tablePermissionId);
     } catch (error) {
@@ -366,7 +366,7 @@ exports.bulkAssignRolePermissions = async (
   return {
     success: true,
     status: 200,
-    message: 'Bulk assign role permissions completed',
+    message: "Bulk assign role permissions completed",
     data: results,
   };
 };
@@ -387,7 +387,7 @@ exports.grantTenantRolePermission = async (
     tenantRoleId,
     tablePermissionId,
     options,
-    require('../models'),
+    require("../models"),
   );
 };
 
@@ -401,7 +401,7 @@ exports.revokeTenantRolePermission = async (
   return TenantRolePermission.revokePermission(
     tenantRoleId,
     tablePermissionId,
-    require('../models'),
+    require("../models"),
   );
 };
 
@@ -412,7 +412,7 @@ exports.hasTenantRolePermission = async (tenantRoleId, tablePermissionId) => {
   return TenantRolePermission.hasPermission(
     tenantRoleId,
     tablePermissionId,
-    require('../models'),
+    require("../models"),
   );
 };
 
@@ -422,7 +422,7 @@ exports.hasTenantRolePermission = async (tenantRoleId, tablePermissionId) => {
 exports.getTenantRolePermissions = async (tenantRoleId) => {
   return TenantRolePermission.getGrantedPermissions(
     tenantRoleId,
-    require('../models'),
+    require("../models"),
   );
 };
 
@@ -438,7 +438,7 @@ exports.updateTenantRoleAbacRules = async (
     tenantRoleId,
     tablePermissionId,
     abacRules,
-    require('../models'),
+    require("../models"),
   );
 };
 
@@ -461,7 +461,7 @@ exports.bulkAssignTenantRolePermissions = async (
         tenantRoleId,
         tablePermissionId,
         options,
-        require('../models'),
+        require("../models"),
       );
       results.granted.push(tablePermissionId);
     } catch (error) {
@@ -472,7 +472,7 @@ exports.bulkAssignTenantRolePermissions = async (
   return {
     success: true,
     status: 200,
-    message: 'Bulk assign tenant role permissions completed',
+    message: "Bulk assign tenant role permissions completed",
     data: results,
   };
 };
@@ -492,21 +492,21 @@ exports.bulkAssignTenantRolePermissions = async (
  * @returns {Promise<Object>} { allowed: boolean, permission: Object|null, abacRules: Object|null }
  */
 exports.checkUserPermission = async (userId, modelName, action, tenantId) => {
-  const { Users, Roles, TenantRoles } = require('../models');
+  const { Users, Roles, TenantRoles } = require("../models");
 
   // Get user with their roles
   const user = await Users.findByPk(userId, {
     include: [
       {
         model: Roles,
-        as: 'role',
-        attributes: ['id', 'name', 'roleLevel'],
+        as: "role",
+        attributes: ["id", "name", "roleLevel"],
       },
       {
         model: TenantRoles,
-        as: 'tenantRole',
+        as: "tenantRole",
         where: tenantId ? { tenantId } : undefined,
-        attributes: ['id', 'name', 'level'],
+        attributes: ["id", "name", "level"],
       },
     ],
   });
@@ -516,8 +516,8 @@ exports.checkUserPermission = async (userId, modelName, action, tenantId) => {
   }
 
   // SUPER_ADMIN bypass
-  if (user.role?.name === 'SUPER_ADMIN') {
-    return { allowed: true, permission: { scope: 'global' }, abacRules: null };
+  if (user.role?.name === "SUPER_ADMIN") {
+    return { allowed: true, permission: { scope: "global" }, abacRules: null };
   }
 
   // Get the model
@@ -526,19 +526,19 @@ exports.checkUserPermission = async (userId, modelName, action, tenantId) => {
     include: [
       {
         model: TablePermission,
-        as: 'tablePermissions',
+        as: "tablePermissions",
         where: { action },
         required: true,
         include: [
           {
             model: Roles,
-            through: { attributes: ['isGranted', 'expiresAt'] },
-            as: 'roles',
+            through: { attributes: ["isGranted", "expiresAt"] },
+            as: "roles",
           },
           {
             model: TenantRoles,
-            through: { attributes: ['isGranted', 'expiresAt', 'abacRules'] },
-            as: 'tenantRoles',
+            through: { attributes: ["isGranted", "expiresAt", "abacRules"] },
+            as: "tenantRoles",
           },
         ],
       },

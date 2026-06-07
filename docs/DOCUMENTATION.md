@@ -1,4 +1,4 @@
-# Boilerplate PG MySQL - Complete Application Documentation
+# Callibrator Backend - Complete Application Documentation
 
 ## Table of Contents
 
