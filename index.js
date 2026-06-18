@@ -255,7 +255,11 @@ app.use(activityLogger);
 // STATIC FILES
 // ======================================================
 
+app.use("/.well-known", express.static(".well-known"));
+
 app.use("/uploads", express.static(storagePath("uploads")));
+
+app.use("/public", express.static("public"));
 
 // ======================================================
 // SANITIZER
