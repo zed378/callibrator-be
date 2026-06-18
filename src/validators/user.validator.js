@@ -4,51 +4,52 @@
 const Joi = require("joi");
 
 // ==========================================
-// COMMON FIELDS
+// GET ALL USERS QUERY
 // ==========================================
 
-const email = Joi.string()
-  .trim()
-  .lowercase()
-  .email()
-  .min(6)
-  .max(255)
-  .required();
-
-const username = Joi.string()
-  .trim()
-  .lowercase()
-  .alphanum()
-  .min(3)
-  .max(30)
-  .required();
+exports.getAllUsersQuery = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(50),
+  find: Joi.string().allow(null, ""),
+  status: Joi.string()
+    .valid("ACTIVE", "INACTIVE", "SUSPENDED", "active", "inactive", "suspended")
+    .insensitive()
+    .allow(null, ""),
+  roleFilter: Joi.string().allow(null, ""),
+  tenantId: Joi.string().uuid().allow(null, ""),
+});
 
 // ==========================================
 // CREATE USER
 // ==========================================
 
 exports.createUserSchema = Joi.object({
-  tenantId: Joi.string().uuid().allow(null, ""),
-  username,
+  username: Joi.string()
+    .alphanum()
+    .min(3)
+    .max(30)
+    .required(),
   firstName: Joi.string().trim().min(2).max(100).required(),
   lastName: Joi.string().trim().min(2).max(100).required(),
-  email,
-  password: Joi.string()
-    .min(8)
-    .max(100)
-    .pattern(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).+$/,
-    )
-    .required()
-    .messages({
-      "string.pattern.base":
-        "Password must contain uppercase, lowercase, number, and special character",
-    }),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(8).required(),
   roleId: Joi.string().uuid().required(),
+  tenantId: Joi.string().uuid().allow(null, ""),
   status: Joi.string()
-    .valid("ACTIVE", "INACTIVE", "SUSPENDED")
-    .default("ACTIVE"),
-  createdBy: Joi.string().uuid().allow(null, ""),
+    .valid("ACTIVE", "INACTIVE", "SUSPENDED", "active", "inactive", "suspended")
+    .default("ACTIVE")
+    .insensitive(),
+}).custom((value, helpers) => {
+  if (value.status && typeof value.status === "string") {
+    value.status = value.status.toUpperCase();
+  }
+  if (value.email) {
+    value.email = value.email.toLowerCase();
+  }
+  if (value.username) {
+    value.username = value.username.toLowerCase();
+  }
+  return value;
 });
 
 // ==========================================
@@ -56,67 +57,49 @@ exports.createUserSchema = Joi.object({
 // ==========================================
 
 exports.updateUserSchema = Joi.object({
-  userId: Joi.string().uuid().required(),
-  tenantId: Joi.string().uuid().allow(null, ""),
-  username: Joi.string()
-    .trim()
-    .lowercase()
-    .alphanum()
-    .min(3)
-    .max(30)
-    .allow(null, ""),
+  username: Joi.string().alphanum().min(3).max(30),
   firstName: Joi.string().trim().min(2).max(100),
-  lastName: Joi.string().trim().min(2).max(100).allow(null, ""),
-  email: Joi.string()
-    .trim()
-    .lowercase()
-    .email()
-    .min(6)
-    .max(255)
-    .allow(null, ""),
-  password: Joi.string()
-    .min(8)
-    .max(100)
-    .pattern(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).+$/,
-    )
-    .messages({
-      "string.pattern.base":
-        "Password must contain uppercase, lowercase, number, and special character",
-    }),
-  roleId: Joi.string().uuid(),
-  status: Joi.string().valid("ACTIVE", "INACTIVE", "SUSPENDED"),
-  isEmailVerified: Joi.boolean(),
-  isBanned: Joi.boolean(),
-  newPassword: Joi.string()
-    .min(8)
-    .max(100)
-    .pattern(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).+$/,
-    )
-    .messages({
-      "string.pattern.base":
-        "Password must contain uppercase, lowercase, number, and special character",
-    }),
-  updatedBy: Joi.string().uuid().allow(null, ""),
+  lastName: Joi.string().trim().min(2).max(100),
+  email: Joi.string().email(),
+  status: Joi.string()
+    .valid("ACTIVE", "INACTIVE", "SUSPENDED", "active", "inactive", "suspended")
+    .insensitive(),
+}).custom((value, helpers) => {
+  if (value.status && typeof value.status === "string") {
+    value.status = value.status.toUpperCase();
+  }
+  if (value.email) {
+    value.email = value.email.toLowerCase();
+  }
+  if (value.username) {
+    value.username = value.username.toLowerCase();
+  }
+  return value;
 });
 
 // ==========================================
-// USER ROLE UPDATE
+// GET/DELETE USER BY ID
 // ==========================================
 
-exports.updateUserRoleSchema = Joi.object({
+exports.userParamSchema = Joi.object({
+  userId: Joi.string().uuid().required(),
+});
+
+// ==========================================
+// ROLE UPDATE
+// ==========================================
+
+exports.updateRoleSchema = Joi.object({
   userId: Joi.string().uuid().required(),
   roleId: Joi.string().uuid().required(),
-  updatedBy: Joi.string().uuid().required(),
 });
 
 // ==========================================
-// CHECK USERNAME
+// USERNAME CHECK
 // ==========================================
 
-exports.checkUsernameSchema = Joi.object({
-  username,
+exports.usernameCheckSchema = Joi.object({
+  username: Joi.string().alphanum().min(3).max(30).required(),
 });
 
 // ==========================================

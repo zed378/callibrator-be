@@ -1,318 +1,494 @@
-const { Op } = require('sequelize');
-const { Roles, Permissions, UserPermissions } = require('../models');
-const { DEFAULT_LIMIT, MAX_LIMIT } = require('../utils/constants');
+const { Role, RoleMenuPermission, MenuGroup, User } = require("../models");
+const { Op } = require("sequelize");
 
-// ==========================================
-// GET ALL ROLES
-// ==========================================
+/**
+ * Roles Service - Simplified RBAC with Read/Write Permissions
+ *
+ * Architecture:
+ * - Roles have read or write permissions on menu groups via RoleMenuPermission
+ * - Users have a direct role_id foreign key (no ABAC)
+ * - Permission check: hasPermission(userId, menuSlug, permissionType)
+ * - All roles are global (not tenant-scoped)
+ */
 
-exports.getAllRoles = async ({
-  page = 1,
-  limit = DEFAULT_LIMIT,
-  search = '',
-}) => {
-  const offset = (page - 1) * limit;
-
-  const where = search
-    ? {
-        [Op.or]: [
-          { name: { [Op.like]: `%${search.toLowerCase()}%` } },
-          { description: { [Op.like]: `%${search.toLowerCase()}%` } },
-          { nameToShow: { [Op.like]: `%${search.toLowerCase()}%` } },
-        ],
-      }
-    : {};
-
-  const { rows, count } = await Roles.findAndCountAll({
-    where,
-    limit: Number(limit),
-    offset: Number(offset),
-    order: [
-      ['roleLevel', 'ASC'],
-      ['createdAt', 'DESC'],
-    ],
-    attributes: [
-      'id',
-      'name',
-      'description',
-      'nameToShow',
-      'isActive',
-      'roleLevel',
-    ],
-  });
-
-  // Get active and inactive counts
-  const activeCount = await Roles.count({ where: { isActive: true } });
-  const inactiveCount = await Roles.count({ where: { isActive: false } });
-
-  return {
-    success: true,
-    status: 200,
-    message: 'Fetch roles successful',
-    data: {
-      rows,
-      count,
-      activeCount,
-      inactiveCount,
-      meta: {
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(count / limit),
-      },
-    },
-  };
-};
-
-// ==========================================
-// GET ROLE BY ID
-// ==========================================
-
-exports.getRoleById = async (id) => {
-  const role = await Roles.findByPk(id);
-  if (!role) {
-    throw { status: 404, message: 'Role not found' };
-  }
-  return {
-    success: true,
-    status: 200,
-    message: 'Fetch role successful',
-    data: role,
-  };
-};
-
-// ==========================================
-// GET ROLE BY NAME
-// ==========================================
-
-exports.getRoleByName = async (name) => {
-  const role = await Roles.findOne({ where: { name } });
-  if (!role) {
-    throw { status: 404, message: 'Role not found' };
-  }
-  return {
-    success: true,
-    status: 200,
-    message: 'Fetch role by name successful',
-    data: role,
-  };
-};
-
-// ==========================================
-// CREATE ROLE
-// ==========================================
-
-exports.createRole = async (payload) => {
-  const { name, isActive } = payload;
-
-  // Check if role already exists
-  const existing = await Roles.findOne({ where: { name } });
-  if (existing) {
-    throw { status: 409, message: 'Role already exists' };
+class RolesService {
+  /**
+   * Create a new role
+   */
+  static async createRole({ name, description, is_system = false }) {
+    const role = await Role.create({
+      name: name.trim(),
+      description: description?.trim(),
+      is_system,
+      status: "active",
+    });
+    return role;
   }
 
-  // Default isActive to true if not provided
-  const roleData = {
-    ...payload,
-    isActive: isActive !== undefined ? isActive : true,
-  };
-
-  const role = await Roles.create(roleData);
-  return {
-    success: true,
-    status: 201,
-    message: 'Role created successfully',
-    data: role,
-  };
-};
-
-// ==========================================
-// UPDATE ROLE
-// ==========================================
-
-exports.updateRole = async ({ id, data }) => {
-  const role = await Roles.findByPk(id);
-  if (!role) {
-    throw { status: 404, message: 'Role not found' };
+  /**
+   * Get role by ID
+   */
+  static async getRoleById(id) {
+    return Role.findByPk(id, {
+      include: [
+        {
+          model: RoleMenuPermission,
+          as: "permissions",
+          include: [
+            {
+              model: MenuGroup,
+              as: "menu",
+              attributes: ["id", "name", "slug", "icon", "sort_order"],
+            },
+          ],
+        },
+      ],
+    });
   }
 
-  // Check if name is being changed and already exists
-  if (data.name && data.name !== role.name) {
-    const existing = await Roles.findOne({ where: { name: data.name } });
-    if (existing) {
-      throw { status: 409, message: 'Role name already exists' };
+  /**
+   * Get role by name
+   */
+  static async getRoleByName(name) {
+    return Role.findOne({ where: { name } });
+  }
+
+  /**
+   * Get all roles with optional filtering
+   */
+  static async getAllRoles({
+    status = "all",
+    is_system = null,
+    limit = 100,
+    offset = 0,
+    search = "",
+  } = {}) {
+    const where = {};
+
+    if (status !== "all") {
+      where.status = status;
     }
-  }
 
-  // Default isActive to true if not provided
-  const updateData = {
-    ...data,
-    isActive: data.isActive !== undefined ? data.isActive : role.isActive,
-  };
+    if (is_system !== null) {
+      where.is_system = is_system;
+    }
 
-  await role.update(updateData);
-  return {
-    success: true,
-    status: 200,
-    message: 'Role updated successfully',
-    data: role,
-  };
-};
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
 
-// ==========================================
-// DELETE ROLE
-// ==========================================
+    const result = await Role.findAndCountAll({
+      where,
+      include: [
+        {
+          model: RoleMenuPermission,
+          as: "permissions",
+          include: [
+            {
+              model: MenuGroup,
+              as: "menu",
+              attributes: ["id", "name", "slug", "icon", "sort_order"],
+            },
+          ],
+        },
+      ],
+      limit,
+      offset,
+      order: [
+        ["sort_order", "ASC"],
+        ["created_at", "ASC"],
+      ],
+    });
 
-exports.deleteRole = async (id) => {
-  const role = await Roles.findByPk(id);
-  if (!role) {
-    throw { status: 404, message: 'Role not found' };
-  }
-
-  // Prevent deleting built-in roles
-  const BUILTIN_ROLES = ['SUPER_ADMIN', 'TENANT_ADMIN', 'USER'];
-  if (BUILTIN_ROLES.includes(role.name)) {
-    throw { status: 403, message: 'Cannot delete built-in role' };
-  }
-
-  await role.destroy();
-  return {
-    success: true,
-    status: 200,
-    message: 'Role deleted successfully',
-    data: null,
-  };
-};
-
-// ==========================================
-// GET ROLE PERMISSIONS
-// ==========================================
-
-exports.getRolePermissions = async (roleId) => {
-  const role = await Roles.findByPk(roleId, {
-    include: [
-      {
-        model: Permissions,
-        through: { attributes: [] },
-        as: 'permissions',
-      },
-    ],
-  });
-
-  if (!role) {
-    throw { status: 404, message: 'Role not found' };
-  }
-
-  return {
-    success: true,
-    status: 200,
-    message: 'Fetch role permissions successful',
-    data: {
-      role,
-      permissions: role.permissions || [],
-    },
-  };
-};
-
-// ==========================================
-// ASSIGN PERMISSIONS TO ROLE
-// ==========================================
-
-exports.assignPermissionsToRole = async ({ roleId, permissionIds }) => {
-  const role = await Roles.findByPk(roleId);
-  if (!role) {
-    throw { status: 404, message: 'Role not found' };
-  }
-
-  // Validate all permissions exist
-  const permissions = await Permissions.findAll({
-    where: { id: permissionIds },
-  });
-
-  if (permissions.length !== permissionIds.length) {
-    const foundIds = permissions.map((p) => p.id);
-    const missingIds = permissionIds.filter((id) => !foundIds.includes(id));
-    throw {
-      status: 400,
-      message: `Permissions not found: ${missingIds.join(', ')}`,
+    return {
+      data: result.rows,
+      count: result.count,
+      page: Math.floor(offset / limit) + 1,
+      limit,
     };
   }
 
-  // Clear existing permissions and assign new ones
-  await role.setPermissions([]);
-  await role.addPermissions(permissionIds);
+  /**
+   * Update role
+   */
+  static async updateRole(id, { name, description, status }) {
+    const role = await Role.findByPk(id);
+    if (!role) {
+      const error = new Error("Role not found");
+      error.statusCode = 404;
+      throw error;
+    }
 
-  return {
-    success: true,
-    status: 200,
-    message: 'Permissions assigned to role successfully',
-    data: {
-      roleId,
-      permissionIds,
-    },
-  };
-};
+    if (role.is_system && status === "deleted") {
+      const error = new Error("System roles cannot be deleted");
+      error.statusCode = 403;
+      throw error;
+    }
 
-// ==========================================
-// REVOKE ALL PERMISSIONS FROM ROLE
-// ==========================================
+    const updates = {};
+    if (name !== undefined) updates.name = name.trim();
+    if (description !== undefined) updates.description = description?.trim();
+    if (status !== undefined) updates.status = status;
 
-exports.revokeAllPermissionsFromRole = async (roleId) => {
-  const role = await Roles.findByPk(roleId);
-  if (!role) {
-    throw { status: 404, message: 'Role not found' };
+    await role.update(updates);
+    return role;
   }
 
-  await role.setPermissions([]);
+  /**
+   * Delete role (or deactivate if system role)
+   */
+  static async deleteRole(id) {
+    const role = await Role.findByPk(id);
+    if (!role) {
+      const error = new Error("Role not found");
+      error.statusCode = 404;
+      throw error;
+    }
 
-  return {
-    success: true,
-    status: 200,
-    message: 'All permissions revoked from role successfully',
-    data: { roleId },
-  };
-};
+    if (role.is_system) {
+      // Deactivate instead of delete for system roles
+      await role.update({ status: "inactive" });
+      await RoleMenuPermission.destroy({ where: { role_id: id } });
+      return { message: "System role deactivated" };
+    }
 
-// ==========================================
-// GET ROLE USERS
-// ==========================================
-
-exports.getRoleUsers = async (
-  roleId,
-  { page = 1, limit = DEFAULT_LIMIT } = {},
-) => {
-  const role = await Roles.findByPk(roleId, {
-    include: [
-      {
-        model: require('../models').Users,
-        as: 'users',
-        attributes: ['id', 'username', 'email', 'status'],
-        limit: Number(limit),
-        offset: (Number(page) - 1) * Number(limit),
-        order: [['createdAt', 'DESC']],
-      },
-    ],
-  });
-
-  if (!role) {
-    throw { status: 404, message: 'Role not found' };
+    await role.destroy();
+    return { message: "Role deleted successfully" };
   }
 
-  const users = role.users || [];
-  const count = await require('../models').Users.count({ where: { roleId } });
+  /**
+   * Assign menu permission to role
+   * @param {string} roleId - Role ID
+   * @param {string} menuGroupId - Menu Group ID
+   * @param {string} permissionType - "read" or "write"
+   */
+  static async assignMenuToRole(roleId, menuGroupId, permissionType = "read") {
+    const role = await Role.findByPk(roleId);
+    if (!role) {
+      const error = new Error("Role not found");
+      error.statusCode = 404;
+      throw error;
+    }
 
-  return {
-    success: true,
-    status: 200,
-    message: 'Fetch role users successful',
-    data: {
-      role,
-      users,
-      meta: {
-        total: count,
-        page: Number(page),
-        limit: Number(limit),
-        totalPages: Math.ceil(count / limit),
-      },
-    },
-  };
-};
+    const menu = await MenuGroup.findByPk(menuGroupId);
+    if (!menu) {
+      const error = new Error("Menu group not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const [permission, created] = await RoleMenuPermission.findOrCreate({
+      where: { role_id: roleId, menu_group_id: menuGroupId },
+      defaults: { permission_type: permissionType },
+    });
+
+    if (!created) {
+      await permission.update({ permission_type: permissionType });
+    }
+
+    return permission;
+  }
+
+  /**
+   * Remove menu permission from role
+   */
+  static async removeMenuFromRole(roleId, menuGroupId) {
+    await RoleMenuPermission.destroy({
+      where: { role_id: roleId, menu_group_id: menuGroupId },
+    });
+    return { message: "Menu permission removed" };
+  }
+
+  /**
+   * Get all menus accessible by role with permission types
+   */
+  static async getRoleMenus(roleId) {
+    const permissions = await RoleMenuPermission.findAll({
+      where: { role_id: roleId },
+      include: [
+        {
+          model: MenuGroup,
+          as: "menu",
+          attributes: ["id", "name", "slug", "icon", "sort_order"],
+        },
+      ],
+    });
+
+    return permissions.map((p) => ({
+      menu: p.menu,
+      permission_type: p.permission_type,
+    }));
+  }
+
+  /**
+   * Check if user has specific permission on a menu
+   *
+   * @param {string} userId - User ID
+   * @param {string} menuSlug - Menu slug to check
+   * @param {string} permissionType - "read" or "write"
+   * @returns {boolean} True if user has the permission
+   */
+  static async hasPermission(userId, menuSlug, permissionType = "read") {
+    const user = await User.findByPk(userId, {
+      include: [
+        {
+          model: Role,
+          as: "role",
+          attributes: ["id", "status"],
+          include: [
+            {
+              model: RoleMenuPermission,
+              as: "permissions",
+              attributes: ["permission_type", "menu_group_id"],
+              include: [
+                {
+                  model: MenuGroup,
+                  as: "menu",
+                  attributes: ["slug"],
+                  where: { slug: menuSlug },
+                  required: true,
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!user || !user.role || user.role.status !== "active") {
+      return false;
+    }
+
+    const perm = user.role.permissions?.[0];
+    if (!perm) {
+      return false;
+    }
+
+    if (permissionType === "write") {
+      return perm.permission_type === "write";
+    }
+
+    // For read permission, both read and write roles qualify
+    return ["read", "write"].includes(perm.permission_type);
+  }
+
+  /**
+   * Get user's accessible menus with permission types
+   */
+  static async getUserMenus(userId) {
+    const user = await User.findByPk(userId, {
+      include: [
+        {
+          model: Role,
+          as: "role",
+          attributes: [],
+          include: [
+            {
+              model: RoleMenuPermission,
+              as: "permissions",
+              attributes: ["permission_type", "menu_group_id"],
+              include: [
+                {
+                  model: MenuGroup,
+                  as: "menu",
+                  attributes: ["id", "name", "slug", "icon", "sort_order"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!user || !user.role) {
+      return [];
+    }
+
+    const permissions = user.role.permissions || [];
+
+    return permissions
+      .filter((p) => p.menu)
+      .map((p) => ({
+        menu: p.menu,
+        permission_type: p.permission_type,
+      }));
+  }
+
+  /**
+   * Assign role to user
+   */
+  static async assignRoleToUser(userId, roleId) {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      const error = new Error("User not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const role = await Role.findByPk(roleId);
+    if (!role) {
+      const error = new Error("Role not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    if (role.status !== "active") {
+      const error = new Error("Cannot assign inactive role");
+      error.statusCode = 400;
+      throw error;
+    }
+
+    user.role_id = roleId;
+    await user.save();
+
+    return user;
+  }
+
+  /**
+   * Remove role from user
+   */
+  static async removeRoleFromUser(userId) {
+    const user = await User.findByPk(userId);
+    if (!user) {
+      const error = new Error("User not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    user.role_id = null;
+    await user.save();
+
+    return { message: "Role removed from user" };
+  }
+
+  // ==========================================
+  //                     MENU GROUPS
+  // ==========================================
+
+  /**
+   * Get all menu groups
+   */
+  static async getAllMenus({
+    status = "all",
+    is_active = null,
+    limit = 100,
+    offset = 0,
+    search = "",
+  } = {}) {
+    const where = {};
+
+    if (is_active !== null) {
+      where.is_active = is_active;
+    }
+
+    if (search) {
+      where[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { slug: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const result = await MenuGroup.findAndCountAll({
+      where,
+      include: [
+        {
+          model: MenuGroup,
+          as: "children",
+          attributes: ["id", "name", "slug", "icon", "sort_order"],
+        },
+      ],
+      limit,
+      offset,
+      order: [
+        ["sort_order", "ASC"],
+        ["created_at", "ASC"],
+      ],
+    });
+
+    return {
+      data: result.rows,
+      count: result.count,
+      page: Math.floor(offset / limit) + 1,
+      limit,
+    };
+  }
+
+  /**
+   * Get menu group by ID
+   */
+  static async getMenuById(id) {
+    return MenuGroup.findByPk(id, {
+      include: [
+        {
+          model: MenuGroup,
+          as: "children",
+          attributes: ["id", "name", "slug", "icon", "sort_order"],
+        },
+      ],
+    });
+  }
+
+  /**
+   * Create menu group
+   */
+  static async createMenu(data) {
+    return MenuGroup.create({
+      name: data.name.trim(),
+      slug:
+        data.slug?.trim() ||
+        data.name.trim().toLowerCase().replace(/\s+/g, "-"),
+      icon: data.icon,
+      parent_id: data.parent_id,
+      sort_order: data.sort_order || 0,
+      is_active: data.is_active !== undefined ? data.is_active : true,
+    });
+  }
+
+  /**
+   * Update menu group
+   */
+  static async updateMenu(id, data) {
+    const menu = await MenuGroup.findByPk(id);
+    if (!menu) {
+      const error = new Error("Menu group not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const updates = {};
+    if (data.name !== undefined) updates.name = data.name.trim();
+    if (data.slug !== undefined)
+      updates.slug =
+        data.slug?.trim() ||
+        data.name?.trim().toLowerCase().replace(/\s+/g, "-");
+    if (data.icon !== undefined) updates.icon = data.icon;
+    if (data.parent_id !== undefined) updates.parent_id = data.parent_id;
+    if (data.sort_order !== undefined) updates.sort_order = data.sort_order;
+    if (data.is_active !== undefined) updates.is_active = data.is_active;
+
+    await menu.update(updates);
+    return menu;
+  }
+
+  /**
+   * Delete menu group
+   */
+  static async deleteMenu(id) {
+    const menu = await MenuGroup.findByPk(id);
+    if (!menu) {
+      const error = new Error("Menu group not found");
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // Delete associated role permissions
+    await RoleMenuPermission.destroy({ where: { menu_group_id: id } });
+    await menu.destroy();
+    return { message: "Menu group deleted successfully" };
+  }
+}
+
+module.exports = RolesService;

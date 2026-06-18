@@ -15,15 +15,16 @@
  * @deprecated Use migrationService.seedAll() instead
  */
 
-const { Roles } = require('../models');
-const { Permissions } = require('../models');
-const { UserPermissions } = require('../models');
+const { Roles } = require("../models");
+const { Permissions } = require("../models");
+const { UserPermissions } = require("../models");
 const {
   ROLE_NAMES,
   ROLE_IDS,
   USER_PERMISSIONS,
   TENANT_PERMISSIONS,
-} = require('../constants');
+} = require("../constants");
+const { logger } = require("../middlewares/activityLog");
 
 /**
  * Define all permissions to be seeded
@@ -33,74 +34,74 @@ const USER_MODULE_PERMISSIONS = [
   // Global permissions (module:action)
   {
     name: USER_PERMISSIONS.CREATE,
-    module: 'user',
-    action: 'create',
-    description: 'Global permission to create users',
+    module: "user",
+    action: "create",
+    description: "Global permission to create users",
   },
   {
     name: USER_PERMISSIONS.READ,
-    module: 'user',
-    action: 'read',
-    description: 'Global permission to read users',
+    module: "user",
+    action: "read",
+    description: "Global permission to read users",
   },
   {
     name: USER_PERMISSIONS.UPDATE,
-    module: 'user',
-    action: 'update',
-    description: 'Global permission to update users',
+    module: "user",
+    action: "update",
+    description: "Global permission to update users",
   },
   {
     name: USER_PERMISSIONS.DELETE,
-    module: 'user',
-    action: 'delete',
-    description: 'Global permission to delete users',
+    module: "user",
+    action: "delete",
+    description: "Global permission to delete users",
   },
 
   // Self permissions (module:self:action) - Note: self-delete is not included
   // Users cannot delete their own accounts via permission system
   {
     name: USER_PERMISSIONS.SELF_UPDATE,
-    module: 'user',
-    action: 'self:update',
-    description: 'Permission to update own profile',
+    module: "user",
+    action: "self:update",
+    description: "Permission to update own profile",
   },
   {
     name: USER_PERMISSIONS.SELF_READ,
-    module: 'user',
-    action: 'self:read',
-    description: 'Permission to read own profile',
+    module: "user",
+    action: "self:read",
+    description: "Permission to read own profile",
   },
 
   // Tenant permissions (module:tenant:action)
   {
     name: USER_PERMISSIONS.TENANT_CREATE,
-    module: 'user',
-    action: 'tenant:create',
-    description: 'Permission to create users within tenant',
+    module: "user",
+    action: "tenant:create",
+    description: "Permission to create users within tenant",
   },
   {
     name: USER_PERMISSIONS.TENANT_READ,
-    module: 'user',
-    action: 'tenant:read',
-    description: 'Permission to read users within tenant',
+    module: "user",
+    action: "tenant:read",
+    description: "Permission to read users within tenant",
   },
   {
     name: USER_PERMISSIONS.TENANT_UPDATE,
-    module: 'user',
-    action: 'tenant:update',
-    description: 'Permission to update users within tenant',
+    module: "user",
+    action: "tenant:update",
+    description: "Permission to update users within tenant",
   },
   {
     name: USER_PERMISSIONS.TENANT_DELETE,
-    module: 'user',
-    action: 'tenant:delete',
-    description: 'Permission to delete users within tenant',
+    module: "user",
+    action: "tenant:delete",
+    description: "Permission to delete users within tenant",
   },
   {
     name: USER_PERMISSIONS.TENANT_ASSIGN,
-    module: 'user',
-    action: 'tenant:assign',
-    description: 'Permission to assign users to tenant',
+    module: "user",
+    action: "tenant:assign",
+    description: "Permission to assign users to tenant",
   },
 ];
 
@@ -111,55 +112,55 @@ const TENANT_MODULE_PERMISSIONS = [
   // Global permissions (module:action)
   {
     name: TENANT_PERMISSIONS.CREATE,
-    module: 'tenant',
-    action: 'create',
-    description: 'Global permission to create tenants',
+    module: "tenant",
+    action: "create",
+    description: "Global permission to create tenants",
   },
   {
     name: TENANT_PERMISSIONS.READ,
-    module: 'tenant',
-    action: 'read',
-    description: 'Global permission to read tenants',
+    module: "tenant",
+    action: "read",
+    description: "Global permission to read tenants",
   },
   {
     name: TENANT_PERMISSIONS.UPDATE,
-    module: 'tenant',
-    action: 'update',
-    description: 'Global permission to update tenants',
+    module: "tenant",
+    action: "update",
+    description: "Global permission to update tenants",
   },
   {
     name: TENANT_PERMISSIONS.DELETE,
-    module: 'tenant',
-    action: 'delete',
-    description: 'Global permission to delete tenants',
+    module: "tenant",
+    action: "delete",
+    description: "Global permission to delete tenants",
   },
 
   // Self permissions (module:self:action)
   {
     name: TENANT_PERMISSIONS.SELF_UPDATE,
-    module: 'tenant',
-    action: 'self:update',
-    description: 'Permission to update own tenant profile',
+    module: "tenant",
+    action: "self:update",
+    description: "Permission to update own tenant profile",
   },
   {
     name: TENANT_PERMISSIONS.SELF_READ,
-    module: 'tenant',
-    action: 'self:read',
-    description: 'Permission to read own tenant profile',
+    module: "tenant",
+    action: "self:read",
+    description: "Permission to read own tenant profile",
   },
 
   // Tenant permissions (module:tenant:action)
   {
     name: TENANT_PERMISSIONS.TENANT_READ,
-    module: 'tenant',
-    action: 'tenant:read',
-    description: 'Permission to read tenants within scope',
+    module: "tenant",
+    action: "tenant:read",
+    description: "Permission to read tenants within scope",
   },
   {
     name: TENANT_PERMISSIONS.TENANT_ASSIGN,
-    module: 'tenant',
-    action: 'tenant:assign',
-    description: 'Permission to assign tenants',
+    module: "tenant",
+    action: "tenant:assign",
+    description: "Permission to assign tenants",
   },
 ];
 
@@ -170,24 +171,24 @@ const DEFAULT_ROLES = [
   {
     id: ROLE_IDS.SUPER_ADMIN,
     name: ROLE_NAMES.SUPER_ADMIN,
-    description: 'Super Admin - Has full access to all resources',
-    nameToShow: 'Super Admin',
+    description: "Super Admin - Has full access to all resources",
+    nameToShow: "Super Admin",
     isActive: true,
     roleLevel: 10,
   },
   {
     id: ROLE_IDS.TENANT_ADMIN,
     name: ROLE_NAMES.TENANT_ADMIN,
-    description: 'Tenant Admin - Can manage users within their tenant',
-    nameToShow: 'Tenant Admin',
+    description: "Tenant Admin - Can manage users within their tenant",
+    nameToShow: "Tenant Admin",
     isActive: true,
     roleLevel: 2,
   },
   {
     id: ROLE_IDS.USER,
     name: ROLE_NAMES.USER,
-    description: 'Regular User - Can manage own profile',
-    nameToShow: 'User',
+    description: "Regular User - Can manage own profile",
+    nameToShow: "User",
     isActive: true,
     roleLevel: 1,
   },
@@ -304,7 +305,7 @@ async function grantPermissionsToRoles(
   try {
     // Get all permissions by name
     const allPermissions = await permissionsModel.findAll({
-      attributes: ['id', 'name'],
+      attributes: ["id", "name"],
     });
 
     const permissionMap = new Map(allPermissions.map((p) => [p.name, p.id]));
@@ -354,7 +355,7 @@ async function grantPermissionsToRoles(
 
     // SUPER_ADMIN gets all permissions implicitly (handled in middleware)
   } catch (error) {
-    console.error('Error granting permissions to roles:', error);
+    logger.error(`Error granting permissions to roles: ${error.message}`);
     throw error;
   }
 }
@@ -378,13 +379,13 @@ function isValidPermissionFormat(permissionName) {
  * @returns {string} Type: 'global', 'self', or 'tenant'
  */
 function getPermissionType(permissionName) {
-  if (permissionName.includes(':self:')) {
-    return 'self';
+  if (permissionName.includes(":self:")) {
+    return "self";
   }
-  if (permissionName.includes(':tenant:')) {
-    return 'tenant';
+  if (permissionName.includes(":tenant:")) {
+    return "tenant";
   }
-  return 'global';
+  return "global";
 }
 
 /**
@@ -393,7 +394,7 @@ function getPermissionType(permissionName) {
  * @returns {string} The module name
  */
 function getPermissionModule(permissionName) {
-  return permissionName.split(':')[0];
+  return permissionName.split(":")[0];
 }
 
 module.exports = {

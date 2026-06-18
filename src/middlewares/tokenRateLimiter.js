@@ -116,7 +116,7 @@ const authRateLimiter = (endpoint = "default") => {
 
       next();
     } catch (error) {
-      console.error("Token rate limiter middleware error:", error);
+      logger.error(`Token rate limiter middleware error: ${error.message}`);
       next(); // Continue even if rate limiter fails
     }
   };
@@ -143,7 +143,7 @@ const recordAuthFailure = (endpoint = "default") => {
       }
       next();
     } catch (error) {
-      console.error("Record auth failure error:", error);
+      logger.error(`Record auth failure error: ${error.message}`);
       next();
     }
   };
@@ -165,7 +165,7 @@ const resetAuthAttempts = (endpoint = "default") => {
       }
       next();
     } catch (error) {
-      console.error("Reset auth attempts error:", error);
+      logger.error(`Reset auth attempts error: ${error.message}`);
       next();
     }
   };
@@ -261,7 +261,7 @@ const checkRateLimit = (endpoint = "default") => {
 
       next();
     } catch (error) {
-      console.error("Check rate limit error:", error);
+      logger.error(`Check rate limit error: ${error.message}`);
       next();
     }
   };

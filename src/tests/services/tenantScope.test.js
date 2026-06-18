@@ -3,7 +3,7 @@ const {
   createTenantScope,
   enforceTenantIsolation,
 } = require("../../middlewares/tenantScope");
-const { ROLE_NAMES } = require("../../utils/constants");
+const { ROLE_NAMES } = require("../../constants");
 
 describe("Tenant Scope Middleware", () => {
   beforeEach(() => {

@@ -90,8 +90,7 @@ describe("sessionCleanup middleware", () => {
       );
 
       expect(logger.error).toHaveBeenCalledWith(
-        "Error during session cleanup:",
-        "DB connection failed",
+        "Error during session cleanup: DB connection failed",
       );
     });
   });

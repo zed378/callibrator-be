@@ -1,8 +1,7 @@
 const { verifyAccessToken } = require("../utils/jwt");
-const { findSession } = require("../utils/session");
 const { Users, Roles, Tenants } = require("../models");
 const { unauthorized, forbidden } = require("../utils/response");
-const { ROLE_NAMES } = require("../utils/constants");
+const { ROLE_NAMES } = require("../constants");
 
 /**
  * Authentication Middleware
@@ -37,16 +36,17 @@ exports.auth = async (req, res, next) => {
       {
         model: Roles,
         as: "role",
-        attributes: ["id", "name", "description", "nameToShow"],
+        attributes: ["id", "name", "description"],
       },
     ];
 
     // Include tenant if user has tenantId
+    // Note: DB tenants table doesn't have 'code' or 'logo' columns
     if (true) {
       includeOptions.push({
         model: Tenants,
         as: "tenant",
-        attributes: ["id", "name", "code", "logo", "status"],
+        attributes: ["id", "name", "status"],
       });
     }
 
@@ -62,7 +62,7 @@ exports.auth = async (req, res, next) => {
     // CHECK USER STATUS
     // ==========================================
 
-    if (user.isBanned) {
+    if (!user.is_active) {
       return forbidden(res, "Account banned");
     }
 
@@ -71,45 +71,11 @@ exports.auth = async (req, res, next) => {
     }
 
     // ==========================================
-    // EXTRACT SESSION ID FROM X-SESSION HEADER
-    // ==========================================
-
-    const xSessionHeader = req.headers["X-Session"];
-
-    // ==========================================
-    // VALIDATE SESSION
-    // ==========================================
-
-    const session = await findSession({
-      token,
-      userId: user.id,
-      sessionId: xSessionHeader || null,
-    });
-
-    if (!session) {
-      return unauthorized(res, "Session not found");
-    }
-
-    // ==========================================
-    // CHECK SESSION EXPIRY
-    // ==========================================
-
-    if (new Date(session.expiredAt) < new Date()) {
-      return unauthorized(res, "Session expired");
-    }
-
-    // ==========================================
-    // ATTACH USER AND SESSION TO REQUEST
+    // ATTACH USER TO REQUEST (RBAC Only - No Session Validation)
     // ==========================================
 
     req.user = user;
-    req.session = session.id;
     req.token = token;
-
-    // Attach session ID from x-session header for tracking
-    if (xSessionHeader) {
-      req.sessionHeader = xSessionHeader;
-    }
 
     // Attach tenant context from user
     if (user.tenantId) {
@@ -122,8 +88,8 @@ exports.auth = async (req, res, next) => {
 
     if (tenantCode && !req.tenant) {
       const tenant = await Tenants.findOne({
-        where: { code: tenantCode, status: "ACTIVE" },
-        attributes: ["id", "name", "code", "logo", "status", "maxUsers"],
+        where: { name: tenantCode, status: "active" },
+        attributes: ["id", "name", "status"],
       });
       if (tenant) {
         req.tenant = tenant;
@@ -133,7 +99,7 @@ exports.auth = async (req, res, next) => {
 
     if (tenantIdHeader && !req.tenant) {
       const tenant = await Tenants.findByPk(tenantIdHeader, {
-        attributes: ["id", "name", "code", "logo", "status", "maxUsers"],
+        attributes: ["id", "name", "status"],
       });
       if (tenant && tenant.status === "ACTIVE") {
         req.tenant = tenant;
@@ -143,6 +109,7 @@ exports.auth = async (req, res, next) => {
 
     next();
   } catch (error) {
+    console.error("AUTH MIDDLEWARE ERROR:", error.message, error.stack);
     return unauthorized(res, "Invalid token");
   }
 };
@@ -167,19 +134,19 @@ exports.optionalAuth = async (req, res, next) => {
         {
           model: Roles,
           as: "role",
-          attributes: ["id", "name", "description", "nameToShow"],
+          attributes: ["id", "name", "description"],
         },
         {
           model: Tenants,
           as: "tenant",
-          attributes: ["id", "name", "code", "logo", "status"],
+          attributes: ["id", "name", "status"],
         },
       ],
     });
 
     if (
       user &&
-      !user.isBanned &&
+      user.is_active &&
       (user.status === "ACTIVE" || user.status === "INACTIVE")
     ) {
       req.user = user;

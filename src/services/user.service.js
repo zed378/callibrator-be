@@ -1,15 +1,16 @@
 // src/services/userService.js
 const { Op, Sequelize } = require("sequelize");
 const { db } = require("../config");
-const { Users, Roles, Sessions, UserPermissions } = require("../models");
+const { Users, Roles } = require("../models");
 const { logger } = require("../middlewares/activityLog");
 const { hashPassword } = require("../utils/password");
-const { deleteUpload } = require("../utils/upload");
+const { deleteUpload, getUploadUrl } = require("../utils/upload");
+const { AppError } = require("../utils/appError");
 const {
   SUPER_ADMIN_ROLE_ID,
   DEFAULT_LIMIT,
   MAX_LIMIT,
-} = require("../utils/constants");
+} = require("../constants");
 const {
   validate: validateInput,
   formatErrors,
@@ -19,18 +20,13 @@ const {
   checkUsernameSchema,
 } = require("../validators/user.validator");
 
-const { assignPermissionsToUser } = require("./permissionAssignment.service");
+// Permission assignment moved to role-based model (RoleMenuPermission)
+// userMenuGrant.service removed - now using role_menu_permissions table directly
 
 // ==========================================
 // VALIDATION HELPERS
 // ==========================================
 
-/**
- * Validate input data against a schema
- * @param {Object} data - Data to validate
- * @param {Object} schema - Joi schema
- * @returns {Object} - Validated and sanitized data
- */
 const validate = (data, schema) => {
   const { error, value } = validateInput(data, schema);
   if (error) {
@@ -44,26 +40,21 @@ const validate = (data, schema) => {
 };
 
 // ------------------------------------------------------------------
-// Constants
-// ------------------------------------------------------------------
-
-// ------------------------------------------------------------------
-// Helper: build safe attribute list (could also be a model scope)
+// Helper: build safe attribute list
 // ------------------------------------------------------------------
 const safeUserAttributes = {
   exclude: [
     "updatedAt",
-    "otpCode",
-    "otpExpiredAt",
-    "otpRequestCount",
+    "otp_code",
+    "otp_expired_at",
+    "otp_request_count",
     "password",
-    "otpLastRequestedAt",
-    "lastLoginIp",
-    "failedLoginAttempts",
-    "lockedUntil",
-    "passwordChangedAt",
+    "otp_last_requested_at",
+    "failed_login_attempts",
+    "locked_until",
+    "password_changed_at",
     "status",
-    "roleId",
+    "role_id",
   ],
 };
 
@@ -78,16 +69,13 @@ exports.fetchUsers = async ({
   page = 1,
   limit = DEFAULT_LIMIT,
 }) => {
-  let transaction; // kept only if you *really* need it for repeatable‑read; otherwise remove
+  let transaction;
   try {
-    // ----------------------------------------------------------------
-    // 1️⃣ Resolve role → roleId (if needed)
-    // ----------------------------------------------------------------
+    // Resolve role → roleId (if needed)
     let roleId = null;
     if (role && typeof role === "object" && role.id) {
       roleId = role.id;
     } else if (typeof role === "string") {
-      // Assume the caller passed a role name; look it up once (could be cached)
       const roleRecord = await Roles.findOne({
         where: { name: role },
         attributes: ["id"],
@@ -95,9 +83,7 @@ exports.fetchUsers = async ({
       roleId = roleRecord ? roleRecord.id : null;
     }
 
-    // ----------------------------------------------------------------
-    // 2️⃣ Build WHERE clause
-    // ----------------------------------------------------------------
+    // Build WHERE clause
     const whereClause = {};
 
     // Tenant scoping – skip for SUPER_ADMIN
@@ -108,7 +94,7 @@ exports.fetchUsers = async ({
       };
     }
 
-    // Free-text search (case-insensitive - MySQL compatible)
+    // Free-text search
     if (find && typeof find === "string" && find.trim() !== "") {
       const searchTerm = `%${find.toLowerCase()}%`;
       whereClause[Op.or] = [
@@ -124,20 +110,12 @@ exports.fetchUsers = async ({
       whereClause.roleId = roleFilter;
     }
 
-    // ----------------------------------------------------------------
-    // 3️⃣ Pagination (limit/offset) – guard against excessive limits
-    // ----------------------------------------------------------------
+    // Pagination
     const safeLimit = Math.min(Number(limit) || DEFAULT_LIMIT, MAX_LIMIT);
     const offset = (Math.max(Number(page), 1) - 1) * safeLimit;
 
-    // ----------------------------------------------------------------
-    // 4️⃣ Optional: start a transaction only if you truly need repeatable‑read
-    // ----------------------------------------------------------------
-    transaction = await db.transaction(); // <-- Uncomment if required
+    transaction = await db.transaction();
 
-    // ----------------------------------------------------------------
-    // 5️⃣ Query
-    // ----------------------------------------------------------------
     const data = await Users.findAndCountAll({
       attributes: safeUserAttributes,
       where: whereClause,
@@ -148,61 +126,45 @@ exports.fetchUsers = async ({
         {
           model: Roles,
           as: "role",
-          attributes: ["id", "name", "description", "nameToShow", "isActive"],
+          attributes: ["id", "name", "description"],
         },
       ],
-      transaction, // <-- Uncomment if you opened a transaction above
+      transaction,
     });
 
-    // ----------------------------------------------------------------
-    // 6️⃣ Shape response
-    // ----------------------------------------------------------------
-    const pictureBaseUrl = `${process.env.HOST_URL || ""}/uploads/profile/`;
-    const rowsWithPicture = data.rows.map((user) => {
-      const plain = user.get(); // sequelize instance → plain object
-      // Adjust the field name if your picture column is named differently
-      const picture = plain.picture || "";
+    // Shape response
+    const avatarBaseUrl = `${process.env.HOST_URL || ""}/uploads/profile/`;
+    const rowsWithAvatars = data.rows.map((user) => {
+      const plain = user.get();
+      const avatar = plain.avatar_url || "";
       return {
         ...plain,
-        pictureUrl: pictureBaseUrl + picture, // <-- convenient for the client
-        // You could also keep `picture` raw and let the client concat:
-        // picture,
+        avatarUrl: avatarBaseUrl + avatar,
       };
     });
 
     const totalPages = Math.ceil(data.count / safeLimit);
 
-    // ----------------------------------------------------------------
-    // 7️⃣ Commit transaction (if used) - commit BEFORE status count to avoid transaction abort issues
-    // ----------------------------------------------------------------
     if (transaction) await transaction.commit();
 
-    // Count users by status (run outside transaction to avoid "transaction aborted" errors)
-    const statusCounts = {
-      ACTIVE: 0,
-      INACTIVE: 0,
-      LOCKED: 0,
-      SUSPENDED: 0,
-    };
-
+    // Count users by status (single query with grouping)
+    const statusCounts = { ACTIVE: 0, INACTIVE: 0, LOCKED: 0, SUSPENDED: 0 };
     try {
-      // Count each status separately using simple queries
-      const statusValues = ["ACTIVE", "INACTIVE", "SUSPENDED"];
-
-      // Get all users with their status (no transaction needed for this simple query)
-      const usersWithStatus = await Users.findAll({
-        attributes: ["status"],
+      const statusRows = await Users.findAll({
+        attributes: [
+          [Sequelize.col("status"), "status"],
+          [Sequelize.fn("COUNT", Sequelize.col("id")), "count"],
+        ],
         paranoid: false,
+        group: ["status"],
+        raw: true,
       });
-
-      usersWithStatus.forEach((user) => {
-        const status = user.status;
-        if (statusCounts.hasOwnProperty(status)) {
-          statusCounts[status]++;
+      for (const row of statusRows) {
+        if (statusCounts.hasOwnProperty(row.status)) {
+          statusCounts[row.status] = parseInt(row.count, 10);
         }
-      });
+      }
     } catch (statusErr) {
-      // Log but don't fail the request if status count fails
       logger.error("Failed to fetch user status counts", {
         error: statusErr.message,
         stack: statusErr.stack,
@@ -215,8 +177,8 @@ exports.fetchUsers = async ({
       message: "Fetch users successful",
       data: {
         count: data.count,
-        rows: rowsWithPicture,
-        pictureBaseUrl,
+        rows: rowsWithAvatars,
+        avatarBaseUrl,
       },
       meta: {
         total: data.count,
@@ -229,9 +191,6 @@ exports.fetchUsers = async ({
       },
     };
   } catch (err) {
-    // ----------------------------------------------------------------
-    // 8️⃣ Error handling – rollback if we opened a transaction
-    // ----------------------------------------------------------------
     if (transaction) await transaction.rollback();
 
     logger.error("Error fetching users", {
@@ -243,7 +202,7 @@ exports.fetchUsers = async ({
       page,
       limit,
     });
-    // Re‑throw a shaped error (you could also use a custom AppError class)
+
     throw {
       status: err.status || 500,
       message: err.message || "Internal server error",
@@ -258,12 +217,11 @@ exports.fetchSpecificUser = async (userId) => {
   try {
     const user = await Users.findByPk(userId, {
       attributes: safeUserAttributes,
-
       include: [
         {
           model: Roles,
           as: "role",
-          attributes: ["id", "name", "description", "nameToShow", "isActive"],
+          attributes: ["id", "name", "description"],
         },
       ],
     });
@@ -276,8 +234,7 @@ exports.fetchSpecificUser = async (userId) => {
     }
 
     const plain = user.get();
-
-    const pictureBaseUrl = `${process.env.HOST_URL || ""}/uploads/profile/`;
+    const avatarBaseUrl = `${process.env.HOST_URL || ""}/uploads/profile/`;
 
     return {
       success: true,
@@ -285,7 +242,7 @@ exports.fetchSpecificUser = async (userId) => {
       message: "Fetch user successful",
       data: {
         ...plain,
-        pictureUrl: pictureBaseUrl + (plain.picture || ""),
+        avatarUrl: avatarBaseUrl + (plain.avatar_url || ""),
       },
     };
   } catch (err) {
@@ -306,8 +263,7 @@ exports.fetchSpecificUser = async (userId) => {
 // CHECK USERNAME AVAILABILITY
 // ------------------------------------------------------------------
 exports.checkUsernameAvailability = async (input) => {
-  // Validate input
-  const { username } = validate(input, checkUsernameSchema);
+  const { username } = input;
 
   try {
     const normalizedUsername = username.trim().toLowerCase();
@@ -318,7 +274,6 @@ exports.checkUsernameAvailability = async (input) => {
           [Op.like]: normalizedUsername,
         },
       },
-
       attributes: ["id", "username"],
     });
 
@@ -328,7 +283,6 @@ exports.checkUsernameAvailability = async (input) => {
       message: existingUser
         ? "Username is already taken"
         : "Username is available",
-
       data: {
         username: normalizedUsername,
         available: !existingUser,
@@ -352,21 +306,12 @@ exports.checkUsernameAvailability = async (input) => {
 // UPDATE USER ROLE
 // ------------------------------------------------------------------
 exports.userRoleUpdate = async (input) => {
-  // Validate input
   const { userId, roleId, updatedBy } = validate(input, updateUserRoleSchema);
 
   let transaction;
 
   try {
-    // --------------------------------------------------------------
-    // TRANSACTION
-    // --------------------------------------------------------------
-
     transaction = await db.transaction();
-
-    // --------------------------------------------------------------
-    // FIND USER
-    // --------------------------------------------------------------
 
     const user = await Users.findByPk(userId, {
       include: [
@@ -376,7 +321,6 @@ exports.userRoleUpdate = async (input) => {
           attributes: ["id", "name"],
         },
       ],
-
       transaction,
     });
 
@@ -386,10 +330,6 @@ exports.userRoleUpdate = async (input) => {
         message: "User not found",
       };
     }
-
-    // --------------------------------------------------------------
-    // FIND ROLE
-    // --------------------------------------------------------------
 
     const role = await Roles.findByPk(roleId, {
       transaction,
@@ -402,28 +342,19 @@ exports.userRoleUpdate = async (input) => {
       };
     }
 
-    // Check if role is active
-    if (!role.isActive) {
+    if (role.status !== "active") {
       throw {
         status: 400,
         message: "Cannot assign inactive role to user",
       };
     }
 
-    // --------------------------------------------------------------
-    // SAME ROLE
-    // --------------------------------------------------------------
-
-    if (user.roleId === role.id) {
+    if (user.role_id === role.id) {
       throw {
         status: 400,
         message: "User already has this role",
       };
     }
-
-    // --------------------------------------------------------------
-    // UPDATE ROLE
-    // --------------------------------------------------------------
 
     await user.update(
       {
@@ -434,11 +365,10 @@ exports.userRoleUpdate = async (input) => {
       },
     );
 
-    // --------------------------------------------------------------
-    // COMMIT
-    // --------------------------------------------------------------
-
     await transaction.commit();
+
+    // When role changes, user automatically inherits new role's menu
+    // permissions from role_menu_permissions table. No separate reassignment needed.
 
     logger.info("User role updated", {
       userId: user.id,
@@ -447,15 +377,10 @@ exports.userRoleUpdate = async (input) => {
       updatedBy,
     });
 
-    // --------------------------------------------------------------
-    // RESPONSE
-    // --------------------------------------------------------------
-
     return {
       success: true,
       status: 200,
       message: "User role updated successfully",
-
       data: {
         userId: user.id,
         roleId: role.id,
@@ -463,10 +388,6 @@ exports.userRoleUpdate = async (input) => {
       },
     };
   } catch (err) {
-    // --------------------------------------------------------------
-    // ROLLBACK
-    // --------------------------------------------------------------
-
     if (transaction) {
       await transaction.rollback();
     }
@@ -490,7 +411,6 @@ exports.userRoleUpdate = async (input) => {
 // CREATE USER
 // ------------------------------------------------------------------
 exports.userCreate = async (input) => {
-  // Validate input
   const data = validate(input, createUserSchema);
   const {
     tenantId,
@@ -507,15 +427,7 @@ exports.userCreate = async (input) => {
   let transaction;
 
   try {
-    // --------------------------------------------------------------
-    // TRANSACTION
-    // --------------------------------------------------------------
-
     transaction = await db.transaction();
-
-    // --------------------------------------------------------------
-    // CHECK USERNAME
-    // --------------------------------------------------------------
 
     const existingUsername = await Users.findOne({
       where: {
@@ -523,7 +435,6 @@ exports.userCreate = async (input) => {
           [Op.like]: username.trim().toLowerCase(),
         },
       },
-
       transaction,
     });
 
@@ -534,17 +445,12 @@ exports.userCreate = async (input) => {
       };
     }
 
-    // --------------------------------------------------------------
-    // CHECK EMAIL
-    // --------------------------------------------------------------
-
     const existingEmail = await Users.findOne({
       where: {
         email: {
           [Op.like]: email.trim().toLowerCase(),
         },
       },
-
       transaction,
     });
 
@@ -554,10 +460,6 @@ exports.userCreate = async (input) => {
         message: "Email already registered",
       };
     }
-
-    // --------------------------------------------------------------
-    // ROLE - Check if role exists and is active
-    // --------------------------------------------------------------
 
     const role = await Roles.findByPk(roleId, {
       transaction,
@@ -570,85 +472,43 @@ exports.userCreate = async (input) => {
       };
     }
 
-    if (!role.isActive) {
+    if (role.status !== "active") {
       throw {
         status: 400,
         message: "Cannot assign inactive role to user",
       };
     }
 
-    // --------------------------------------------------------------
-    // HASH PASSWORD
-    // --------------------------------------------------------------
-
     const hashedPassword = await hashPassword(password);
-
-    // --------------------------------------------------------------
-    // CREATE USER
-    // --------------------------------------------------------------
 
     const user = await Users.create(
       {
-        tenantId,
+        tenantId: tenantId,
         username: username.trim(),
         firstName: firstName?.trim() || null,
         lastName: lastName?.trim() || null,
         email: email.trim().toLowerCase(),
         password: hashedPassword,
-        roleId,
+        role_id: roleId,
         status: status || "ACTIVE",
-        isEmailVerified: true,
+        is_email_verified: true,
       },
       {
         transaction,
       },
     );
 
-    // --------------------------------------------------------------
-    // ASSIGN DEFAULT PERMISSIONS BASED ON ROLE
-    // --------------------------------------------------------------
-
-    // Commit transaction first to ensure user exists before assigning permissions
     await transaction.commit();
-    await transaction.finished; // Wait for transaction to fully complete
+    await transaction.finished;
 
-    // Verify user exists in database before assigning permissions
     const existingUser = await Users.findByPk(user.id);
     if (!existingUser) {
       throw { status: 500, message: "User was not created successfully" };
     }
 
-    // Assign permissions outside transaction (permissions are separate from user creation)
-    let permissionResult = {
-      success: true,
-      data: { assignedPermissions: [], skippedPermissions: [], errors: [] },
-    };
-    try {
-      permissionResult = await assignPermissionsToUser(existingUser, {
-        grantedBy: createdBy,
-      });
-      logger.info("Permission assignment result", {
-        userId: existingUser.id,
-        roleId: existingUser.roleId,
-        result: permissionResult,
-      });
-    } catch (permErr) {
-      logger.error("Failed to assign permissions to user", {
-        userId: existingUser.id,
-        roleId: existingUser.roleId,
-        error: permErr.message,
-      });
-      // Don't throw - user is already created, just log the error
-    }
-
-    if (permissionResult.data?.errors?.length > 0) {
-      logger.warn(
-        `Some permissions failed to assign for user ${existingUser.id}:`,
-        {
-          errors: permissionResult.data.errors,
-        },
-      );
-    }
+    // When a role is assigned to a user, they automatically inherit
+    // the role's menu permissions from role_menu_permissions table.
+    // No separate assignment needed.
 
     logger.info("User created", {
       userId: existingUser.id,
@@ -656,19 +516,12 @@ exports.userCreate = async (input) => {
       email: existingUser.email,
       roleId,
       createdBy,
-      permissionsAssigned:
-        permissionResult.data?.assignedPermissions?.length || 0,
     });
-
-    // --------------------------------------------------------------
-    // RESPONSE
-    // --------------------------------------------------------------
 
     return {
       success: true,
       status: 201,
       message: "User created successfully",
-
       data: {
         id: user.id,
         tenantId: user.tenantId,
@@ -683,10 +536,6 @@ exports.userCreate = async (input) => {
       },
     };
   } catch (err) {
-    // --------------------------------------------------------------
-    // ROLLBACK (only if transaction hasn't been committed)
-    // --------------------------------------------------------------
-
     if (transaction && !transaction.finished) {
       await transaction.rollback();
     }
@@ -711,7 +560,6 @@ exports.userCreate = async (input) => {
 // EDIT USER
 // ------------------------------------------------------------------
 exports.editUser = async (input) => {
-  // Validate input
   const data = validate(input, updateUserSchema);
   const {
     userId,
@@ -722,22 +570,14 @@ exports.editUser = async (input) => {
     email,
     status,
     isEmailVerified,
-    isBanned,
+    is_active,
     updatedBy,
   } = data;
 
   let transaction;
 
   try {
-    // --------------------------------------------------------------
-    // TRANSACTION
-    // --------------------------------------------------------------
-
     transaction = await db.transaction();
-
-    // --------------------------------------------------------------
-    // FIND USER
-    // --------------------------------------------------------------
 
     const user = await Users.findByPk(userId, {
       transaction,
@@ -750,22 +590,16 @@ exports.editUser = async (input) => {
       };
     }
 
-    // --------------------------------------------------------------
-    // CHECK USERNAME
-    // --------------------------------------------------------------
-
     if (username && username !== user.username) {
       const existingUsername = await Users.findOne({
         where: {
           username: {
             [Op.like]: username.trim().toLowerCase(),
           },
-
           id: {
             [Op.ne]: user.id,
           },
         },
-
         transaction,
       });
 
@@ -777,22 +611,16 @@ exports.editUser = async (input) => {
       }
     }
 
-    // --------------------------------------------------------------
-    // CHECK EMAIL
-    // --------------------------------------------------------------
-
     if (email && email !== user.email) {
       const existingEmail = await Users.findOne({
         where: {
           email: {
             [Op.like]: email.trim().toLowerCase(),
           },
-
           id: {
             [Op.ne]: user.id,
           },
         },
-
         transaction,
       });
 
@@ -803,10 +631,6 @@ exports.editUser = async (input) => {
         };
       }
     }
-
-    // --------------------------------------------------------------
-    // UPDATE
-    // --------------------------------------------------------------
 
     await user.update(
       {
@@ -820,16 +644,12 @@ exports.editUser = async (input) => {
           isEmailVerified !== undefined
             ? isEmailVerified
             : user.isEmailVerified,
-        isBanned: isBanned !== undefined ? isBanned : user.isBanned,
+        isActive: is_active !== undefined ? is_active : user.is_active,
       },
       {
         transaction,
       },
     );
-
-    // --------------------------------------------------------------
-    // COMMIT
-    // --------------------------------------------------------------
 
     await transaction.commit();
 
@@ -838,15 +658,10 @@ exports.editUser = async (input) => {
       updatedBy,
     });
 
-    // --------------------------------------------------------------
-    // RESPONSE
-    // --------------------------------------------------------------
-
     return {
       success: true,
       status: 200,
       message: "User updated successfully",
-
       data: {
         id: user.id,
         tenantId: user.tenantId,
@@ -857,15 +672,11 @@ exports.editUser = async (input) => {
         roleId: user.roleId,
         status: user.status,
         isEmailVerified: user.isEmailVerified,
-        isBanned: user.isBanned,
+        is_active: user.is_active,
         updatedAt: user.updatedAt,
       },
     };
   } catch (err) {
-    // --------------------------------------------------------------
-    // ROLLBACK
-    // --------------------------------------------------------------
-
     if (transaction) {
       await transaction.rollback();
     }
@@ -884,33 +695,96 @@ exports.editUser = async (input) => {
   }
 };
 
+// ==========================================
+// USER AVATAR UPLOAD FUNCTIONS
+// ==========================================
+
+/**
+ * Update user avatar
+ */
+exports.updateUserAvatar = async (userId, filename, updatedBy) => {
+  try {
+    const user = await Users.findByPk(userId);
+
+    if (!user) {
+      throw new AppError(404, "User not found");
+    }
+
+    if (user.picture) {
+      const oldFilename = user.picture.split("/").pop();
+      if (oldFilename && oldFilename !== "default.svg") {
+        try {
+          await deleteUpload(oldFilename, "uploads/profile");
+        } catch (err) {
+          logger.warn(`Failed to delete old avatar: ${oldFilename}`, err);
+        }
+      }
+    }
+
+    await user.update({ avatar_url: filename }, { silent: true });
+
+    logger.info(`User avatar updated: ${userId} by ${updatedBy}`);
+
+    return {
+      data: { avatar: filename },
+      message: "User avatar updated successfully",
+      status: 200,
+    };
+  } catch (error) {
+    if (error.name === "AppError" || error.status) throw error;
+    logger.error("Error updating user avatar", { error: error.message });
+    throw new AppError(500, "Failed to update user avatar");
+  }
+};
+
+/**
+ * Remove user avatar
+ */
+exports.removeUserAvatar = async (userId, updatedBy) => {
+  try {
+    const user = await Users.findByPk(userId);
+
+    if (!user) {
+      throw new AppError(404, "User not found");
+    }
+
+    if (user.picture) {
+      const filename = user.picture.split("/").pop();
+      if (filename && filename !== "default.svg") {
+        try {
+          await deleteUpload(filename, "uploads/profile");
+        } catch (err) {
+          logger.warn(`Failed to delete avatar file: ${filename}`, err);
+        }
+      }
+
+      await user.update({ picture: "default.svg" }, { silent: true });
+      logger.info(`User avatar removed: ${userId} by ${updatedBy}`);
+    }
+
+    return {
+      data: { avatar: "default.svg" },
+      message: "User avatar removed successfully",
+      status: 200,
+    };
+  } catch (error) {
+    if (error.name === "AppError" || error.status) throw error;
+    logger.error("Error removing user avatar", { error: error.message });
+    throw new AppError(500, "Failed to remove user avatar");
+  }
+};
+
 // ------------------------------------------------------------------
 // DELETE USER
 // ------------------------------------------------------------------
 exports.deleteUser = async ({ userId, deletedBy }) => {
-  let transaction;
-
   try {
-    // --------------------------------------------------------------
-    // VALIDATION
-    // --------------------------------------------------------------
-
     if (!userId) {
       throw {
         status: 400,
         message: "User ID is required",
       };
     }
-
-    // --------------------------------------------------------------
-    // TRANSACTION
-    // --------------------------------------------------------------
-
-    transaction = await db.transaction();
-
-    // --------------------------------------------------------------
-    // FIND USER
-    // --------------------------------------------------------------
 
     const user = await Users.findByPk(userId, {
       include: [
@@ -920,8 +794,6 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
           attributes: ["id", "name"],
         },
       ],
-
-      transaction,
     });
 
     if (!user) {
@@ -931,10 +803,6 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
       };
     }
 
-    // --------------------------------------------------------------
-    // PREVENT SELF DELETE
-    // --------------------------------------------------------------
-
     if (deletedBy && deletedBy === user.id) {
       throw {
         status: 400,
@@ -942,36 +810,8 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
       };
     }
 
-    // --------------------------------------------------------------
-    // DELETE USER SESSIONS
-    // --------------------------------------------------------------
-
-    await Sessions.destroy({
-      where: {
-        userId: user.id,
-      },
-
-      transaction,
-    });
-
-    // --------------------------------------------------------------
-    // DELETE USER PERMISSIONS
-    // --------------------------------------------------------------
-
-    await UserPermissions.destroy({
-      where: {
-        userId: user.id,
-      },
-
-      transaction,
-    });
-
-    // --------------------------------------------------------------
-    // DELETE USER AVATAR FILE IF EXISTS AND NOT DEFAULT
-    // --------------------------------------------------------------
-
-    if (user.avatar) {
-      const avatarFilename = user.avatar.split("/").pop();
+    if (user.picture) {
+      const avatarFilename = user.picture.split("/").pop();
       if (avatarFilename && avatarFilename !== "default.svg") {
         try {
           await deleteUpload(avatarFilename, "uploads/profile");
@@ -981,19 +821,7 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
       }
     }
 
-    // --------------------------------------------------------------
-    // DELETE USER
-    // --------------------------------------------------------------
-
-    await user.destroy({
-      transaction,
-    });
-
-    // --------------------------------------------------------------
-    // COMMIT
-    // --------------------------------------------------------------
-
-    await transaction.commit();
+    await user.destroy();
 
     logger.info("User deleted", {
       userId: user.id,
@@ -1001,15 +829,10 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
       deletedBy,
     });
 
-    // --------------------------------------------------------------
-    // RESPONSE
-    // --------------------------------------------------------------
-
     return {
       success: true,
       status: 200,
       message: "User deleted successfully",
-
       data: {
         id: user.id,
         username: user.username,
@@ -1017,14 +840,6 @@ exports.deleteUser = async ({ userId, deletedBy }) => {
       },
     };
   } catch (err) {
-    // --------------------------------------------------------------
-    // ROLLBACK
-    // --------------------------------------------------------------
-
-    if (transaction) {
-      await transaction.rollback();
-    }
-
     logger.error("Error deleting user", {
       err: err.message,
       stack: err.stack,

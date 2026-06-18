@@ -96,7 +96,7 @@ exports.forgotPasswordSchema = Joi.object({
 exports.resetPasswordSchema = Joi.object({
   email: Joi.string().email().required(),
   otp: Joi.string().length(6).required(),
-  password: Joi.string().min(8).required(),
+  password: password, // reuses the complex password rule (upper + lower + digit, min 8)
 });
 
 // ==========================================

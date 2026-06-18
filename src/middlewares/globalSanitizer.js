@@ -1,72 +1,62 @@
 const xss = require("xss");
 
-// Fields that should NOT be sanitized
-// Useful for:
-// - rich text editor
-// - markdown
-// - html templates
-const excludedFields = ["html", "rawHtml"];
+// Fields that should NOT be sanitized (binary/base64-like content)
+const EXCLUDED_FIELDS = [
+  "avatar_url",
+  "avatar",
+  "signature",
+  "file_content",
+  "content_base64",
+];
 
-// Recursive sanitizer
+/**
+ * Recursively sanitize a value
+ */
 function sanitize(data, parentKey = "") {
-  // String
-  if (typeof data === "string") {
-    // Skip excluded fields
-    if (excludedFields.includes(parentKey)) {
-      return data;
-    }
-
-    return xss(data.trim());
+  // Skip excluded fields (likely binary/base64)
+  if (EXCLUDED_FIELDS.includes(parentKey)) {
+    return data;
   }
 
-  // Array
+  if (typeof data === "string") {
+    return xss(data);
+  }
   if (Array.isArray(data)) {
     return data.map((item) => sanitize(item, parentKey));
   }
-
-  // Object
-  if (typeof data === "object" && data !== null) {
+  if (data && typeof data === "object") {
     const sanitizedObject = {};
-
     for (const key in data) {
-      sanitizedObject[key] = sanitize(data[key], key);
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        sanitizedObject[key] = sanitize(data[key], key);
+      }
     }
-
     return sanitizedObject;
   }
-
-  // Other types
   return data;
 }
 
-// Global Sanitizer Middleware
+/**
+ * Global XSS Sanitizer Middleware
+ * Sanitizes all incoming request data to prevent XSS attacks
+ */
 const globalSanitizer = (req, res, next) => {
-  try {
-    // Sanitize Request Body
-    if (req.body) {
-      req.body = sanitize(req.body);
-    }
-
-    // Sanitize Query Parameters
-    if (req.query) {
-      req.query = sanitize(req.query);
-    }
-
-    // Sanitize Route Parameters
-    if (req.params) {
-      req.params = sanitize(req.params);
-    }
-
-    next();
-  } catch (error) {
-    return res.status(500).json({
-      status: "Error",
-      message: "Sanitization failed",
-      error: error.message,
-    });
+  // Sanitize Request Body
+  if (req.body && typeof req.body === "object") {
+    req.body = sanitize(req.body);
   }
+
+  // Sanitize Query Parameters
+  if (req.query && typeof req.query === "object") {
+    req.query = sanitize(req.query);
+  }
+
+  // Sanitize Route Parameters
+  if (req.params && typeof req.params === "object") {
+    req.params = sanitize(req.params);
+  }
+
+  next();
 };
 
-module.exports = {
-  globalSanitizer,
-};
+module.exports = { globalSanitizer };

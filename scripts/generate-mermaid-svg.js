@@ -731,6 +731,116 @@ function generateProjectStructure() {
 }
 
 /**
+ * 12 - Menu Group Architecture
+ */
+function generateMenuGroupArchitecture() {
+  const mermaidCode = `erDiagram
+    MENU_GROUPS {
+        uuid id PK
+        string name
+        string description
+        string icon
+        string color
+        int sort_order
+        boolean is_active
+    }
+
+    MENU_ITEMS {
+        uuid id PK
+        uuid menuGroupId FK
+        string name
+        string path
+        string icon
+        int sort_order
+        boolean is_active
+    }
+
+    MENU_GROUP_ROLES {
+        uuid id PK
+        uuid menuGroupId FK
+        uuid roleId FK
+        uuid createdBy FK
+    }
+
+    USER_MENU_GRANTS {
+        uuid id PK
+        uuid userId FK
+        uuid menuGroupId FK
+        uuid menuItemId FK
+        string grantType
+        boolean is_active
+    }
+
+    USERS {
+        uuid id PK
+        string email
+        uuid roleId FK
+    }
+
+    ROLES {
+        uuid id PK
+        string name
+        int roleLevel
+    }
+
+    MENU_GROUPS ||--o{ MENU_ITEMS : "has"
+    MENU_GROUPS ||--o{ MENU_GROUP_ROLES : "assigned to"
+    USERS ||--o{ USER_MENU_GRANTS : "has"
+    USERS }o--|| ROLES : "belongs to"
+
+    MENU_GROUP_ROLES }o--|| ROLES : "references"
+    MENU_GROUP_ROLES }o--|| MENU_GROUPS : "references"
+
+    USER_MENU_GRANTS }o--|| MENU_GROUPS : "references"
+    USER_MENU_GRANTS }o--|| MENU_ITEMS : "references (optional)"
+`;
+
+  return generateMermaidSVG("15-menu-group-architecture.svg", mermaidCode, {
+    theme: "default",
+  });
+}
+
+/**
+ * 13 - User Menu Resolution Flow
+ */
+function generateUserMenuResolution() {
+  const mermaidCode = `flowchart TD
+    subgraph Auth["Authentication"]
+        A[User Login] --> B{SUPER_ADMIN?}
+    end
+
+    subgraph SuperAdmin["Super Admin Path"]
+        B -->|Yes| C[Get ALL Menu Groups]
+        C --> D[Include ALL Menu Items]
+    end
+
+    subgraph RegularUser["Regular User Path"]
+        B -->|No| E[Query user_menu_grants]
+        E --> F{Has menu-group grant?}
+        F -->|Yes| G[Include Entire Group]
+        F -->|No| H{Has menu-item grant?}
+        H -->|Yes| I[Include Specific Items]
+        H -->|No| J[No Access]
+    end
+
+    subgraph Merge["Result"]
+        D --> K[Merge & Sort]
+        G --> K
+        I --> K
+        K --> L[Return Menu Tree]
+    end
+
+    style C fill:#90f
+    style K fill:#9f9
+    style L fill:#0f0
+`;
+
+  return generateMermaidSVG("16-user-menu-resolution.svg", mermaidCode, {
+    theme: "default",
+  });
+}
+
+/**
  * 11 - Docker Architecture
  */
 function generateDockerArchitecture() {
@@ -806,6 +916,11 @@ async function generateAll() {
     { name: "09-security-layers.svg", fn: generateSecurityLayers },
     { name: "10-project-structure.svg", fn: generateProjectStructure },
     { name: "11-docker-architecture.svg", fn: generateDockerArchitecture },
+    {
+      name: "15-menu-group-architecture.svg",
+      fn: generateMenuGroupArchitecture,
+    },
+    { name: "16-user-menu-resolution.svg", fn: generateUserMenuResolution },
   ];
 
   let success = 0;

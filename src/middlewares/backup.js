@@ -1,18 +1,18 @@
-const cron = require('node-cron');
-const { logger } = require('./activityLog');
+const cron = require("node-cron");
+const { logger } = require("./activityLog");
 
-const JSZip = require('jszip');
-const fse = require('fs-extra');
-const path = require('path');
-const storagePath = require('../utils/storagePath');
-const moment = require('moment-timezone');
+const JSZip = require("jszip");
+const fse = require("fs-extra");
+const path = require("path");
+const storagePath = require("../utils/storagePath");
+const moment = require("moment-timezone");
 const cronExp = process.env.BACKUP_SCHEDULER;
 
-const rootDir = path.join(__dirname, '../../');
-const backupFolder = storagePath('backup');
+const rootDir = path.join(__dirname, "../../");
+const backupFolder = storagePath("backup");
 // const backupFolder = path.join(rootDir, "backup");
 
-async function addFolderToZip(zip, folderPath, folderName = '') {
+async function addFolderToZip(zip, folderPath, folderName = "") {
   const files = await fse.readdir(folderPath);
 
   for (const fileName of files) {
@@ -33,18 +33,18 @@ async function zipFolder(source, out) {
   const zip = new JSZip();
   await addFolderToZip(zip, source);
   const zipContent = await zip.generateAsync({
-    type: 'nodebuffer',
-    compression: 'DEFLATE',
+    type: "nodebuffer",
+    compression: "DEFLATE",
   });
   await fse.writeFile(out, zipContent);
 }
 
 async function backupAndZip() {
-  const prefix = moment().tz('Asia/Jakarta').format('YYYY-MMMM-DD HH~mm~ss');
+  const prefix = moment().tz("Asia/Jakarta").format("YYYY-MMMM-DD HH~mm~ss");
 
-  const dataSourceDir = path.join(rootDir, 'data');
-  const logSourceDir = path.join(rootDir, 'log');
-  const backupDir = path.join(rootDir, 'backup');
+  const dataSourceDir = path.join(rootDir, "data");
+  const logSourceDir = path.join(rootDir, "log");
+  const backupDir = path.join(rootDir, "backup");
 
   const dataOutPath = path.join(backupDir, `${prefix}-data.zip`);
   const logOutPath = path.join(backupDir, `${prefix}-log.zip`);
@@ -63,30 +63,25 @@ async function backupAndZip() {
       });
 
       await zipFolder(tempLogBackupDir, logOutPath);
-      console.log('Log folder successfully zipped!');
-      logger.info('Log folder successfully zipped!');
+      logger.info("Log folder successfully zipped!");
 
       await fse.remove(tempLogBackupDir);
     } else {
-      console.log('Log folder does not exist, skipping log backup');
-      logger.info('Log folder does not exist, skipping log backup');
+      logger.info("Log folder does not exist, skipping log backup");
     }
 
     await fse.copy(dataSourceDir, tempDataBackupDir, {
-      filter: (src) => !src.endsWith('mysql.sock'),
+      filter: (src) => !src.endsWith("mysql.sock"),
     });
 
     await zipFolder(tempDataBackupDir, dataOutPath);
-    console.log('Data folder successfully zipped!');
-    logger.info('Data folder successfully zipped!');
+    logger.info("Data folder successfully zipped!");
 
     await fse.remove(tempDataBackupDir);
 
-    console.log('Temporary folders successfully deleted!');
-    logger.info('Temporary folders successfully deleted!');
+    logger.info("Temporary folders successfully deleted!");
   } catch (err) {
-    console.error('Error during backup and zipping process:', err);
-    logger.error('Error during backup and zipping process:', err);
+    logger.error(`Error during backup and zipping process: ${err.message}`);
   }
 }
 
@@ -99,12 +94,12 @@ async function extractZip(filePath, destDir) {
     Object.keys(zipContent.files).map(async (fileName) => {
       const file = zipContent.files[fileName];
       if (!file.dir) {
-        const content = await file.async('nodebuffer');
+        const content = await file.async("nodebuffer");
         const filePath = path.join(destDir, fileName);
         try {
           await fse.outputFile(filePath, content);
         } catch (err) {
-          console.error(
+          logger.error(
             `Failed to write file: ${filePath}, Error: ${err.message}`,
           );
         }
@@ -123,40 +118,34 @@ async function deleteOldFiles() {
       const filePath = path.join(backupFolder, file);
       const fileStat = await fse.stat(filePath);
 
-      const fileAgeInDays = now.diff(moment(fileStat.mtime), 'days');
+      const fileAgeInDays = now.diff(moment(fileStat.mtime), "days");
 
       if (fileAgeInDays > 30) {
         await fse.remove(filePath);
-        console.log(`Deleted: ${filePath}`);
         logger.info(`Deleted: ${filePath}`);
       }
     }
   } catch (error) {
-    console.error(`Error deleting old files: ${error.message}`);
     logger.error(`Error deleting old files: ${error.message}`);
   }
 }
 
 const cronBackup = () => {
   const message =
-    cronExp !== '0 0 * * *'
+    cronExp !== "0 0 * * *"
       ? `You set cron expression as ${cronExp}`
-      : 'Cron job started at 00:00 AM +0700';
-  console.log(message);
+      : "Cron job started at 00:00 AM +0700";
   logger.info(message);
 
-  cron.schedule(cronExp ? cronExp : '0 0 * * *', async () => {
-    console.log('Running backup data folder');
-    logger.info('Running backup data folder');
+  cron.schedule(cronExp ? cronExp : "0 0 * * *", async () => {
+    logger.info("Running backup data folder");
 
     try {
       await backupAndZip();
       await deleteOldFiles();
-      console.log('Backup completed successfully');
-      logger.info('Backup completed successfully');
+      logger.info("Backup completed successfully");
     } catch (error) {
-      console.error('Error during cron backup:', error.message);
-      logger.error('Error during cron backup:', error.message);
+      logger.error(`Error during cron backup: ${error.message}`);
     }
   });
 };

@@ -11,6 +11,50 @@ const port = process.env.DB_PORT;
 const dialect = process.env.DB_DIALECT;
 const nodeEnv = process.env.NODE_ENV || "development";
 
+// ------------------------------------------------------------------
+// REQUIRED ENV VALIDATION
+// ------------------------------------------------------------------
+const validateConfig = () => {
+  const required = [
+    { key: "DB_HOST", label: "DB_HOST" },
+    { key: "DB_NAME", label: "DB_NAME" },
+    { key: "DB_USER", label: "DB_USER" },
+    { key: "DB_PASS", label: "DB_PASS" },
+    { key: "DB_PORT", label: "DB_PORT" },
+    { key: "DB_DIALECT", label: "DB_DIALECT (must be 'postgres' or 'mysql')" },
+  ];
+
+  const missing = [];
+  for (const { key, label } of required) {
+    if (!process.env[key] || process.env[key].trim() === "") {
+      missing.push(label);
+    }
+  }
+
+  if (missing.length > 0) {
+    const msg = `Missing required environment variables: ${missing.join(", ")}. See .env.example for required configuration.`;
+    logger.error(`CONFIG_VALIDATION_FAILURE: ${msg}`);
+    throw new Error(msg);
+  }
+
+  if (!["postgres", "mysql"].includes(dialect)) {
+    const msg = `Invalid DB_DIALECT: "${dialect}". Must be "postgres" or "mysql".`;
+    logger.error(`CONFIG_VALIDATION_FAILURE: ${msg}`);
+    throw new Error(msg);
+  }
+
+  const dbPort = parseInt(port, 10);
+  if (isNaN(dbPort) || dbPort < 1 || dbPort > 65535) {
+    const msg = `Invalid DB_PORT: "${port}". Must be a number between 1 and 65535.`;
+    logger.error(`CONFIG_VALIDATION_FAILURE: ${msg}`);
+    throw new Error(msg);
+  }
+
+  logger.info("Configuration validated successfully");
+};
+
+validateConfig();
+
 // Shared Sequelize Configuration
 const baseConfig = {
   dialect,
@@ -26,10 +70,14 @@ const baseConfig = {
   benchmark: nodeEnv === "development",
 
   pool: {
-    max: 10,
-    min: 0,
-    acquire: 30000,
-    idle: 10000,
+    max:
+      parseInt(process.env.DB_POOL_MAX, 10) ||
+      (process.env.NODE_ENV === "production" ? 20 : 10),
+    min: parseInt(process.env.DB_POOL_MIN, 10) || 2,
+    acquire:
+      parseInt(process.env.DB_POOL_ACQUIRE_TIMEOUT, 10) || 30000,
+    idle:
+      parseInt(process.env.DB_POOL_IDLE_TIMEOUT, 10) || 10000,
   },
 
   retry: {
@@ -60,7 +108,10 @@ const pgConfig = {
       process.env.DB_SSL === "true"
         ? {
             require: true,
-            rejectUnauthorized: false,
+            rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false",
+            ca: process.env.DB_SSL_CA
+              ? require('fs').readFileSync(process.env.DB_SSL_CA, 'utf8')
+              : undefined,
           }
         : false,
   },
@@ -201,10 +252,6 @@ async function Connection({ maxAttempts = 20, delayMs = 3000 } = {}) {
         return readyMsg;
       }
     } catch (error) {
-      console.error({
-        status: "DB Connection Failed",
-        message: error.message,
-      });
       logger.error(
         `DB Connection Failed (attempt ${attempt}/${maxAttempts}): ${error.message}`,
       );
@@ -229,7 +276,6 @@ process.on("SIGINT", async () => {
     logger.info("Database connection closed.");
     process.exit(0);
   } catch (error) {
-    console.error("Error during database shutdown:", error.message);
     logger.error(`Error during database shutdown: ${error.message}`);
     process.exit(1);
   }

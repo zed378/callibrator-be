@@ -14,6 +14,7 @@ const express = require("express");
 const router = express.Router();
 const { auth } = require("../../middlewares/auth");
 const { dynamicAccess } = require("../../middlewares/dynamicAccess");
+const { validateUuid } = require("../../middlewares/validateUuid");
 const { upload } = require("../../utils/upload");
 const userController = require("../../controllers/user.controller");
 
@@ -695,6 +696,7 @@ router.delete(
 router.post(
   "/:userId/avatar",
   auth,
+  validateUuid("userId"),
   dynamicAccess("User", "update", { checkSelf: true, checkTenant: true }),
   upload({
     folder: "uploads/profile",
@@ -778,6 +780,7 @@ router.post(
 router.delete(
   "/:userId/avatar",
   auth,
+  validateUuid("userId"),
   dynamicAccess("User", "update", { checkSelf: true, checkTenant: true }),
   userController.removeUserAvatar,
 );

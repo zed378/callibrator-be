@@ -2,19 +2,19 @@ const tenantService = require("../services/tenant.service");
 const tenantUploadService = require("../services/tenantUpload.service");
 const { asyncHandler } = require("../utils/controllerWrapper");
 const { success } = require("../utils/response");
-
-// ==========================================
-// FETCH ALL TENANTS WITH PAGINATION
-// ==========================================
+const {
+  getAllTenantsQuery,
+  getTenantSchema,
+  createTenantSchema,
+  updateTenantSchema,
+  deleteTenantSchema,
+  tenantIdSchema,
+  validate,
+} = require("../validators/tenant.validator");
 
 exports.getAllTenants = asyncHandler(async (req, res) => {
-  const { find, page, limit } = req.query;
-
-  const result = await tenantService.fetchTenants({
-    find,
-    page,
-    limit,
-  });
+  const validated = validate(req.query, getAllTenantsQuery);
+  const result = await tenantService.fetchTenants(validated);
 
   success(
     res,
@@ -25,14 +25,9 @@ exports.getAllTenants = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// FETCH SPECIFIC TENANT
-// ==========================================
-
 exports.getSpecificTenant = asyncHandler(async (req, res) => {
-  const { tenantId } = req.params || req.body;
-
-  const result = await tenantService.fetchSpecificTenant(tenantId);
+  const validated = validate(req.params || req.body, getTenantSchema);
+  const result = await tenantService.fetchSpecificTenant(validated.tenantId);
 
   if (result.status === 404) {
     return res.status(404).json({
@@ -52,19 +47,14 @@ exports.getSpecificTenant = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// CREATE TENANT (supports form-data with optional file upload)
-// ==========================================
-
 exports.createTenant = asyncHandler(async (req, res, next) => {
   try {
+    const validated = validate(req.body, createTenantSchema);
     const createdBy = req.user?.id;
     const uploadedFilename = req.file ? req.uploadFilename : null;
 
-    // Build input data from form-data or JSON body
-    const inputData = { ...req.body };
+    const inputData = { ...validated };
 
-    // If a file was uploaded, add the filename to the input
     if (uploadedFilename) {
       inputData.logo = uploadedFilename;
     }
@@ -79,7 +69,6 @@ exports.createTenant = asyncHandler(async (req, res, next) => {
       result.status || 201,
     );
   } catch (err) {
-    // Delete uploaded file if creation failed
     if (req.file) {
       try {
         await require("../utils/upload").deleteUpload(
@@ -97,25 +86,22 @@ exports.createTenant = asyncHandler(async (req, res, next) => {
   }
 });
 
-// ==========================================
-// UPDATE TENANT (supports form-data with optional file upload)
-// ==========================================
-
 exports.updateTenant = asyncHandler(async (req, res) => {
-  const tenantId = req.params.tenantId || req.body.tenantId;
+  const validated = validate(
+    { ...req.params, ...req.body },
+    updateTenantSchema,
+  );
   const updatedBy = req.user?.id;
   const uploadedFilename = req.file ? req.uploadFilename : null;
 
-  // Build input data from form-data or JSON body
-  const inputData = { ...req.body };
+  const inputData = { ...validated };
 
-  // If a file was uploaded, add the filename to the input
   if (uploadedFilename) {
     inputData.logo = uploadedFilename;
   }
 
   const result = await tenantService.updateTenant(
-    tenantId,
+    validated.tenantId,
     inputData,
     updatedBy,
   );
@@ -138,15 +124,12 @@ exports.updateTenant = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// DELETE TENANT
-// ==========================================
-
 exports.deleteTenant = asyncHandler(async (req, res) => {
-  const { tenantId } = req.query || req.body;
-  const deletedBy = req.user?.id;
-
-  const result = await tenantService.deleteTenant(tenantId, deletedBy);
+  const validated = validate(req.query || req.body, deleteTenantSchema);
+  const result = await tenantService.deleteTenant(
+    validated.tenantId,
+    validated.deletedBy,
+  );
 
   if (result.status === 404) {
     return res.status(404).json({
@@ -175,14 +158,9 @@ exports.deleteTenant = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// GET TENANT SETTINGS
-// ==========================================
-
 exports.getTenantSettings = asyncHandler(async (req, res) => {
-  const { tenantId } = req.params || req.body;
-
-  const result = await tenantService.getTenantSettings(tenantId);
+  const validated = validate(req.params || req.body, tenantIdSchema);
+  const result = await tenantService.getTenantSettings(validated.tenantId);
 
   if (result.status === 404) {
     return res.status(404).json({
@@ -202,17 +180,13 @@ exports.getTenantSettings = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// UPDATE TENANT SETTINGS
-// ==========================================
-
 exports.updateTenantSettings = asyncHandler(async (req, res) => {
-  const { tenantId } = req.params || req.body;
+  const validated = validate(req.params || req.body, tenantIdSchema);
   const settingsData = req.body;
   const updatedBy = req.user?.id;
 
   const result = await tenantService.updateTenantSettings(
-    tenantId,
+    validated.tenantId,
     settingsData,
     updatedBy,
   );
@@ -235,14 +209,9 @@ exports.updateTenantSettings = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// GET TENANT USER COUNT
-// ==========================================
-
 exports.getTenantUserCount = asyncHandler(async (req, res) => {
-  const { tenantId } = req.params || req.body;
-
-  const result = await tenantService.getTenantUserCount(tenantId);
+  const validated = validate(req.params || req.body, tenantIdSchema);
+  const result = await tenantService.getTenantUserCount(validated.tenantId);
 
   if (result.status === 404) {
     return res.status(404).json({
@@ -261,10 +230,6 @@ exports.getTenantUserCount = asyncHandler(async (req, res) => {
     result.status || 200,
   );
 });
-
-// ==========================================
-// UPLOAD TENANT LOGO
-// ==========================================
 
 exports.uploadTenantLogo = asyncHandler(async (req, res) => {
   const { tenantId } = req.params || req.body;
@@ -293,10 +258,6 @@ exports.uploadTenantLogo = asyncHandler(async (req, res) => {
     result.status || 200,
   );
 });
-
-// ==========================================
-// REMOVE TENANT LOGO
-// ==========================================
 
 exports.removeTenantLogo = asyncHandler(async (req, res) => {
   const { tenantId } = req.params || req.body;

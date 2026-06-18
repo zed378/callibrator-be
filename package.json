@@ -37,7 +37,11 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "build": "bun build index.js --compile --loader:.html=text --target bun-linux-x64 --outfile dist/boilerplate",
-    "swagger:generate": "node src/utils/generateSwagger.js"
+    "swagger:generate": "node src/utils/generateSwagger.js",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix",
+    "prettier": "prettier --check \"src/**/*.js\"",
+    "prettier:fix": "prettier --write \"src/**/*.js\""
   },
   "dependencies": {
     "axios": "^1.16.0",
@@ -82,6 +86,9 @@
   "devDependencies": {
     "jest": "^30.4.2",
     "markdown-pdf": "^11.0.0",
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "eslint": "^9.39.0",
+    "prettier": "^3.6.2",
+    "eslint-config-prettier": "^10.1.8"
   }
 }

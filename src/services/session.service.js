@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { Op } = require("sequelize");
 
 const { Sessions } = require("../models");
 
@@ -155,7 +156,7 @@ exports.cleanupExpiredSessions = async () => {
   return await Sessions.destroy({
     where: {
       expiredAt: {
-        [require("sequelize").Op.lt]: new Date(),
+        [Op.lt]: new Date(),
       },
     },
   });

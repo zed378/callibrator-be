@@ -1,15 +1,25 @@
 // auth.service.js
-const { Op } = require('sequelize');
-const { db } = require('../config');
-const { Users, Sessions, LoginLogs, Roles } = require('../models');
-const { hashPassword, comparePassword } = require('../utils/password');
-const { generateAccessToken, verifyAccessToken } = require('../utils/jwt');
-const { hashToken } = require('../utils/session');
-const { hashOTP, generateOTP } = require('../utils/otp');
+const { AppError } = require("../utils/appError");
+const crypto = require("crypto");
+const { Op } = require("sequelize");
+const { db } = require("../config");
+const { Users, Roles } = require("../models");
+const { hashPassword, comparePassword } = require("../utils/password");
+const {
+  generateAccessToken,
+  verifyAccessToken,
+  generateRefreshToken,
+  verifyRefreshToken,
+} = require("../utils/jwt");
+const { hashToken } = require("../utils/session");
 const {
   sendOtpEmail,
   sendActivationEmail,
-} = require('../services/email.service');
+} = require("../services/email.service");
+const {
+  queueActivationEmail,
+  queueOtpEmail,
+} = require("../services/emailQueue.service");
 const {
   validate: validateInput,
   formatErrors,
@@ -17,68 +27,69 @@ const {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-} = require('../validators/auth.validator');
+} = require("../validators/auth.validator");
 const {
   acquireLock,
   releaseLock,
   get,
   set,
+  del,
   cacheKeys,
-} = require('../services/redis.service');
+} = require("../services/redis.service");
+const { logger } = require("../middlewares/activityLog");
 const {
-  queueActivationEmail,
-  queueOtpEmail,
-} = require('../services/emailQueue.service');
+  createSession,
+  validateSession,
+  revokeAllSessions,
+} = require("../services/session.service");
+const {
+  DEFAULT_SESSION_EXPIRY_HOURS,
+  PASSWORD_MIN_LENGTH,
+  ROLE_IDS,
+} = require("../constants");
 
-// ==========================================
-// VALIDATION HELPERS
-// ==========================================
-
-/**
- * Validate input data against a schema
- * @param {Object} data - Data to validate
- * @param {Object} schema - Joi schema
- * @returns {Object} - Validated and sanitized data
- */
 const validate = (data, schema) => {
   const { error, value } = validateInput(data, schema);
   if (error) {
-    throw {
-      status: 400,
-      message: 'Validation failed',
-      errors: formatErrors(error.details),
-    };
+    throw new AppError(400, "Validation failed", true, formatErrors(error.details));
   }
   return value;
 };
 
-// ==========================================
-// REGISTER
-// ==========================================
+// Safe user attributes — exclude sensitive/secret fields
+const safeUserAttrs = {
+  exclude: [
+    "updatedAt",
+    "otp_code",
+    "otp_expired_at",
+    "otp_request_count",
+    "password",
+    "otp_last_requested_at",
+    "failed_login_attempts",
+    "locked_until",
+    "password_changed_at",
+  ],
+};
+
+// ------------------------------------------------------------------
+// REGISTER USER
+// ------------------------------------------------------------------
 exports.registerUser = async (input, origin) => {
-  // Validate input
   const data = validate(input, registerSchema);
   const { firstName, lastName, username, email, password } = data;
-
-  // Use origin from request header for multi-tenant support
-  const baseOrigin = origin || '';
-
-  // ---- distributed lock for race condition prevention -------------------
+  const baseOrigin = origin || "";
   const lockKey = `register:${email}:${username}`;
-  const lockId = await acquireLock(lockKey, 10000);
+  let lockId = null;
 
+  lockId = await acquireLock(lockKey, 10000);
   if (!lockId) {
-    throw {
-      status: 429,
-      message: 'Registration in progress. Please wait and try again.',
-    };
+    throw new AppError(429, "Registration in progress. Please wait and try again.");
   }
 
   let transaction;
   try {
     transaction = await db.transaction();
 
-    // ---- duplicate checks with SELECT FOR UPDATE -------------------------
     const existingUser = await Users.findOne({
       where: { email },
       transaction,
@@ -86,7 +97,7 @@ exports.registerUser = async (input, origin) => {
     });
     if (existingUser) {
       await transaction.rollback();
-      throw { status: 409, message: 'Email already registered' };
+      throw new AppError(409, "Email already registered");
     }
 
     const existingUsername = await Users.findOne({
@@ -96,662 +107,309 @@ exports.registerUser = async (input, origin) => {
     });
     if (existingUsername) {
       await transaction.rollback();
-      throw { status: 409, message: 'Username already used' };
+      throw new AppError(409, "Username already used");
     }
 
-    // ---- create user ------------------------------------------------------
     const hashedPassword = await hashPassword(password);
+
     const user = await Users.create(
       {
-        firstName,
-        lastName,
+        first_name: firstName,
+        last_name: lastName,
         username,
         email,
         password: hashedPassword,
-        roleId: 'e7e1cdd1-14fe-440f-89ec-b0bcd7041f9c',
+        role_id: ROLE_IDS.USER,
+        is_email_verified: false,
       },
       { transaction },
     );
 
-    // ---- cache user email mapping ----------------------------------------
+    await transaction.commit();
+
+    // Cache user lookup
     await set(cacheKeys.userByEmail(email), user.id, 86400);
     await set(cacheKeys.userByUsername(username), user.id, 86400);
 
-    // ---- activation email (async via queue) ------------------------------
-    const activationToken = generateAccessToken({
-      id: user.id,
-      type: 'activation',
-    });
-    const activationLink = `${baseOrigin}/activation?token=${activationToken}`;
+    // Generate activation token
+    const activationToken = generateAccessToken({ id: user.id });
+    const activationLink = baseOrigin + "/activation?token=" + activationToken;
 
-    // Fire and forget - email sent asynchronously
-    queueActivationEmail({
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      activationLink,
-    }).catch((err) => {
-      // Log but don't fail registration if email queue fails
-      console.error('Failed to queue activation email:', err.message);
-    });
+    // Queue activation email (async, non-blocking)
+    try {
+      queueActivationEmail(email, { firstName, lastName, activationLink });
+    } catch (e) {
+      logger.warn("queueActivationEmail failed", { err: e.message });
+    }
 
-    await transaction.commit();
-
-    // Release lock after successful registration
-    await releaseLock(lockKey, lockId);
-
-    return {
-      success: true,
-      status: 201,
-      message:
-        "Registration successful. Please check your email for activation. If you didn't receive an email just check junk or spam folder.",
-    };
+    logger.info("User registered", { userId: user.id, email });
+    return { success: true, status: 201, message: "Registration successful" };
   } catch (error) {
-    if (transaction) await transaction.rollback();
-    // Release lock on error too
-    await releaseLock(lockKey, lockId).catch(() => {});
-    throw {
-      status: error.status || 500,
-      message: error.message,
-    };
+    if (transaction && !transaction.finished) await transaction.rollback();
+    throw error;
+  } finally {
+    if (lockId) {
+      await releaseLock(lockKey, lockId).catch(() => {});
+    }
   }
 };
 
-// ==========================================
-// ACTIVATION
-// ==========================================
-exports.activateAccount = async (token) => {
-  if (!token) {
-    throw { status: 400, message: 'Activation token is required' };
-  }
+// ------------------------------------------------------------------
+// LOGIN USER
+// ------------------------------------------------------------------
+exports.loginUser = async (input) => {
+  const { username, password } = validate(input, loginSchema);
+  const { ip, userAgent } = input;
 
-  let decoded;
-  try {
-    decoded = verifyAccessToken(token);
-  } catch {
-    throw {
-      status: 400,
-      message: 'Invalid or expired activation token',
-    };
-  }
-
-  if (decoded.type !== 'activation') {
-    throw {
-      status: 400,
-      message: 'Invalid activation token type',
-    };
-  }
-
-  const user = await Users.findOne({ where: { id: decoded.id } });
+  const user = await Users.findOne({ where: { username } });
   if (!user) {
-    throw { status: 404, message: 'User not found' };
+    throw new AppError(401, "Invalid credentials");
   }
-  if (user.isEmailVerified) {
-    throw { status: 400, message: 'Account already activated' };
+  if (!user.is_active) {
+    throw new AppError(403, "Account is suspended");
   }
 
-  await user.update({
-    isEmailVerified: true,
-    emailVerifiedAt: new Date(),
-    isActive: true,
+  const lockedUntil = user.locked_until || user.lockedUntil;
+  if (lockedUntil && new Date(lockedUntil) > new Date()) {
+    throw new AppError(423, "Account temporarily locked");
+  }
+
+  const match = await comparePassword(password, user.password);
+  if (!match) {
+    const attempts =
+      (user.failed_login_attempts || user.failedLoginAttempts || 0) + 1;
+    await user.update({ failed_login_attempts: attempts });
+
+    if (attempts >= 5) {
+      await user.update({
+        locked_until: new Date(Date.now() + 15 * 60 * 1000),
+      });
+      throw new AppError(423, "Account locked due to too many failed attempts");
+    }
+    throw new AppError(401, "Invalid credentials");
+  }
+
+  // Reset failed attempts on success
+  if (user.failed_login_attempts > 0 || user.failedLoginAttempts > 0) {
+    await user.update({ failed_login_attempts: 0, locked_until: null });
+  }
+
+  // Update last login
+  await user.update({ last_login_at: new Date() });
+
+  const accessToken = generateAccessToken({ id: user.id, email: user.email });
+  const refreshToken = generateRefreshToken({ id: user.id });
+
+  // Create session
+  const session = await createSession({
+    tenantId: user.tenant_id || user.tenantId,
+    userId: user.id,
+    refreshToken,
+    ipAddress: ip || "",
+    userAgent: userAgent || "",
   });
 
   return {
     success: true,
     status: 200,
-    message: 'Account activated successfully',
+    message: "Login successful",
+    data: { id: user.id, username: user.username, email: user.email },
+    token: accessToken,
+    refreshToken,
+    session,
   };
 };
 
-// ==========================================
-// LOGIN
-// ==========================================
-exports.loginUser = async (input) => {
-  // Validate input
-  const data = validate(input, loginSchema);
-  const { user, password, ip, userAgent } = data;
-
-  let transaction;
-  try {
-    transaction = await db.transaction();
-
-    const existingUser = await Users.findOne({
-      where: {
-        [Op.or]: [{ username: user }, { email: user }],
-      },
-      include: [
-        {
-          model: Roles,
-          as: 'role',
-          attributes: ['id', 'name', 'description', 'nameToShow'],
-          where: {
-            isActive: true,
-          },
-        },
-      ],
-      transaction,
-    });
-
-    if (!existingUser) {
-      throw { status: 401, message: 'Invalid credentials' };
-    }
-    if (!existingUser.isEmailVerified) {
-      throw { status: 403, message: 'Please verify your email first' };
-    }
-    if (existingUser.isBan) {
-      throw { status: 403, message: 'Account has been suspended' };
-    }
-    if (
-      existingUser.lockedUntil &&
-      new Date(existingUser.lockedUntil) > new Date()
-    ) {
-      throw {
-        status: 423,
-        message: 'Account temporarily locked',
-        lockedUntil: existingUser.lockedUntil,
-      };
-    }
-
-    const validPassword = await comparePassword(
-      password,
-      existingUser.password,
-    );
-    if (!validPassword) {
-      const failedAttempts = (existingUser.failedLoginAttempts || 0) + 1;
-      let lockedUntil = null;
-      if (failedAttempts >= 5) {
-        lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
-      }
-      await existingUser.update(
-        {
-          failedLoginAttempts: failedAttempts,
-          lockedUntil,
-        },
-        { transaction },
-      );
-      await transaction.commit();
-      throw { status: 401, message: 'Invalid credentials' };
-    }
-
-    // successful login – reset failure counters
-    await existingUser.update(
-      {
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-        lastLoginAt: new Date(),
-        lastLoginIp: ip,
-      },
-      { transaction },
-    );
-
-    const token = generateAccessToken({
-      id: existingUser.id,
-      tenantId: existingUser.tenantId,
-      role: existingUser.role,
-      email: existingUser.email,
-    });
-    const tokenHash = hashToken(token);
-    const session = await Sessions.create(
-      {
-        tenantId: existingUser.tenantId,
-        userId: existingUser.id,
-        tokenHash,
-        ipAddress: ip,
-        userAgent,
-        expiredAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      },
-      { transaction },
-    );
-
-    await LoginLogs.create(
-      {
-        userId: existingUser.id,
-        tenantId: existingUser.tenantId,
-        ipAddress: ip,
-        userAgent,
-        status: 'SUCCESS',
-        loginAt: new Date(),
-      },
-      { transaction },
-    );
-
-    await transaction.commit();
-
-    const pictureUrl = process.env.HOST_URL + '/uploads/profile/';
-
-    return {
-      success: true,
-      status: 200,
-      message: 'Login successful',
-      token,
-      session,
-      data: {
-        id: existingUser.id,
-        tenantId: existingUser.tenantId,
-        firstName: existingUser.firstName,
-        lastName: existingUser.lastName,
-        email: existingUser.email,
-        username: existingUser.username,
-        role: existingUser.role,
-        picture: pictureUrl + existingUser.picture,
-      },
-    };
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw {
-      status: error.status || 500,
-      message: error.message,
-      lockedUntil: error.lockedUntil,
-    };
+// ------------------------------------------------------------------
+// ACTIVATE ACCOUNT
+// ------------------------------------------------------------------
+exports.activateAccount = async (token) => {
+  const decoded = verifyAccessToken(token);
+  const user = await Users.findByPk(decoded.id);
+  if (!user) {
+    throw new AppError(404, "User not found");
   }
+
+  if (user.is_email_verified || user.isEmailVerified) {
+    return { success: true, status: 200, message: "Account already activated" };
+  }
+
+  await user.update({ is_email_verified: true });
+  await del(cacheKeys.userByEmail(user.email));
+  await del(cacheKeys.userByUsername(user.username));
+
+  logger.info("Account activated", { userId: user.id });
+  return {
+    success: true,
+    status: 200,
+    message: "Account activated successfully",
+  };
 };
 
-// ==========================================
-// SEND OTP (forgot password)
-// ==========================================
+// ------------------------------------------------------------------
+// REQUEST OTP
+// ------------------------------------------------------------------
 exports.requestOTP = async (input) => {
-  // Validate input
-  const data = validate(input, forgotPasswordSchema);
-  const { email } = data;
+  const { email } = validate(input, forgotPasswordSchema);
 
-  // ---- Redis rate limiting ------------------------------------------------
-  const rateLimitKey = `otp:rate:${email}`;
-  const rateLimitCount = await get(rateLimitKey);
-
-  if (rateLimitCount !== null && rateLimitCount >= 3) {
-    throw {
-      status: 429,
-      message: 'Too many OTP requests. Please wait 1 minute.',
-    };
-  }
-
-  let transaction;
-  try {
-    transaction = await db.transaction();
-
-    // ---- Use cached user lookup if available ------------------------------
-    let user;
-    const cachedUserId = await get(cacheKeys.userByEmail(email));
-
-    if (cachedUserId) {
-      user = await Users.findByPk(cachedUserId, {
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
-    }
-
-    // Fallback to email lookup if cache miss
-    if (!user) {
-      user = await Users.findOne({
-        where: { email },
-        transaction,
-        lock: transaction.LOCK.UPDATE,
-      });
-    }
-
-    if (!user) {
-      // Do not reveal whether an account exists – still return success
-      await transaction.commit();
-      // Still increment rate limit counter
-      await set(rateLimitKey, (rateLimitCount || 0) + 1, 60);
-      return {
-        success: true,
-        status: 200,
-        message: 'If the account exists, OTP has been sent',
-      };
-    }
-
-    if (!user.isEmailVerified) {
-      await transaction.commit();
-      await set(rateLimitKey, (rateLimitCount || 0) + 1, 60);
-      throw { status: 403, message: 'Account email not verified' };
-    }
-
-    const now = Date.now();
-    if (user.otpLastRequestedAt) {
-      const diff = now - new Date(user.otpLastRequestedAt).getTime();
-      if (diff < 60 * 1000) {
-        await transaction.commit();
-        await set(rateLimitKey, (rateLimitCount || 0) + 1, 60);
-        throw {
-          status: 429,
-          message: 'Please wait before requesting another OTP',
-        };
-      }
-    }
-
-    const otp = generateOTP();
-    const hashedOTP = hashOTP(otp);
-    await user.update(
-      {
-        otpCode: hashedOTP,
-        otpExpiredAt: new Date(now + 5 * 60 * 1000),
-        otpLastRequestedAt: new Date(),
-        otpRequestCount: (user.otpRequestCount || 0) + 1,
-      },
-      { transaction },
-    );
-
-    await transaction.commit();
-
-    // ---- Update rate limit counter ----------------------------------------
-    await set(rateLimitKey, (rateLimitCount || 0) + 1, 60);
-
-    // ---- Queue OTP email asynchronously -----------------------------------
-    queueOtpEmail({
-      email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      otp,
-    }).catch((err) => {
-      console.error('Failed to queue OTP email:', err.message);
-    });
-
+  const user = await Users.findOne({ where: { email } });
+  if (!user) {
     return {
       success: true,
       status: 200,
-      message: 'If the account exists, OTP has been sent',
-    };
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw {
-      status: error.message.includes('wait')
-        ? 429
-        : error.message.includes('verified')
-          ? 403
-          : error.status || 500,
-      message: error.message,
+      message: "If the account exists, OTP has been sent",
     };
   }
+
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpHashed = crypto.createHash("sha256").update(otpCode).digest("hex");
+  const otpExpiredAt = new Date(Date.now() + 5 * 60 * 1000);
+
+  await user.update({
+    otp_code: otpHashed,
+    otp_expired_at: otpExpiredAt,
+    otp_request_count: (user.otp_request_count || 0) + 1,
+    otp_last_requested_at: new Date(),
+  });
+
+  try {
+    queueOtpEmail(email, {
+      firstName: user.first_name || user.firstName,
+      lastName: user.last_name || user.lastName,
+      otp: otpCode,
+    });
+  } catch (e) {
+    logger.warn("queueOtpEmail failed", { err: e.message });
+  }
+
+  return { success: true, status: 200, message: "OTP sent" };
 };
 
-// ==========================================
-// RESET PASSWORD
-// ==========================================
+// ------------------------------------------------------------------
+// PROCESS RESET PASSWORD
+// ------------------------------------------------------------------
 exports.processResetPassword = async (input) => {
-  // Validate input
-  const data = validate(input, resetPasswordSchema);
-  const { email, otp, password } = data;
+  const { email, otp, newPassword } = validate(input, resetPasswordSchema);
 
-  let transaction;
-  try {
-    transaction = await db.transaction();
-
-    const user = await Users.findOne({ where: { email } }, { transaction });
-    if (!user) {
-      throw { status: 400, message: 'Invalid OTP or email' };
-    }
-    if (!user.otpCode) {
-      throw { status: 400, message: 'OTP not found' };
-    }
-    if (!user.otpExpiredAt || new Date(user.otpExpiredAt) < new Date()) {
-      // clear expired OTP
-      await user.update({ otpCode: null, otpExpiredAt: null }, { transaction });
-      await transaction.commit();
-      throw { status: 400, message: 'OTP expired' };
-    }
-
-    const hashedOTP = hashOTP(otp);
-    if (hashedOTP !== user.otpCode) {
-      throw { status: 400, message: 'Invalid OTP' };
-    }
-
-    const hashedPassword = await hashPassword(password);
-    await user.update(
-      {
-        password: hashedPassword,
-        passwordChangedAt: new Date(),
-        otpCode: null,
-        otpExpiredAt: null,
-      },
-      { transaction },
-    );
-
-    // revoke all existing sessions for this user
-    await Sessions.update(
-      {
-        isRevoked: true,
-        revokedAt: new Date(),
-        revokedReason: 'PASSWORD_RESET',
-        isActive: false,
-      },
-      {
-        where: { userId: user.id },
-        transaction,
-      },
-    );
-
-    await transaction.commit();
-    return {
-      success: true,
-      status: 200,
-      message: 'Password reset successful',
-    };
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw {
-      status: error.status || 500,
-      message: error.message,
-    };
+  const user = await Users.findOne({ where: { email } });
+  if (!user) {
+    throw new AppError(404, "Account not found");
   }
+
+  // Verify OTP
+  const providedHash = crypto.createHash("sha256").update(otp).digest("hex");
+  if (user.otp_code !== providedHash) {
+    throw new AppError(400, "Invalid OTP");
+  }
+  if (new Date(user.otp_expired_at) <= new Date()) {
+    throw new AppError(400, "OTP expired");
+  }
+
+  // Update password and clear OTP
+  const hashedPassword = await hashPassword(newPassword);
+  await user.update({
+    password: hashedPassword,
+    otp_code: null,
+    otp_expired_at: null,
+    password_changed_at: new Date(),
+  });
+
+  // Revoke all sessions — invalidates all active refresh tokens
+  await revokeAllSessions(user.id, "PASSWORD_RESET");
+
+  return { success: true, status: 200, message: "Password reset successful" };
 };
 
-// ==========================================
-// LOGOUT
-// ==========================================
-exports.logoutSession = async (sessionId) => {
-  let transaction;
-  try {
-    transaction = await db.transaction();
-    await Sessions.update(
-      {
-        isRevoked: true,
-        revokedAt: new Date(),
-        revokedReason: 'LOGOUT',
-        isActive: false,
-      },
-      { where: { id: sessionId }, transaction },
-    );
-    await transaction.commit();
-    return {
-      success: true,
-      status: 200,
-      message: 'Logout successful',
-    };
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw {
-      status: error.status || 500,
-      message: error.message,
-    };
-  }
-};
-
-// ==========================================
-// LOGOUT ALL
-// ==========================================
-exports.logoutAllUserSessions = async (userId) => {
-  let transaction;
-  try {
-    transaction = await db.transaction();
-    await Sessions.update(
-      {
-        isRevoked: true,
-        revokedAt: new Date(),
-        revokedReason: 'LOGOUT_ALL',
-        isActive: false,
-      },
-      { where: { userId, isRevoked: false }, transaction },
-    );
-    await transaction.commit();
-    return {
-      success: true,
-      status: 200,
-      message: 'All sessions revoked successfully',
-    };
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw {
-      status: error.status || 500,
-      message: error.message,
-    };
-  }
-};
-
-// ==========================================
+// ------------------------------------------------------------------
 // VERIFY USER SESSION
-// ==========================================
-exports.verifyUserSession = async (userId, sessionId) => {
-  let transaction;
-  try {
-    transaction = await db.transaction();
-
-    const user = await Users.findOne({
-      where: { id: userId },
-      attributes: {
-        exclude: ['password', 'otpCode'],
-      },
-      include: [
-        {
-          model: Roles,
-          as: 'role',
-          attributes: ['id', 'name', 'description', 'nameToShow'],
-          where: {
-            isActive: true,
-          },
-        },
-      ],
-      transaction,
-    });
-
-    if (!user) {
-      throw { status: 401, message: 'User not found' };
-    }
-    if (user.isBanned) {
-      throw { status: 403, message: 'Account banned' };
-    }
-
-    const session = await Sessions.findByPk(sessionId, {
-      transaction,
-    });
-    if (!session) {
-      throw { status: 401, message: 'Session not found' };
-    }
-    if (session.isRevoked) {
-      throw { status: 401, message: 'Session revoked' };
-    }
-    if (new Date(session.expiredAt) < new Date()) {
-      throw { status: 401, message: 'Session expired' };
-    }
-
-    // update last activity
-    await session.update({ lastActivityAt: new Date() }, { transaction });
-
-    await transaction.commit();
-
-    const pictureUrl = process.env.HOST_URL + '/uploads/profile/';
-
-    return {
-      success: true,
-      status: 200,
-      message: 'Token valid',
-      data: {
-        id: user.id,
-        tenantId: user.tenantId,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        username: user.username,
-        role: user.role,
-        picture: pictureUrl + user.picture,
-      },
-    };
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw {
-      status: error.message.includes('banned') ? 403 : error.status || 401,
-      message: error.message,
-    };
+// ------------------------------------------------------------------
+exports.verifyUserSession = async (userId, session) => {
+  const user = await Users.findByPk(userId);
+  if (!user) {
+    throw new AppError(401, "Invalid session");
   }
+  if (!user.is_active) {
+    throw new AppError(403, "Account is suspended");
+  }
+  return {
+    success: true,
+    status: 200,
+    message: "Token valid",
+    data: { id: user.id, username: user.username, email: user.email },
+  };
 };
 
-// ==========================================
-// UPDATE PASSWORD ONLY
-// ==========================================
+// ------------------------------------------------------------------
+// JUST UPDATE PASSWORD
+// ------------------------------------------------------------------
 exports.justUpdatePassword = async (userId, newPassword) => {
-  if (!newPassword || typeof newPassword !== 'string') {
-    throw {
-      status: 400,
-      message: 'New password is required and must be a string',
-    };
-  }
-  if (newPassword.length < 6) {
-    throw {
-      status: 400,
-      message: 'Password must be at least 6 characters long',
-    };
-  }
-
-  let transaction;
-  try {
-    transaction = await db.transaction();
-    const user = await Users.findByPk(userId, { transaction });
-    if (!user) {
-      throw { status: 404, message: 'User not found' };
-    }
-    const hashed = await hashPassword(newPassword);
-    await user.update(
-      { password: hashed, passwordChangedAt: new Date() },
-      { transaction },
+  if (!newPassword || newPassword.length < PASSWORD_MIN_LENGTH) {
+    throw new AppError(
+      400,
+      `Password must be at least ${PASSWORD_MIN_LENGTH} characters`,
     );
-    await transaction.commit();
-    return {
-      success: true,
-      status: 200,
-      message: 'Password updated successfully',
-    };
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw {
-      status: error.status || 500,
-      message: error.message,
-    };
   }
+  const user = await Users.findByPk(userId);
+  if (!user) {
+    throw new AppError(404, "User not found");
+  }
+  await user.update({
+    password: await hashPassword(newPassword),
+    password_changed_at: new Date(),
+  });
+  // Revoke all sessions — invalidates all active refresh tokens
+  await revokeAllSessions(userId, "PASSWORD_CHANGED");
+  return {
+    success: true,
+    status: 200,
+    message: "Password updated successfully",
+  };
 };
 
-// ==========================================
+// ------------------------------------------------------------------
 // CHECK PASSWORD VALIDITY
-// ==========================================
-exports.passIsValid = async (userId, candidatePassword) => {
-  if (!candidatePassword || typeof candidatePassword !== 'string') {
-    throw { status: 400, message: 'Password must be a non‑empty string' };
+// ------------------------------------------------------------------
+exports.passIsValid = async (userId, password) => {
+  const user = await Users.findByPk(userId);
+  if (!user) {
+    throw new AppError(404, "User not found");
   }
+  const match = await comparePassword(password, user.password);
+  return {
+    success: true,
+    status: 200,
+    message: "Password is valid",
+    data: { valid: match },
+  };
+};
 
-  let transaction;
-  try {
-    transaction = await db.transaction();
-    const user = await Users.findByPk(userId, {
-      attributes: ['id', 'password'],
-      transaction,
-    });
-    if (!user) {
-      throw { status: 404, message: 'User not found' };
-    }
-    const valid = await comparePassword(candidatePassword, user.password);
-    if (!valid) {
-      throw { status: 401, message: 'Invalid password' };
-    }
-    await transaction.commit();
-    return {
-      success: true,
-      status: 200,
-      message: 'Password is valid',
-    };
-  } catch (error) {
-    if (transaction) await transaction.rollback();
-    throw {
-      status: error.status || 500,
-      message: error.message,
-    };
+// ------------------------------------------------------------------
+// LOGOUT SESSION
+// ------------------------------------------------------------------
+exports.logoutSession = async (req) => {
+  const userId = req.user.id;
+  const token = req.token;
+  if (token) {
+    const refreshToken = generateRefreshToken({ id: userId });
+    const session = await createSession({ userId, refreshToken });
+    await set(
+      cacheKeys.userSession(userId),
+      session.id,
+      DEFAULT_SESSION_EXPIRY_HOURS * 3600,
+    );
   }
+  return { success: true, status: 200, message: "Logout successful" };
+};
+
+// ------------------------------------------------------------------
+// LOGOUT ALL SESSIONS
+// ------------------------------------------------------------------
+exports.logoutAllUserSessions = async (userId) => {
+  await revokeAllSessions(userId, "USER_REQUESTED");
+  await del(cacheKeys.userSessions(userId));
+  return {
+    success: true,
+    status: 200,
+    message: "All sessions revoked successfully",
+  };
 };

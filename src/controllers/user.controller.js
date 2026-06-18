@@ -1,23 +1,53 @@
 const userService = require("../services/user.service");
-const userUploadService = require("../services/userUpload.service");
 const { asyncHandler } = require("../utils/controllerWrapper");
 const { success } = require("../utils/response");
+const {
+  createUserSchema,
+  updateUserSchema,
+  updateUserRoleSchema,
+  checkUsernameSchema,
+  userParamSchema,
+  getAllUsersQuery,
+  validate: validateUser,
+  formatErrors,
+} = require("../validators/user.validator");
 
-// ==========================================
-// FETCH ALL USERS WITH PAGINATION
-// ==========================================
+/**
+ * Handle validation error and send error response
+ */
+const handleValidation = (result, res, status = 400) => {
+  if (result.error) {
+    return res.status(status).json({
+      success: false,
+      status,
+      message: "Validation failed",
+      data: null,
+      errors: formatErrors(result.error.details),
+    });
+  }
+  return result.value;
+};
 
 exports.getAllUsers = asyncHandler(async (req, res) => {
-  const { tenantId, roleFilter, find, page, limit } = req.query;
+  const { error, value } = validateUser(req.query, getAllUsersQuery);
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      status: 400,
+      message: "Validation failed",
+      errors: formatErrors(error.details),
+    });
+  }
+
   const role = req.user.role;
 
   const result = await userService.fetchUsers({
-    tenantId,
-    roleFilter,
+    tenantId: value.tenantId,
+    roleFilter: value.roleFilter,
     role,
-    find,
-    page,
-    limit,
+    find: value.find,
+    page: value.page,
+    limit: value.limit,
   });
 
   success(
@@ -28,10 +58,6 @@ exports.getAllUsers = asyncHandler(async (req, res) => {
     result.status || 200,
   );
 });
-
-// ==========================================
-// FETCH SPECIFIC USER
-// ==========================================
 
 exports.getSpecificUser = asyncHandler(async (req, res) => {
   const { userId } = req.params || req.body;
@@ -46,12 +72,12 @@ exports.getSpecificUser = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// CHECK USERNAME AVAILABILITY
-// ==========================================
-
 exports.checkUsernameAvailability = asyncHandler(async (req, res) => {
-  const result = await userService.checkUsernameAvailability(req.body);
+  const validated = handleValidation(
+    validateUser(req.body, checkUsernameSchema),
+    res,
+  );
+  const result = await userService.checkUsernameAvailability(validated);
 
   success(
     res,
@@ -62,26 +88,27 @@ exports.checkUsernameAvailability = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// UPDATE USER ROLE
-// ==========================================
-
 exports.updateUserRole = asyncHandler(async (req, res) => {
+  const validated = handleValidation(
+    validateUser(req.body, updateUserRoleSchema),
+    res,
+  );
   const result = await userService.userRoleUpdate({
-    ...req.body,
+    ...validated,
     updatedBy: req.user.id,
   });
 
   success(res, result.data, null, result.message || "User role updated", 200);
 });
 
-// ==========================================
-// CREATE USER
-// ==========================================
-
 exports.createUser = asyncHandler(async (req, res) => {
+  const validated = handleValidation(
+    validateUser(req.body, createUserSchema),
+    res,
+    201,
+  );
   const result = await userService.userCreate({
-    ...req.body,
+    ...validated,
     createdBy: req.user.id || null,
   });
 
@@ -94,13 +121,13 @@ exports.createUser = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// EDIT USER
-// ==========================================
-
 exports.editUser = asyncHandler(async (req, res) => {
+  const validated = handleValidation(
+    validateUser(req.body, updateUserSchema),
+    res,
+  );
   const result = await userService.editUser({
-    ...req.body,
+    ...validated,
     updatedBy: req.user.id || null,
   });
 
@@ -113,13 +140,18 @@ exports.editUser = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// DELETE USER
-// ==========================================
-
 exports.deleteUser = asyncHandler(async (req, res) => {
-  const { userId } = req.query;
+  const { error, value } = validateUser(req.query, userParamSchema);
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      status: 400,
+      message: "Validation failed - userId is required and must be a valid UUID",
+      errors: formatErrors(error.details),
+    });
+  }
 
+  const { userId } = value;
   const deletedBy = req.user.id || null;
 
   const result = await userService.deleteUser({ userId, deletedBy });
@@ -132,10 +164,6 @@ exports.deleteUser = asyncHandler(async (req, res) => {
     200,
   );
 });
-
-// ==========================================
-// UPLOAD USER AVATAR
-// ==========================================
 
 exports.uploadUserAvatar = asyncHandler(async (req, res) => {
   const { userId } = req.params || req.body;
@@ -150,7 +178,7 @@ exports.uploadUserAvatar = asyncHandler(async (req, res) => {
     });
   }
 
-  const result = await userUploadService.updateUserAvatar(
+  const result = await userService.updateUserAvatar(
     userId,
     req.uploadFilename,
     updatedBy,
@@ -165,15 +193,11 @@ exports.uploadUserAvatar = asyncHandler(async (req, res) => {
   );
 });
 
-// ==========================================
-// REMOVE USER AVATAR
-// ==========================================
-
 exports.removeUserAvatar = asyncHandler(async (req, res) => {
   const { userId } = req.params || req.body;
   const updatedBy = req.user?.id;
 
-  const result = await userUploadService.removeUserAvatar(userId, updatedBy);
+  const result = await userService.removeUserAvatar(userId, updatedBy);
 
   success(
     res,
@@ -182,4 +206,31 @@ exports.removeUserAvatar = asyncHandler(async (req, res) => {
     result.message || "User avatar removed successfully",
     result.status || 200,
   );
+});
+
+exports.getAllUsersSimple = asyncHandler(async (req, res) => {
+  const { Users, Roles } = require("../models");
+
+  const users = await Users.findAll({
+    attributes: [
+      "id",
+      "username",
+      "first_name",
+      "last_name",
+      "email",
+      "role_id",
+    ],
+    include: [
+      {
+        model: Roles,
+        as: "role",
+        attributes: ["id", "name", "description"],
+      },
+    ],
+    order: [["first_name", "ASC"]],
+    raw: true,
+    nest: true,
+  });
+
+  success(res, users, null, "Users fetched successfully", 200);
 });

@@ -55,7 +55,11 @@ const {
  *                   type: string
  *                   example: Something went wrong while running migrations
  */
-router.get("/up", migrate);
+router.get(
+  "/up",
+  // abac(["SUPERADMIN", "migration:execute"]),
+  migrate,
+);
 
 /**
  * @swagger
@@ -98,7 +102,11 @@ router.get("/up", migrate);
  *                   type: string
  *                   example: Failed to drop tables
  */
-router.get("/down", dropTable);
+router.get(
+  "/down",
+  // abac(["SUPERADMIN", "migration:revert"]),
+  dropTable,
+);
 
 /**
  * @swagger
@@ -141,7 +149,11 @@ router.get("/down", dropTable);
  *                   type: string
  *                   example: Seeding failed
  */
-router.get("/seeding", seeding);
+router.get(
+  "/seeding",
+  // abac(["SUPERADMIN", "migration:seed"]),
+  seeding,
+);
 
 /**
  * @swagger
@@ -184,6 +196,10 @@ router.get("/seeding", seeding);
  *                   type: string
  *                   example: Unseeding failed
  */
-router.get("/unseeding", unseeding);
+router.get(
+  "/unseeding",
+  // abac(["SUPERADMIN", "migration:unseed"]),
+  unseeding,
+);
 
 module.exports = router;

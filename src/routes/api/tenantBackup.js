@@ -10,21 +10,21 @@
  *       scheme: bearer
  *       bearerFormat: JWT
  */
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const { auth } = require('../../middlewares/auth');
-const { rbac } = require('../../middlewares/rbac');
-const { abac } = require('../../middlewares/abac');
-const { TENANT_PERMISSIONS, ROLE_NAMES } = require('../../utils/constants');
+const { auth } = require("../../middlewares/auth");
+const { rbac } = require("../../middlewares/rbac");
+const { abac } = require("../../middlewares/abac");
+const { TENANT_PERMISSIONS, ROLE_NAMES } = require("../../constants");
 const {
-  createBackupController,
-  getBackupsController,
-  getBackupController,
-  downloadBackupController,
-  restoreBackupController,
-  deleteBackupController,
-  getBackupStatsController,
-} = require('../../controllers/tenantBackup.controller');
+  createBackup,
+  getBackups,
+  getBackup,
+  downloadBackup,
+  restoreBackup,
+  deleteBackup,
+  getBackupStats,
+} = require("../../controllers/tenantBackup.controller");
 
 /* ------------------------------------------------------------------ */
 /* CREATE BACKUP                                                      */
@@ -135,13 +135,13 @@ const {
  *                   example: "Tenant not found"
  */
 router.post(
-  '/:tenantId/backups',
+  "/:tenantId/backups",
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
   }),
   abac([TENANT_PERMISSIONS.UPDATE], { checkTenant: true }),
-  createBackupController,
+  createBackup,
 );
 
 /* ------------------------------------------------------------------ */
@@ -249,13 +249,13 @@ router.post(
  *                   example: "Forbidden"
  */
 router.get(
-  '/:tenantId/backups',
+  "/:tenantId/backups",
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
   }),
   abac([TENANT_PERMISSIONS.READ], { checkTenant: true }),
-  getBackupsController,
+  getBackups,
 );
 
 /* ------------------------------------------------------------------ */
@@ -348,13 +348,13 @@ router.get(
  *                   example: "Forbidden"
  */
 router.get(
-  '/:tenantId/backups/:backupId',
+  "/:tenantId/backups/:backupId",
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
   }),
   abac([TENANT_PERMISSIONS.READ], { checkTenant: true }),
-  getBackupController,
+  getBackup,
 );
 
 /* ------------------------------------------------------------------ */
@@ -441,13 +441,13 @@ router.get(
  *                   example: "Forbidden"
  */
 router.get(
-  '/:tenantId/backups/:backupId/download',
+  "/:tenantId/backups/:backupId/download",
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
   }),
   abac([TENANT_PERMISSIONS.READ], { checkTenant: true }),
-  downloadBackupController,
+  downloadBackup,
 );
 
 /* ------------------------------------------------------------------ */
@@ -559,13 +559,13 @@ router.get(
  *                   example: "Forbidden"
  */
 router.post(
-  '/:tenantId/backups/:backupId/restore',
+  "/:tenantId/backups/:backupId/restore",
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
   }),
   abac([TENANT_PERMISSIONS.UPDATE], { checkTenant: true }),
-  restoreBackupController,
+  restoreBackup,
 );
 
 /* ------------------------------------------------------------------ */
@@ -645,13 +645,13 @@ router.post(
  *                   example: "Forbidden"
  */
 router.delete(
-  '/:tenantId/backups/:backupId',
+  "/:tenantId/backups/:backupId",
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
   }),
   abac([TENANT_PERMISSIONS.DELETE], { checkTenant: true }),
-  deleteBackupController,
+  deleteBackup,
 );
 
 /* ------------------------------------------------------------------ */
@@ -724,13 +724,13 @@ router.delete(
  *                   example: "Forbidden"
  */
 router.get(
-  '/:tenantId/backups/stats',
+  "/:tenantId/backups/stats",
   auth,
   rbac([ROLE_NAMES.SUPER_ADMIN, ROLE_NAMES.TENANT_ADMIN], {
     allowHigher: true,
   }),
   abac([TENANT_PERMISSIONS.READ], { checkTenant: true }),
-  getBackupStatsController,
+  getBackupStats,
 );
 
 module.exports = router;

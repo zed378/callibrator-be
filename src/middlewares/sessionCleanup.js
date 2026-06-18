@@ -18,13 +18,9 @@ const cleanupExpiredSessionsJob = async () => {
     logger.info(
       `Session cleanup completed: ${deletedCount} expired sessions deleted`,
     );
-    console.log(
-      `Session cleanup completed: ${deletedCount} expired sessions deleted`,
-    );
     return deletedCount;
   } catch (error) {
-    logger.error("Error during session cleanup:", error.message);
-    console.error("Error during session cleanup:", error.message);
+    logger.error(`Error during session cleanup: ${error.message}`);
     throw error;
   }
 };
@@ -60,20 +56,16 @@ const initSessionCleanup = () => {
       ? `Session cleanup scheduled with: ${schedule}`
       : "Session cleanup scheduled at 2:00 AM daily";
 
-  console.log(message);
   logger.info(message);
 
   cron.schedule(schedule, async () => {
-    console.log("Running session cleanup...");
     logger.info("Running session cleanup...");
 
     try {
       await cleanupExpiredSessionsJob();
-      console.log("Session cleanup completed successfully");
       logger.info("Session cleanup completed successfully");
     } catch (error) {
-      console.error("Error during scheduled session cleanup:", error.message);
-      logger.error("Error during scheduled session cleanup:", error.message);
+      logger.error(`Error during scheduled session cleanup: ${error.message}`);
     }
   });
 

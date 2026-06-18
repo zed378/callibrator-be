@@ -1,19 +1,22 @@
 // auth.controller.js
+const { AppError } = require("../utils/appError");
 const authService = require("../services/auth.service");
 const { asyncHandlerWithMapping } = require("../utils/controllerWrapper");
-const { success, badRequest, error, login } = require("../utils/response");
-const { recordFailedAttempt } = require("../services/rateLimiter.service");
-
-// ==========================================
-// REGISTER
-// ==========================================
+const { success, login } = require("../utils/response");
+const {
+  registerSchema,
+  loginSchema,
+  resetPasswordSchema,
+  validate,
+} = require("../validators/auth.validator");
 
 exports.register = asyncHandlerWithMapping(
   async (req, res) => {
-    // Use Origin header for multi-tenant support, fall back to Host header
+    validate(req.body, registerSchema);
+
     const origin = req.headers.origin || req.headers.host || "";
 
-    await authService.registerUser(req.body, origin); // service creates its own tx
+    await authService.registerUser(req.body, origin);
 
     success(
       res,
@@ -29,15 +32,11 @@ exports.register = asyncHandlerWithMapping(
   },
 );
 
-// ==========================================
-// ACTIVATION
-// ==========================================
-
 exports.activation = asyncHandlerWithMapping(
   async (req, res) => {
     const { token } = req.query;
     if (!token) {
-      throw { status: 400, message: "Activation token is required" };
+      throw new AppError(400, "Activation token is required");
     }
 
     await authService.activateAccount(token);
@@ -49,17 +48,15 @@ exports.activation = asyncHandlerWithMapping(
   },
 );
 
-// ==========================================
-// LOGIN
-// ==========================================
-
 exports.login = asyncHandlerWithMapping(
   async (req, res) => {
+    validate(req.body, loginSchema);
+
     const result = await authService.loginUser({
       ...req.body,
       ip: req.ip,
       userAgent: req.headers["user-agent"],
-    }); // service creates its own tx
+    });
 
     login(res, result.data, result.token, result.session);
   },
@@ -71,13 +68,9 @@ exports.login = asyncHandlerWithMapping(
   },
 );
 
-// ==========================================
-// SEND OTP
-// ==========================================
-
 exports.sendOTP = asyncHandlerWithMapping(
   async (req, res) => {
-    await authService.requestOTP(req.body); // service creates its own tx
+    await authService.requestOTP(req.body);
 
     success(res, null, null, "If the account exists, OTP has been sent", 200);
   },
@@ -87,37 +80,23 @@ exports.sendOTP = asyncHandlerWithMapping(
   },
 );
 
-// ==========================================
-// RESET PASSWORD
-// ==========================================
-
 exports.resetPassword = asyncHandlerWithMapping(async (req, res) => {
-  await authService.processResetPassword(req.body); // service creates its own tx
+  validate(req.body, resetPasswordSchema);
+
+  await authService.processResetPassword(req.body);
 
   success(res, null, null, "Password reset successful", 200);
 }, {});
 
-// ==========================================
-// LOGOUT
-// ==========================================
-
 exports.logout = asyncHandlerWithMapping(async (req, res) => {
-  await authService.logoutSession(req.body.sessionId);
+  await authService.logoutSession();
   success(res, null, null, "Logout successful", 200);
 }, {});
-
-// ==========================================
-// LOGOUT ALL
-// ==========================================
 
 exports.logoutAll = asyncHandlerWithMapping(async (req, res) => {
   await authService.logoutAllUserSessions(req.user.id);
   success(res, null, null, "All sessions revoked successfully", 200);
 }, {});
-
-// ==========================================
-// VERIFY TOKEN
-// ==========================================
 
 exports.verify = asyncHandlerWithMapping(
   async (req, res) => {
@@ -126,8 +105,6 @@ exports.verify = asyncHandlerWithMapping(
       req.session,
     );
 
-    // Service returns { success, status, message, data: user }
-    // Extract just the user data to avoid double-wrapping
     success(res, result.data, null, result.message, result.status);
   },
   {
@@ -135,24 +112,16 @@ exports.verify = asyncHandlerWithMapping(
   },
 );
 
-// ==========================================
-// UPDATE PASSWORD ONLY
-// ==========================================
-
 exports.justUpdatePassword = asyncHandlerWithMapping(async (req, res) => {
   const { id: userId } = req.user;
   const { newPassword } = req.body;
   const result = await authService.justUpdatePassword(userId, newPassword);
-  success(res, result.data, null, result.message, result.status);
+  success(res, null, null, result.message, 200);
 }, {});
-
-// ==========================================
-// CHECK PASSWORD VALIDITY
-// ==========================================
 
 exports.passIsValid = asyncHandlerWithMapping(async (req, res) => {
   const { id: userId } = req.user;
   const { password } = req.body;
   const result = await authService.passIsValid(userId, password);
-  success(res, result.data, null, result.message, result.status);
+  success(res, result.data, null, result.message, 200);
 }, {});

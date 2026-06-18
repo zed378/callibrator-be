@@ -1,46 +1,38 @@
-const { Models, TablePermission } = require("../models");
-const tablePermissionService = require("../services/tablePermission.service");
+const { RoleMenuPermission, User, Tenants } = require("../models");
 
 /**
- * Dynamic RBAC + ABAC Middleware
+ * Dynamic RBAC Middleware
  *
- * This middleware replaces the hardcoded rbac() and abac() middlewares.
- * It dynamically checks permissions from the database based on model and action.
+ * Simplified RBAC middleware that checks role-based menu permissions.
+ * Uses the role_menu_permissions table to determine read/write access.
  *
  * USAGE:
  *
- * // Simple model action check
- * router.get("/", auth, dynamicAccess("Invoice", "read", { checkTenant: true }), controller);
- *
- * // Self-check (user can only access their own record)
- * router.patch("/:id", auth, dynamicAccess("User", "update", { checkSelf: true }), controller);
+ * // Simple permission check
+ * router.get("/", auth, dynamicAccess("Home", "read"), controller);
  *
  * // Multiple actions (OR logic - user needs any one)
- * router.get("/", auth, dynamicAccess("Product", ["read", "export"]), controller);
+ * router.get("/", auth, dynamicAccess("Dashboard", ["read", "write"]), controller);
  *
  * // Multiple actions (AND logic - user needs all)
- * router.post("/bulk", auth, dynamicAccess("Report", ["read", "export"], { requireAll: true }), controller);
+ * router.post("/bulk", auth, dynamicAccess("Report", ["read", "write"], { requireAll: true }), controller);
  *
- * @param {string|string[]} modelName - Model name(s) (e.g., 'Invoice', 'Product', ['User', 'Admin'])
- * @param {string|string[]} action - Action(s) (e.g., 'read', 'update', ['create', 'read'])
+ * @param {string|string[]} menuGroup - Menu group name(s) (e.g., 'Home', 'Dashboard', ['Account', 'Management'])
+ * @param {string|string[]} permissionType - Permission type(s) (e.g., 'read', 'write', ['read', 'write'])
  * @param {Object} options - Additional options
- * @param {boolean} options.checkSelf - Check if user is accessing own resource
- * @param {boolean} options.checkTenant - Check tenant isolation
  * @param {boolean} options.requireAll - Require all actions (AND logic) vs any action (OR logic, default)
- * @param {string} options.idField - Custom field name for ID lookup (default: 'id')
+ * @param {boolean} options.checkSelf - Check if the requested resource belongs to the user
+ * @param {boolean} options.checkTenant - Enforce multi-tenant isolation (reject if resource belongs to different tenant)
  * @returns {Function} Express middleware
  */
-exports.dynamicAccess = (modelName, action, options = {}) => {
-  const {
-    checkSelf = false,
-    checkTenant = false,
-    requireAll = false,
-    idField = "id",
-  } = options;
+exports.dynamicAccess = (menuGroup, permissionType, options = {}) => {
+  const { requireAll = false } = options;
 
   // Normalize to arrays
-  const modelNames = Array.isArray(modelName) ? modelName : [modelName];
-  const actions = Array.isArray(action) ? action : [action];
+  const menuGroups = Array.isArray(menuGroup) ? menuGroup : [menuGroup];
+  const permTypes = Array.isArray(permissionType)
+    ? permissionType
+    : [permissionType];
 
   return async (req, res, next) => {
     try {
@@ -53,33 +45,76 @@ exports.dynamicAccess = (modelName, action, options = {}) => {
         });
       }
 
-      // 1. SUPER_ADMIN bypass - has access to everything
+      // SUPER_ADMIN bypass - has access to everything (no tenant check)
       if (user.role.name === "SUPER_ADMIN") {
         req.dynamicAccessContext = {
           allowed: true,
           reason: "SUPER_ADMIN bypass",
-          models: modelNames,
-          actions,
+          menuGroups,
+          permissionTypes: permTypes,
         };
         return next();
       }
 
-      // 2. Get tenant ID for tenant-scoped checks
-      const tenantId = req.user.tenantId;
-      const requestedTenantId = req.params.tenantId || req.body?.tenantId;
+      // ---- Tenant isolation check ----
+      if (options.checkTenant) {
+        const resourceTenantId = req.params.tenantId || req.body.tenantId;
 
-      // 3. Check permissions for each model
+        if (resourceTenantId) {
+          // Ensure resource belongs to user's tenant
+          const tenant = await Tenants.findByPk(resourceTenantId, {
+            attributes: ["id"],
+          });
+
+          if (!tenant) {
+            return res.status(404).json({
+              success: false,
+              message: "Tenant not found",
+            });
+          }
+
+          if (String(tenant.id) !== String(user.tenantId)) {
+            return res.status(403).json({
+              success: false,
+              message: "Access denied: resource belongs to a different tenant",
+            });
+          }
+        } else {
+          // No tenant ID provided but checkTenant is enabled — check resource ownership
+          const resourceOwnerId = req.params.userId || req.body.userId;
+
+          if (resourceOwnerId) {
+            const owner = await User.findByPk(resourceOwnerId, {
+              attributes: ["tenantId"],
+            });
+
+            if (!owner) {
+              return res.status(404).json({
+                success: false,
+                message: "Resource not found",
+              });
+            }
+
+            if (String(owner.tenantId) !== String(user.tenantId)) {
+              return res.status(403).json({
+                success: false,
+                message: "Access denied: resource belongs to a different tenant",
+              });
+            }
+          }
+        }
+      }
+
+      // Check permissions for each menu group
       const results = [];
       let allAllowed = true;
 
-      for (const name of modelNames) {
-        const result = await checkModelPermission(
-          name,
-          actions,
+      for (const menuName of menuGroups) {
+        const result = await checkMenuPermission(
+          menuName,
+          permTypes,
           user,
-          { checkSelf, checkTenant, requireAll },
-          req,
-          requestedTenantId,
+          requireAll,
         );
 
         results.push(result);
@@ -88,85 +123,39 @@ exports.dynamicAccess = (modelName, action, options = {}) => {
         }
       }
 
-      // If requireAll is true, ALL models must be allowed
-      // If requireAll is false (default), ANY model being allowed is sufficient
+      // If requireAll is true, ALL menu groups must be allowed
+      // If requireAll is false (default), ANY menu group being allowed is sufficient
       const finalAllowed = requireAll
         ? allAllowed
         : results.some((r) => r.allowed);
 
       if (!finalAllowed) {
-        const deniedActions = results
+        const deniedTypes = results
           .filter((r) => !r.allowed)
-          .flatMap((r) => r.deniedActions || []);
+          .flatMap((r) => r.deniedTypes || []);
 
         return res.status(403).json({
           success: false,
           message: "Forbidden: Insufficient permissions",
-          required: deniedActions.length > 0 ? deniedActions : actions,
-          models: modelNames,
+          required: deniedTypes.length > 0 ? deniedTypes : permTypes,
+          menuGroups,
         });
       }
 
-      // 4. Apply ABAC rules if present
+      // Attach permission context to request for controller use
       const allowedResult = results.find((r) => r.allowed);
-      if (allowedResult?.abacRules) {
-        const abacResult = await evaluateAbacRules(
-          allowedResult.abacRules,
-          user,
-          req,
-          allowedResult.modelName,
-        );
-
-        if (!abacResult.allowed) {
-          return res.status(403).json({
-            success: false,
-            message: abacResult.reason || "ABAC rule violation",
-          });
-        }
-      }
-
-      // 5. Handle self-check
-      if (checkSelf) {
-        const targetId =
-          req.params[idField] ||
-          req.body[`${modelNames[0].toLowerCase()}Id`] ||
-          req.query[idField];
-
-        if (targetId && String(targetId) !== String(user.id)) {
-          return res.status(403).json({
-            success: false,
-            message: `Forbidden: You can only perform actions on your own ${modelNames[0].toLowerCase()}`,
-          });
-        }
-      }
-
-      // 6. Handle tenant isolation
-      if (checkTenant && tenantId && requestedTenantId) {
-        if (String(tenantId) !== String(requestedTenantId)) {
-          return res.status(403).json({
-            success: false,
-            message: "Cross-tenant access denied",
-          });
-        }
-      }
-
-      // 7. Attach permission context to request for controller use
       req.dynamicAccessContext = {
         allowed: true,
-        models: modelNames,
-        actions,
+        menuGroups,
+        permissionTypes: permTypes,
         permission: allowedResult?.permission || null,
-        abacRules: allowedResult?.abacRules || null,
       };
-
-      // Attach allowed attributes to request for controller use
-      if (allowedResult?.permission?.attributes) {
-        req.allowedAttributes = allowedResult.permission.attributes;
-      }
 
       next();
     } catch (error) {
-      console.error("DynamicAccess Error:", error);
+      if (typeof logger !== "undefined") {
+        logger.error(`DynamicAccess Error: ${error.message}`);
+      }
       return res.status(500).json({
         success: false,
         message: error.message || "Internal Server Error",
@@ -176,230 +165,62 @@ exports.dynamicAccess = (modelName, action, options = {}) => {
 };
 
 /**
- * Check permission for a specific model
+ * Check permission for a specific menu group
  */
-async function checkModelPermission(
-  modelName,
-  actions,
-  user,
-  options,
-  req,
-  requestedTenantId,
-) {
-  const { checkSelf, checkTenant, requireAll } = options;
-
-  // Check if model exists
-  const model = await Models.findOne({
-    where: { modelName, isActive: true },
-    include: [
-      {
-        model: TablePermission,
-        as: "tablePermissions",
-        required: false,
-      },
-    ],
+async function checkMenuPermission(menuName, permTypes, user, requireAll) {
+  // Get the menu group by name
+  const { MenuGroup } = require("../models");
+  const menuGroup = await MenuGroup.findOne({
+    where: { name: menuName, isActive: true },
   });
 
-  if (!model) {
+  if (!menuGroup) {
     return {
       allowed: false,
-      deniedActions: actions,
-      modelName,
+      deniedTypes: permTypes,
+      menuGroup,
       permission: null,
-      abacRules: null,
     };
   }
 
-  // Check each action
-  const actionResults = [];
+  // Check each permission type
+  const typeResults = [];
 
-  for (const action of actions) {
-    const tablePerm = model.tablePermissions?.find((p) => p.action === action);
+  for (const permType of permTypes) {
+    const rolePerm = await RoleMenuPermission.findOne({
+      where: {
+        roleId: user.role.id,
+        menuGroupId: menuGroup.id,
+        permission_type: permType,
+      },
+    });
 
-    if (!tablePerm) {
-      actionResults.push({ action, allowed: false });
-      continue;
-    }
-
-    // Use the service to check if user has permission
-    const hasPermission = await tablePermissionService.checkUserPermission(
-      user.id,
-      modelName,
-      action,
-      requestedTenantId || user.tenantId,
-    );
-
-    actionResults.push({
-      action,
-      allowed: hasPermission.allowed,
-      permission: hasPermission.permission,
-      abacRules: hasPermission.abacRules,
+    typeResults.push({
+      permissionType: permType,
+      allowed: !!rolePerm,
     });
   }
 
-  // Determine if actions are allowed (OR or AND logic)
+  // Determine if permissions are allowed (OR or AND logic)
   const allowed = requireAll
-    ? actionResults.every((r) => r.allowed)
-    : actionResults.some((r) => r.allowed);
+    ? typeResults.every((r) => r.allowed)
+    : typeResults.some((r) => r.allowed);
 
-  const deniedActions = actionResults
+  const deniedTypes = typeResults
     .filter((r) => !r.allowed)
-    .map((r) => r.action);
+    .map((r) => r.permissionType);
 
-  // Return the first allowed permission with ABAC rules
-  const allowedResult = actionResults.find((r) => r.allowed);
+  // Return the first allowed permission
+  const allowedResult = typeResults.find((r) => r.allowed);
 
   return {
     allowed,
-    deniedActions,
-    modelName,
-    permission: allowedResult?.permission || null,
-    abacRules: allowedResult?.abacRules || null,
+    deniedTypes,
+    menuGroup,
+    permission: allowedResult
+      ? { permission_type: allowedResult.permissionType }
+      : null,
   };
-}
-
-/**
- * Evaluate ABAC rules against the request
- */
-async function evaluateAbacRules(abacRules, user, req, modelName) {
-  if (!abacRules) {
-    return { allowed: true };
-  }
-
-  const { condition, fields, operator, value, expression } = abacRules;
-
-  // Handle predefined conditions
-  switch (condition) {
-    case "owner":
-      return evaluateOwnerRule(user, req, fields);
-
-    case "attribute":
-      return evaluateAttributeRule(fields, operator, value, req, modelName);
-
-    case "custom":
-      return evaluateCustomRule(expression, user, req, fields);
-
-    case "tenant":
-      return evaluateTenantRule(user, req);
-
-    default:
-      return { allowed: true }; // Unknown conditions are allowed by default
-  }
-}
-
-/**
- * Evaluate owner rule - user can only access their own records
- */
-function evaluateOwnerRule(user, req, fields) {
-  const targetId = req.params.id || req.params.userId || req.body.userId;
-
-  if (!targetId) {
-    return { allowed: true }; // No target specified, allow
-  }
-
-  if (String(targetId) === String(user.id)) {
-    return { allowed: true };
-  }
-
-  return {
-    allowed: false,
-    reason: "You can only access your own records",
-  };
-}
-
-/**
- * Evaluate attribute rule - check resource attribute against value
- */
-async function evaluateAttributeRule(fields, operator, value, req, modelName) {
-  // This would require fetching the resource and checking the attribute
-  // For now, we return allowed - the actual implementation would depend on the model
-  // and would be implemented in the controller after fetching the resource
-
-  // Example implementation:
-  // const ModelClass = getModelByName(modelName);
-  // const resource = await ModelClass.findByPk(req.params.id);
-  // return compareAttribute(resource[fields[0]], operator, value);
-
-  return { allowed: true }; // Placeholder - actual check in controller
-}
-
-/**
- * Evaluate custom rule - execute custom JavaScript expression
- */
-function evaluateCustomRule(expression, user, req, fields) {
-  if (!expression) {
-    return { allowed: true };
-  }
-
-  try {
-    // Create a function from the expression with safe variables
-    const safeVars = { user, req };
-    const func = new Function(...Object.keys(safeVars), `return ${expression}`);
-    const result = func(...Object.values(safeVars));
-
-    return { allowed: !!result };
-  } catch (error) {
-    console.error("Custom ABAC rule evaluation error:", error);
-    return { allowed: false, reason: "Custom rule evaluation failed" };
-  }
-}
-
-/**
- * Evaluate tenant rule - user must be in the same tenant
- */
-function evaluateTenantRule(user, req) {
-  const requestedTenantId = req.params.tenantId || req.body?.tenantId;
-
-  if (!requestedTenantId || !user.tenantId) {
-    return { allowed: true };
-  }
-
-  if (String(user.tenantId) === String(requestedTenantId)) {
-    return { allowed: true };
-  }
-
-  return {
-    allowed: false,
-    reason: "Cross-tenant access denied",
-  };
-}
-
-/**
- * Helper: Compare attribute value
- */
-function compareAttribute(actual, operator, expected) {
-  switch (operator) {
-    case "eq":
-    case "==":
-      return actual === expected;
-    case "neq":
-    case "!=":
-      return actual !== expected;
-    case "in":
-      return Array.isArray(expected) && expected.includes(actual);
-    case "nin":
-      return Array.isArray(expected) && !expected.includes(actual);
-    case "gt":
-      return actual > expected;
-    case "lt":
-      return actual < expected;
-    case "gte":
-      return actual >= expected;
-    case "lte":
-      return actual <= expected;
-    default:
-      return true;
-  }
-}
-
-/**
- * Helper: Get model class by name
- */
-function getModelByName(modelName) {
-  const models = require("../models");
-  // Convert to PascalCase for model key
-  const key = modelName.charAt(0).toUpperCase() + modelName.slice(1);
-  return models[key] || null;
 }
 
 /**
@@ -409,32 +230,48 @@ function getModelByName(modelName) {
  */
 exports.hasDynamicPermission = async (req, res, next) => {
   try {
-    const { modelName, action } = req.body || {};
+    const { menuGroup, permissionType } = req.body || {};
 
-    if (!modelName || !action) {
+    if (!menuGroup || !permissionType) {
       return res.status(400).json({
         success: false,
-        message: "modelName and action are required",
+        message: "menuGroup and permissionType are required",
       });
     }
 
-    const result = await tablePermissionService.checkUserPermission(
-      req.user.id,
-      modelName,
-      action,
-      req.user.tenantId,
-    );
+    const { MenuGroup } = require("../models");
+    const menu = await MenuGroup.findOne({
+      where: { name: menuGroup, isActive: true },
+    });
+
+    if (!menu) {
+      return res.status(200).json({
+        success: true,
+        data: { allowed: false, permission: null },
+      });
+    }
+
+    const rolePerm = await RoleMenuPermission.findOne({
+      where: {
+        roleId: req.user.role.id,
+        menuGroupId: menu.id,
+        permission_type: permissionType,
+      },
+    });
 
     return res.status(200).json({
       success: true,
       data: {
-        allowed: result.allowed,
-        permission: result.permission,
-        abacRules: result.abacRules,
+        allowed: !!rolePerm,
+        permission: rolePerm
+          ? { permission_type: rolePerm.permission_type }
+          : null,
       },
     });
   } catch (error) {
-    console.error("hasDynamicPermission Error:", error);
+    if (typeof logger !== "undefined") {
+      logger.error(`hasDynamicPermission Error: ${error.message}`);
+    }
     return res.status(500).json({
       success: false,
       message: "Internal Server Error",

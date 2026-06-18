@@ -28,7 +28,11 @@ const { generateAccessToken, verifyAccessToken } = require("../utils/jwt");
 // ==========================================
 // Using in-memory cache for fast lookups
 // In production, consider using Redis for distributed systems
-const rateLimitCache = new Map();
+const rateLimitCache = process.env.REDIS_URL
+  ? {}
+  : process.env.REDIS_URL
+    ? {}
+    : new Map();
 
 // Cache TTL settings (in milliseconds)
 const CACHE_TTL = {
@@ -67,7 +71,7 @@ const RATE_LIMIT_CONFIG = {
     description: "Registration",
   },
   default: {
-    maxAttempts: 100,
+    maxAttempts: 10, // 10 attempts per 15-min window is a sensible default for unclassified endpoints
     windowMs: 15 * 60 * 1000, // 15 minutes
     lockoutMs: 5 * 60 * 1000, // 5 minutes
     description: "Default endpoint",
@@ -499,6 +503,82 @@ function clearAllRateLimits() {
   logger.info("All rate limit entries cleared");
 }
 
+/**
+ * Express middleware for endpoint-specific rate limiting
+ * @param {string} endpointKey - Key for RATE_LIMIT_CONFIG (e.g., 'tenantCreate')
+ * @param {number} maxRequests - Max requests in the window (optional, uses config if not provided)
+ * @param {number} windowMs - Window size in milliseconds (optional, uses config if not provided)
+ * @returns {Function} Express middleware
+ */
+function authRateLimiter(endpointKey = "default", maxRequests, windowMs) {
+  return async (req, res, next) => {
+    const config = RATE_LIMIT_CONFIG[endpointKey] || RATE_LIMIT_CONFIG.default;
+    const limit = maxRequests || config.maxAttempts;
+    const window = windowMs || config.windowMs;
+
+    // Build rate limit key from multiple layers
+    const ip =
+      req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
+      req.ip ||
+      req.socket.remoteAddress;
+    const userId = req.user?.id || null;
+    const tokenHash = req.tokenHash || null;
+
+    const key = getRateLimitKey({
+      userId,
+      tokenHash,
+      ip,
+      endpoint: endpointKey,
+    });
+    const now = Date.now();
+
+    const entry = rateLimitCache.get(key);
+
+    if (entry) {
+      // Check if window has expired
+      if (now >= entry.expiresAt) {
+        // Reset counter
+        rateLimitCache.set(key, {
+          count: 1,
+          windowStart: now,
+          expiresAt: now + window,
+        });
+        return next();
+      }
+
+      // Increment counter
+      entry.count++;
+
+      // Check if rate limit exceeded
+      if (entry.count > limit) {
+        return res.status(429).json({
+          success: false,
+          message: config.description
+            ? `Too many requests. ${config.description}`
+            : "Too many requests. Please try again later.",
+          retryAfter: Math.ceil((entry.expiresAt - now) / 1000),
+        });
+      }
+
+      rateLimitCache.set(key, entry);
+    } else {
+      // First request
+      rateLimitCache.set(key, {
+        count: 1,
+        windowStart: now,
+        expiresAt: now + window,
+      });
+    }
+
+    // Set rate limit headers
+    res.set("X-RateLimit-Limit", String(limit));
+    res.set("X-RateLimit-Remaining", String(Math.max(0, limit - entry.count)));
+    res.set("X-RateLimit-Reset", String(Math.ceil(entry.expiresAt / 1000)));
+
+    next();
+  };
+}
+
 module.exports = {
   // Main functions
   recordFailedAttempt,
@@ -508,6 +588,7 @@ module.exports = {
   isTokenBlocked,
   isUserLockedOut,
   getRateLimitStatus,
+  authRateLimiter,
 
   // Configuration
   RATE_LIMIT_CONFIG,

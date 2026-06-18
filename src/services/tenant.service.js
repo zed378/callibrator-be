@@ -4,7 +4,7 @@ const { db } = require("../config");
 const { Tenants, Users } = require("../models");
 const { logger } = require("../middlewares/activityLog");
 const { AppError } = require("../utils/appError");
-const { DEFAULT_LIMIT, MAX_LIMIT } = require("../utils/constants");
+const { DEFAULT_LIMIT, MAX_LIMIT } = require("../constants");
 const { deleteUpload } = require("../utils/upload");
 const {
   validate: validateInput,
@@ -43,6 +43,8 @@ const validate = (data, schema) => {
 const safeTenantAttributes = {
   exclude: ["updatedAt", "createdBy"],
 };
+
+const { TenantSettings } = require("../models");
 
 const TENANT_LOGO_BASE_URL = `${process.env.HOST_URL || "http://localhost:5000"}/uploads/tenant`;
 
@@ -104,24 +106,49 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
       ];
     }
 
-    const { rows, count } = await Tenants.findAndCountAll({
+    // Query tenants with a separate user-count subquery to avoid N+1
+    const tenantRows = await Tenants.findAll({
       where: whereClause,
       attributes: safeTenantAttributes,
-      include: [
-        {
-          model: Users,
-          as: "users",
-          attributes: ["id", "username", "email", "status"],
-          required: false,
-        },
-      ],
       order: [["id", "DESC"]],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),
     });
 
-    // Transform tenants to include logoBaseUrl
-    const transformedRows = transformTenants(rows);
+    // Count total matching tenants
+    const totalCount = await Tenants.count({ where: whereClause });
+
+    // Get user counts per tenant in a single query
+    const userCounts = await Users.findAll({
+      attributes: [
+        ["tenant_id", "id"],
+        [db.sequelize.fn("COUNT", "*"), "count"],
+      ],
+      where: whereClause
+        ? {
+            [Op.or]: [{ tenant_id: tenantRows.map((t) => t.id) }],
+          }
+        : {
+            tenant_id: tenantRows.map((t) => t.id),
+          },
+      group: ["tenant_id"],
+      raw: true,
+    });
+
+    const countMap = userCounts.reduce((acc, row) => {
+      acc[row.id] = parseInt(row.count, 10);
+      return acc;
+    }, {});
+
+    // Transform tenants to include logoBaseUrl and user count
+    const transformedRows = tenantRows.map((tenant) => {
+      const data = tenant.toJSON ? tenant.toJSON() : { ...tenant };
+      data.logoBaseUrl = data.logo
+        ? `${TENANT_LOGO_BASE_URL}/${data.logo}`
+        : null;
+      data.userCount = countMap[data.id] || 0;
+      return data;
+    });
 
     const resultData = {
       rows: transformedRows,
@@ -140,18 +167,33 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
       await set(
         cacheKey,
         {
-          rows: resultData.rows,
-          meta: resultData.meta,
+          rows: transformedRows,
+          meta: {
+            total: totalCount,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: Math.ceil(totalCount / Number(limit)),
+          },
         },
         300,
       );
     }
 
+    // Return result
     return {
       success: true,
       status: 200,
       message: "Fetch tenants successful",
-      data: resultData,
+      data: {
+        rows: transformedRows,
+        count: totalCount,
+        meta: {
+          total: totalCount,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(totalCount / Number(limit)),
+        },
+      },
     };
   } catch (error) {
     logger.error("Error fetching tenants", {
@@ -543,15 +585,7 @@ exports.getTenantSettings = async (tenantId) => {
       };
     }
 
-    const tenant = await Tenants.findByPk(tenantId, {
-      include: [
-        {
-          model: TenantSettings,
-          as: "settings",
-          required: false,
-        },
-      ],
-    });
+    const tenant = await Tenants.findByPk(tenantId);
 
     if (!tenant) {
       return {
@@ -563,10 +597,10 @@ exports.getTenantSettings = async (tenantId) => {
     }
 
     const settings = {};
-    if (tenant.settings && tenant.settings.length > 0) {
-      tenant.settings.forEach((setting) => {
-        settings[setting.key] = setting.value;
-      });
+    // Tenants use a JSONB 'settings' column (not a separate Tenant table)
+    const rawSettings = tenant.settings;
+    if (rawSettings && typeof rawSettings === "object") {
+      Object.assign(settings, rawSettings);
     }
 
     const result = { tenant, settings };
@@ -587,7 +621,7 @@ exports.getTenantSettings = async (tenantId) => {
 };
 
 // ------------------------------------------------------------------
-// UPDATE TENANT SETTINGS
+// UPDATE TENANT SETTINGS (renamed from duplicate updateTenant)
 // ------------------------------------------------------------------
 exports.updateTenantSettings = async (tenantId, settingsData, updatedBy) => {
   const transaction = await db.transaction();

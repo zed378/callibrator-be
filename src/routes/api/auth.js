@@ -22,10 +22,10 @@ const {
   rateLimitHeaders,
 } = require('../../middlewares/tokenRateLimiter');
 
-// IP-based rate limiter (additional layer for DDoS protection)
+// IP-based rate limiter (DDoS protection — global limiters in index.js handle per-endpoint)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per 15 minutes per IP
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -35,8 +35,8 @@ const authLimiter = rateLimit({
 });
 
 const otpLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // 10 requests per hour
+  windowMs: 60 * 60 * 1000,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

@@ -82,6 +82,17 @@ if (process.env.NODE_ENV !== "production") {
 // Compression
 app.use(compression());
 
+// HTTPS Redirect (production only — behind reverse proxy)
+if (process.env.NODE_ENV === "production" && process.env.FORCE_HTTPS === "true") {
+  app.use((req, res, next) => {
+    if (!req.secure && req.get("X-Forwarded-Proto") !== "https") {
+      // Redirect to HTTPS (preserves path + query)
+      return res.redirect(301, `https://${req.get("Host")}${req.url}`);
+    }
+    next();
+  });
+}
+
 // Security Headers
 app.use(
   helmet({
@@ -110,20 +121,23 @@ app.use(
         return callback(null, true);
       }
 
-      // Allow all if no CORS_ORIGIN specified (development)
-      if (allowedOrigins.length === 0 || allowedOrigins.includes("*")) {
+      // Strict: only allow explicitly configured origins
+      if (allowedOrigins.includes(origin.trim()) || allowedOrigins.includes("*")) {
         return callback(null, true);
       }
 
-      if (allowedOrigins.includes(origin.trim())) {
-        return callback(null, true);
+      // Production default: reject if no origins configured
+      if (process.env.NODE_ENV === "production" && allowedOrigins.length === 0) {
+        console.warn(
+          `CORS error: "${origin}" rejected — no CORS_ORIGIN configured in production`,
+        );
+        return callback(new Error("Not allowed by CORS"));
       }
 
-      // Log the mismatch for debugging
-      console.warn(
-        `CORS error: "${origin}" not in allowed origins:`,
-        allowedOrigins,
-      );
+      // Development default: allow all
+      if (process.env.NODE_ENV !== "production") {
+        return callback(null, true);
+      }
 
       return callback(new Error("Not allowed by CORS"));
     },
@@ -261,13 +275,10 @@ swaggerDocs(app);
 const migrationRoutes = require("./src/routes/internal/migration");
 const authRoutes = require("./src/routes/api/auth");
 const userRoutes = require("./src/routes/api/user");
-const permissionRoutes = require("./src/routes/api/permission");
 const tenantRoutes = require("./src/routes/api/tenant");
 const tenantBackupRoutes = require("./src/routes/api/tenantBackup");
-const tablePermissionRoutes = require("./src/routes/api/tablePermission");
 const rolesRoutes = require("./src/routes/api/roles");
-const modelDiscoveryRoutes = require("./src/routes/api/modelDiscovery");
-const menuGroupRoutes = require("./src/routes/api/menuGroup");
+const sessionRoutes = require("./src/routes/api/session");
 
 // ======================================================
 // ROUTES ENDPOINT
@@ -278,13 +289,10 @@ if (process.env.NODE_ENV !== "production") {
 }
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/users", userRoutes);
-app.use("/api/v1/permissions", permissionRoutes);
+app.use("/api/v1/roles", rolesRoutes);
 app.use("/api/v1/tenants", tenantRoutes);
 app.use("/api/v1/tenants", tenantBackupRoutes);
-app.use("/api/v1/table-permissions", tablePermissionRoutes);
-app.use("/api/v1/roles", rolesRoutes);
-app.use("/api/v1/model-discovery", modelDiscoveryRoutes);
-app.use("/api/v1/menu-groups", menuGroupRoutes);
+app.use("/api/v1/sessions", sessionRoutes);
 
 // ======================================================
 // HEALTHCHECK

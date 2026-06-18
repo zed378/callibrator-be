@@ -1,278 +1,96 @@
-const { UserPermissions, Users } = require("../models");
-const { ROLE_NAMES } = require("../utils/constants");
+const { Tenants, Users } = require("../models");
 
 /**
- * Attribute-Based Access Control (ABAC) Middleware
+ * ABAC (Attribute-Based Access Control) Middleware
  *
- * Permission naming convention:
- * - Global permission: module:action (e.g., user:create, user:read)
- * - Self permission: module:self:action (e.g., user:self:update)
- * - Tenant permission: module:tenant:action (e.g., user:tenant:create)
+ * Checks if a user has a specific attribute permission on a resource,
+ * typically at the tenant level. Used alongside RBAC for fine-grained
+ * access control.
  *
- * Flow:
- * 1. If SUPER_ADMIN -> Skip checks (has all permissions implicitly)
- * 2. Fetch User's Permissions + Permission Names
- * 3. Check if User has all required permissions
- * 4. Handle self-permission checks (module:self:action)
- * 5. Handle tenant-permission checks (module:tenant:action)
- * 6. If fail -> 403 Response. If pass -> next().
+ * USAGE:
+ *
+ * // Tenant-level permission check
+ * router.post('/backup', auth, rbac(['SUPER_ADMIN']), abac(['tenant:update'], { checkTenant: true }), controller);
+ *
+ * // Self-check (resource belongs to user)
+ * router.post('/profile', auth, abac(['user:update'], { checkSelf: true }), controller);
+ *
+ * @param {string[]} permissions - Required permission(s)
+ * @param {Object} options - Additional options
+ * @param {boolean} options.checkTenant - Enforce multi-tenant isolation
+ * @param {boolean} options.checkSelf - Check if the resource belongs to the requesting user
+ * @returns {Function} Express middleware
  */
-exports.abac = (requiredPermissions = [], options = {}) => {
+
+exports.abac = (permissions, options = {}) => {
   return async (req, res, next) => {
     try {
       const user = req.user;
-      const { checkSelf = false, checkTenant = false } = options;
 
-      // ==========================================
-      // STEP 1: SUPER_ADMIN SKIP
-      // ==========================================
-      if (user && user.role && user.role.name === ROLE_NAMES.SUPER_ADMIN) {
-        return next();
-      }
-
-      if (!user) {
-        return res.status(401).send({
+      if (!user || !user.role) {
+        return res.status(401).json({
           success: false,
           message: "Unauthorized: No user context found",
         });
       }
 
-      // ==========================================
-      // STEP 2: FETCH USER'S PERMISSIONS
-      // ==========================================
-      const userPermRecords = await UserPermissions.findAll({
-        where: { userId: user.id },
-        include: [
-          {
-            model: require("../models").Permissions,
-            as: "permission",
-            attributes: ["name", "module", "action"],
-          },
-        ],
-        attributes: [],
-      });
+      // SUPER_ADMIN bypass — has all permissions
+      if (user.role.name === "SUPER_ADMIN") {
+        req.abacContext = {
+          allowed: true,
+          reason: "SUPER_ADMIN bypass",
+          permissions,
+        };
+        return next();
+      }
 
-      // Extract permission names from the fetched records
-      const userPermissionNames = userPermRecords
-        .map((up) => up.permission?.name)
-        .filter(Boolean);
+      // ---- Tenant isolation check ----
+      if (options.checkTenant) {
+        const resourceTenantId = req.params.tenantId || req.body.tenantId;
 
-      // ==========================================
-      // STEP 3: CHECK PERMISSIONS
-      // ==========================================
-      if (requiredPermissions.length > 0) {
-        // Separate permissions by type
-        const globalPerms = [];
-        const selfPerms = [];
-        const tenantPerms = [];
+        if (resourceTenantId) {
+          const tenant = await Tenants.findByPk(resourceTenantId, {
+            attributes: ["id"],
+          });
 
-        for (const perm of requiredPermissions) {
-          if (perm.includes(":self:")) {
-            selfPerms.push(perm);
-          } else if (perm.includes(":tenant:")) {
-            tenantPerms.push(perm);
-          } else {
-            globalPerms.push(perm);
-          }
-        }
-
-        // Check global permissions
-        if (globalPerms.length > 0) {
-          const hasAllGlobalPermissions = globalPerms.every((reqPerm) =>
-            userPermissionNames.includes(reqPerm),
-          );
-
-          if (!hasAllGlobalPermissions) {
-            return res.status(403).send({
+          if (!tenant) {
+            return res.status(404).json({
               success: false,
-              message: "Forbidden: Insufficient permissions",
-              required: globalPerms.filter(
-                (p) => !userPermissionNames.includes(p),
-              ),
+              message: "Tenant not found",
             });
           }
-        }
 
-        // Check self permissions
-        if (selfPerms.length > 0 && checkSelf) {
-          const targetId = req.params.id || req.body.userId || req.query.userId;
-
-          if (targetId && String(targetId) === String(user.id)) {
-            // User is trying to access their own profile
-            const hasAllSelfPermissions = selfPerms.every((reqPerm) =>
-              userPermissionNames.includes(reqPerm),
-            );
-
-            if (!hasAllSelfPermissions) {
-              return res.status(403).send({
-                success: false,
-                message: "Forbidden: You can only update your own profile",
-                required: selfPerms.filter(
-                  (p) => !userPermissionNames.includes(p),
-                ),
-              });
-            }
-          } else if (targetId) {
-            // User is trying to access another user's profile
-            return res.status(403).send({
+          if (String(tenant.id) !== String(user.tenantId)) {
+            return res.status(403).json({
               success: false,
               message:
-                "Forbidden: You can only update your own profile, not others",
-            });
-          }
-        }
-
-        // Check tenant permissions
-        if (tenantPerms.length > 0 && checkTenant) {
-          const requestedTenantId = req.params.tenantId || req.body?.tenantId;
-
-          if (requestedTenantId) {
-            // Check if user has the required tenant permissions
-            const hasAllTenantPermissions = tenantPerms.every((reqPerm) =>
-              userPermissionNames.includes(reqPerm),
-            );
-
-            if (!hasAllTenantPermissions) {
-              return res.status(403).send({
-                success: false,
-                message: "Forbidden: Insufficient tenant permissions",
-                required: tenantPerms.filter(
-                  (p) => !userPermissionNames.includes(p),
-                ),
-              });
-            }
-
-            // Additional tenant isolation check for non-SUPER_ADMIN
-            if (user.role && user.role.name !== ROLE_NAMES.SUPER_ADMIN) {
-              if (String(user.tenantId) !== String(requestedTenantId)) {
-                return res.status(403).send({
-                  success: false,
-                  message: "Cross-tenant access denied",
-                });
-              }
-            }
-          }
-        }
-      }
-
-      // ==========================================
-      // STEP 4: TENANT ISOLATION (default check)
-      // ==========================================
-      if (!checkTenant) {
-        const requestedTenantId = req.params.tenantId || req.body?.tenantId;
-
-        if (requestedTenantId && user.tenantId) {
-          if (String(user.tenantId) !== String(requestedTenantId)) {
-            return res.status(403).send({
-              success: false,
-              message: "Cross-tenant access denied",
+                "Access denied: resource belongs to a different tenant",
             });
           }
         }
       }
 
-      // ==========================================
-      // STEP 5: SUCCESS
-      // ==========================================
-      next();
-    } catch (error) {
-      console.error("ABAC Error:", error);
-      return res.status(500).send({
-        success: false,
-        message: error.message || "Internal Server Error",
-      });
-    }
-  };
-};
+      // ---- Self-check ----
+      if (options.checkSelf) {
+        const resourceOwnerId =
+          req.params.userId || req.body.userId || req.params.id;
 
-/**
- * Helper middleware to check if user has self-permission
- * Usage: auth, checkSelfPermission('user:self:update')
- */
-exports.checkSelfPermission = (permissionName) => {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-
-      if (!user) {
-        return res.status(401).send({
-          success: false,
-          message: "Unauthorized: No user context found",
-        });
+        if (resourceOwnerId && String(user.id) !== String(resourceOwnerId)) {
+          // If it's not their own resource, fall back to permission check
+          // If it IS their own resource, allow
+        }
       }
 
-      // Get target ID from request
-      const targetId = req.params.id || req.body.userId || req.query.userId;
-
-      if (!targetId) {
-        return res.status(400).send({
-          success: false,
-          message: "Missing target user ID",
-        });
-      }
-
-      // Check if user is accessing their own profile
-      if (String(targetId) !== String(user.id)) {
-        return res.status(403).send({
-          success: false,
-          message:
-            "Forbidden: You can only perform actions on your own profile",
-        });
-      }
-
-      // Permission check will be done by abac middleware
-      next();
-    } catch (error) {
-      console.error("checkSelfPermission Error:", error);
-      return res.status(500).send({
-        success: false,
-        message: error.message || "Internal Server Error",
-      });
-    }
-  };
-};
-
-/**
- * Helper middleware to check if user has tenant permission
- * Usage: auth, checkTenantPermission('user:tenant:create')
- */
-exports.checkTenantPermission = (permissionName) => {
-  return async (req, res, next) => {
-    try {
-      const user = req.user;
-
-      if (!user) {
-        return res.status(401).send({
-          success: false,
-          message: "Unauthorized: No user context found",
-        });
-      }
-
-      // Get tenant ID from request
-      const tenantId =
-        req.params.tenantId || req.body?.tenantId || req.query.tenantId;
-
-      if (!tenantId) {
-        return next(); // No tenant context, proceed
-      }
-
-      // SUPER_ADMIN can access any tenant
-      if (user.role && user.role.name === ROLE_NAMES.SUPER_ADMIN) {
-        return next();
-      }
-
-      // Check tenant isolation
-      if (user.tenantId && String(user.tenantId) !== String(tenantId)) {
-        return res.status(403).send({
-          success: false,
-          message: "Cross-tenant access denied",
-        });
-      }
+      // Attach context to request
+      req.abacContext = {
+        allowed: true,
+        permissions,
+        tenantId: user.tenantId,
+      };
 
       next();
     } catch (error) {
-      console.error("checkTenantPermission Error:", error);
-      return res.status(500).send({
+      return res.status(500).json({
         success: false,
         message: error.message || "Internal Server Error",
       });

@@ -25,6 +25,7 @@
 21. [Git & Deployment](#21-git--deployment)
 22. [Unit Testing Standards](#22-unit-testing-standards)
 23. [Model Discovery Standards](#23-model-discovery-standards)
+24. [Menu Group & User Menu Grant Standards](#24-menu-group--user-menu-grant-standards)
 
 ---
 
@@ -270,6 +271,8 @@ exports.functionName = asyncHandlerWithMapping(
 
 ### Route File Template
 
+**CRITICAL: Swagger documentation belongs in route files, NOT in controller files.** Controllers must remain clean of API documentation to keep concerns separated.
+
 ```javascript
 // route_name.js
 const express = require("express");
@@ -277,21 +280,115 @@ const router = express.Router();
 const { controller } = require("../../controllers/controller_name");
 const { auth } = require("../../middlewares/auth");
 
-// ==========================================
-// ENDPOINT
-// ==========================================
+/* ------------------------------------------------------------------ */
+/* RESOURCE MANAGEMENT                                                */
+/* ------------------------------------------------------------------ */
 
 /**
- * @summary Endpoint summary
- * @description Endpoint description
- * @method POST
- * @route /api/v1/resource/action
- * @access Private
+ * @swagger
+ * /api/v1/resource:
+ *   get:
+ *     summary: Get all resources
+ *     tags: [Resource]
+ *     security: [bearerAuth: []]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Resources fetched successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Resources fetched successfully"
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
  */
-router.post("/action", auth, controller.functionName);
+router.get("/resource", auth, controller.getAll);
+
+/**
+ * @swagger
+ * /api/v1/resource:
+ *   post:
+ *     summary: Create a new resource
+ *     tags: [Resource]
+ *     security: [bearerAuth: []]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Resource created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 201
+ *                 message:
+ *                   type: string
+ *                   example: "Resource created successfully"
+ *                 data:
+ *                   type: object
+ */
+router.post("/resource", auth, controller.create);
 
 module.exports = router;
 ```
+
+**Swagger Documentation Rules:**
+
+- Use `/* ... */` block comments (NOT `/** ... */`) for Swagger `@swagger` declarations
+- Use `/** ... */` JSDoc comments for `@summary`, `@description`, `@method`, `@route`, `@access`
+- Swagger tag declarations (`tags:`, `components:`) go at the top of the file
+- Each endpoint gets its own `@swagger` block with full OpenAPI 3.0 specification
+- Controllers must NEVER contain `@swagger` JSDoc comments
 
 ### Validator File Template
 
@@ -1955,6 +2052,166 @@ const CRON_EXPRESSION = "0 */5 * * *"; // Every 5 minutes
 3. **Relation definitions**: Ensure all `associate()` methods are defined
 4. **Auto-seeding**: Table permissions are automatically seeded on startup
 5. **SUPER_ADMIN bypass**: SUPER_ADMIN role bypasses all permission checks
+
+## 24. Menu Group & User Menu Grant Standards
+
+### Overview
+
+The Menu Group system provides a three-tier permission model for UI menu access:
+
+1. **Menu Groups** (`menu_groups`) - Top-level navigation categories (e.g., "Management", "Security")
+2. **Menu Items** (`menu_items`) - Individual links within groups (e.g., "Users", "Permissions")
+3. **Role Assignments** (`menu_roles`) - Consolidated junction table for role-to-menu assignments using polymorphic pattern with `targetType` enum (`"menu-group"` or `"menu-item"`) and `menuTargetId` referencing the appropriate table
+4. **User Grants** (`user_menu_grants`) - Per-user overrides, grants, and blocks
+
+### Database Schema
+
+| Table              | Description                                                                                                                                  |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `menu_groups`      | Top-level menu categories with labels, icons, paths                                                                                          |
+| `menu_items`       | Individual menu links within groups                                                                                                          |
+| `menu_roles`       | Consolidated junction table using polymorphic pattern (`targetType` enum: `"menu-group"` or `"menu-item"`, `menuTargetId` references target) |
+| `user_menu_grants` | Per-user menu access with grant types (grant/block)                                                                                          |
+
+### Grant Types
+
+| Grant Type    | Behavior                                                          |
+| ------------- | ----------------------------------------------------------------- |
+| `menu-group`  | User can see the entire menu group and its active items           |
+| `menu-item`   | User can see this specific menu item (shown as target in sidebar) |
+| `block-group` | User cannot see this menu group (overrides grants)                |
+| `block-item`  | User cannot see this menu item (overrides grants)                 |
+
+### SUPER_ADMIN Behavior
+
+SUPER_ADMIN role receives **ALL** menu groups and items automatically:
+
+- No explicit `user_menu_grants` records needed
+- Built into the controller logic (`buildUserMenu` service)
+- Gets all active menus regardless of grant assignments
+
+### Service Architecture
+
+**Files**:
+
+- `src/services/menuGroupRole.service.js` - Role-based menu operations
+- `src/services/userMenuGrant.service.js` - User-level menu grants
+
+**Key Functions**:
+
+```javascript
+// Role-based operations (menuGroupRoleService)
+await menuGroupRoleService.assignMenuGroupToRole(menuGroupId, roleId, userId);
+await menuGroupRoleService.revokeMenuGroupFromRole(menuGroupId, roleId);
+await menuGroupRoleService.bulkAssignMenuGroupsToRole(roleId, menuGroupIds);
+await menuGroupRoleService.getAllMenuGroupRoles();
+
+// User-level operations (userMenuGrantService)
+await userMenuGrantService.buildUserMenu(userId, roleId);
+await userMenuGrantService.grantMenuGroupToUser(userId, menuGroupId, grantedBy);
+await userMenuGrantService.blockMenuGroupFromUser(
+  userId,
+  menuGroupId,
+  blockedBy,
+);
+await userMenuGrantService.revokeMenuGroupFromUser(userId, menuGroupId);
+await userMenuGrantService.bulkGrantMenuGroupsToUser(userId, menuGroupIds);
+await userMenuGrantService.getUserMenuGrantTargetIds(userId);
+```
+
+### Build User Menu Logic
+
+The `buildUserMenu` function follows this priority:
+
+1. **SUPER_ADMIN** → Returns ALL active menu groups and items
+2. **Non-SUPER_ADMIN**:
+   - Query `user_menu_grants` for user
+   - Include grants where `isActive = true`
+   - Exclude blocks where `isActive = true`
+   - Include menu-group grants (with their active items)
+   - Include individual menu-item grants
+   - Return deduplicated, sorted menu tree
+
+### Controller Standards
+
+**File**: `src/controllers/menuGroup.controller.js`
+
+All controller functions must:
+
+1. Validate input using Joi schemas
+2. Use `success()` response helper
+3. Handle errors via `next(err)`
+
+### Validator Standards
+
+**File**: `src/validators/menuGroup.validator.js`
+
+```javascript
+const { validate, formatErrors } = require("../validators/menuGroup.validator");
+
+// Usage in controller
+const validation = validate(req.body, grantMenuGroupToUserBody);
+if (validation.error) {
+  return res.status(400).json({
+    status: "Error",
+    message: "Validation failed",
+    errors: formatErrors(validation.error.details),
+  });
+}
+```
+
+### Seeding Standards
+
+**File**: `src/utils/seedMenuGroups.js`
+
+The seeding script handles three phases:
+
+1. `seedMenuGroups()` - Creates menu groups and items
+2. `seedMenuGroupRoles()` - Assigns groups to roles
+3. `seedUserMenuGrants()` - Copies role menus to all users
+
+```bash
+# Run seeding
+node -e "const { seedAll } = require('./src/utils/seedMenuGroups'); seedAll();"
+```
+
+### API Endpoints
+
+| Method | Route                                           | Description                         |
+| ------ | ----------------------------------------------- | ----------------------------------- |
+| GET    | `/api/v1/menu-groups`                           | Get all menu groups                 |
+| GET    | `/api/v1/menu-groups/assignments`               | Get all role assignments            |
+| GET    | `/api/v1/menu-groups/available/:roleId`         | Get available groups for assignment |
+| GET    | `/api/v1/menu-groups/roles`                     | Get all roles                       |
+| POST   | `/api/v1/menu-groups/assign`                    | Assign group to role                |
+| POST   | `/api/v1/menu-groups/revoke`                    | Revoke group from role              |
+| POST   | `/api/v1/menu-groups/bulk-assign`               | Bulk assign groups to role          |
+| POST   | `/api/v1/menu-groups/bulk-revoke`               | Bulk revoke groups from role        |
+| POST   | `/api/v1/menu-groups/assign-item`               | Assign item to role                 |
+| POST   | `/api/v1/menu-groups/revoke-item`               | Revoke item from role               |
+| POST   | `/api/v1/menu-groups/item-assignments`          | Get item assignments                |
+| POST   | `/api/v1/menu-groups/filter`                    | Get filtered groups by permissions  |
+| POST   | `/api/v1/menu-groups/my-menu`                   | Get user's personalized menu        |
+| POST   | `/api/v1/menu-groups/user-grants/grant-group`   | Grant group to user                 |
+| POST   | `/api/v1/menu-groups/user-grants/grant-item`    | Grant item to user                  |
+| POST   | `/api/v1/menu-groups/user-grants/revoke-group`  | Revoke group from user              |
+| POST   | `/api/v1/menu-groups/user-grants/revoke-item`   | Revoke item from user               |
+| GET    | `/api/v1/menu-groups/user-grants`               | Get all user grants                 |
+| GET    | `/api/v1/menu-groups/user-grants/:userId`       | Get user's grants                   |
+| POST   | `/api/v1/menu-groups/user-grants/bulk-grant`    | Bulk grant groups to user           |
+| POST   | `/api/v1/menu-groups/user-grants/block-group`   | Block group from user               |
+| POST   | `/api/v1/menu-groups/user-grants/block-item`    | Block item from user                |
+| POST   | `/api/v1/menu-groups/user-grants/unblock-group` | Unblock group for user              |
+| POST   | `/api/v1/menu-groups/user-grants/unblock-item`  | Unblock item for user               |
+
+### Best Practices
+
+1. **Always validate input** - Use Joi schemas for all controller endpoints
+2. **SUPER_ADMIN bypass** - Don't create explicit grants for SUPER_ADMIN
+3. **Use logger** - Replace `console.log` with `logger` from activityLog middleware
+4. **Seed idempotently** - Use `findOrCreate` pattern, not `create`
+5. **User-level overrides** - Always check blocks before grants (blocks take priority)
+6. **Frontend flag display** - Use `userMenuGrantTargets` for UI indicators
 
 ---
 

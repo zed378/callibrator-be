@@ -14,6 +14,8 @@ const express = require("express");
 const router = express.Router();
 const { auth } = require("../../middlewares/auth");
 const { dynamicAccess } = require("../../middlewares/dynamicAccess");
+const { validateUuid } = require("../../middlewares/validateUuid");
+const { authRateLimiter } = require("../../services/rateLimiter.service");
 const tenantController = require("../../controllers/tenant.controller");
 const { upload } = require("../../utils/upload");
 
@@ -324,6 +326,7 @@ router.post(
  */
 router.post(
   "/create",
+  authRateLimiter("tenantCreate"),
   auth,
   dynamicAccess("Tenant", "create", { checkTenant: true }),
   upload({
@@ -483,6 +486,7 @@ router.post(
  */
 router.patch(
   "/edit",
+  authRateLimiter("tenantUpload"),
   auth,
   dynamicAccess("Tenant", "update", { checkSelf: true, checkTenant: true }),
   upload({

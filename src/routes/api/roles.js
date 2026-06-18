@@ -1,32 +1,34 @@
 /**
  * @swagger
  * /api/v1/roles:
- *   description: Endpoint group for Role Management
- * components:
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
+ *   tags:
+ *     name: Roles
+ *     description: Role-based access control endpoints (RBAC with read/write permissions)
+ *   components:
+ *     securitySchemes:
+ *       bearerAuth:
+ *         type: http
+ *         scheme: bearer
+ *         bearerFormat: JWT
  */
 
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const rolesController = require('../../controllers/roles.controller');
-const { auth } = require('../../middlewares/auth');
-const { rbac } = require('../../middlewares/rbac');
+const rolesController = require("../../controllers/roles.controller");
+const { auth } = require("../../middlewares/auth");
+const { rbac } = require("../../middlewares/rbac");
+const { validateUuid } = require("../../middlewares/validateUuid");
 
 /* ------------------------------------------------------------------ */
-/* GET ALL ROLES                                                      */
+/*                     ROLES ENDPOINTS                                 */
 /* ------------------------------------------------------------------ */
+
 /**
  * @swagger
- * /api/v1/roles/all:
+ * /api/v1/roles:
  *   get:
- *     summary: Fetch a list of all roles with pagination and search
- *     description: Requires SUPER_ADMIN role. Only super admin can view all roles.
- *     tags:
- *       - Roles
+ *     summary: Fetch all roles with their menus and permissions
+ *     tags: [Roles]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -35,193 +37,58 @@ const { rbac } = require('../../middlewares/rbac');
  *         schema:
  *           type: integer
  *           default: 1
- *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 20
- *         description: Items per page
  *       - in: query
  *         name: search
  *         schema:
  *           type: string
- *         description: Search by name, description, or nameToShow
  *     responses:
- *       '200':
- *         description: Successful retrieval
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Fetch roles successful"
- *                 data:
- *                   type: object
- *                   properties:
- *                     rows:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                             format: uuid
- *                           name:
- *                             type: string
- *                             example: "TENANT_ADMIN"
- *                           description:
- *                             type: string
- *                             example: "Tenant Administrator"
- *                           nameToShow:
- *                             type: string
- *                             example: "Tenant Admin"
- *                           isActive:
- *                             type: boolean
- *                             example: true
- *                           roleLevel:
- *                             type: integer
- *                             example: 2
- *                           createdAt:
- *                             type: string
- *                             format: date-time
- *                           updatedAt:
- *                             type: string
- *                             format: date-time
- *                     meta:
- *                       type: object
- *                       properties:
- *                         total:
- *                           type: integer
- *                         page:
- *                           type: integer
- *                         limit:
- *                           type: integer
- *                         totalPages:
- *                           type: integer
- *       '500':
- *         description: Internal Server Error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Internal server error"
+ *       200:
+ *         description: Roles fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
-router.get('/all', auth, rbac(['SUPERADMIN']), rolesController.getAllRoles);
+router.get("/", auth, rbac(["SUPERADMIN"]), rolesController.getAllRoles);
 
-/* ------------------------------------------------------------------ */
-/* GET SPECIFIC ROLE BY ID                                            */
-/* ------------------------------------------------------------------ */
 /**
  * @swagger
- * /api/v1/roles/detail:
- *   post:
- *     summary: Get details of a specific role by its ID
- *     description: Requires SUPER_ADMIN role. Only super admin can view role details.
- *     tags:
- *       - Roles
+ * /api/v1/roles/{id}:
+ *   get:
+ *     summary: Get role by ID with nested menus and permissions
+ *     tags: [Roles]
  *     security:
  *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - roleId
- *             properties:
- *               roleId:
- *                 type: string
- *                 format: uuid
- *                 description: UUID of the role to fetch
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
  *     responses:
- *       '200':
- *         description: Role found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Fetch role successful"
- *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       format: uuid
- *                     name:
- *                       type: string
- *                       example: "TENANT_ADMIN"
- *                     description:
- *                       type: string
- *                       example: "Tenant Administrator"
- *                     nameToShow:
- *                       type: string
- *                       example: "Tenant Admin"
- *                     isActive:
- *                       type: boolean
- *                       example: true
- *                     roleLevel:
- *                       type: integer
- *                       example: 2
- *                     createdAt:
- *                       type: string
- *                       format: date-time
- *                     updatedAt:
- *                       type: string
- *                       format: date-time
- *       '400':
- *         description: Bad Request (Invalid ID or not found)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role not found"
- *       '500':
- *         description: Internal Server Error
+ *       200:
+ *         description: Role fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Role not found
+ *       500:
+ *         description: Internal server error
  */
-router.post('/detail', auth, rbac(['SUPERADMIN']), rolesController.getRole);
+router.get("/:id", validateUuid("id"), auth, rbac(["SUPERADMIN"]), rolesController.getRoleById);
 
-/* ------------------------------------------------------------------ */
-/* CREATE ROLE                                                        */
-/* ------------------------------------------------------------------ */
 /**
  * @swagger
- * /api/v1/roles/create:
+ * /api/v1/roles:
  *   post:
- *     summary: Create a new role
- *     description: Requires SUPER_ADMIN role. Only super admin can create new roles.
- *     tags:
- *       - Roles
+ *     summary: Create a new role with optional menus and permissions
+ *     tags: [Roles]
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -232,363 +99,40 @@ router.post('/detail', auth, rbac(['SUPERADMIN']), rolesController.getRole);
  *             type: object
  *             required:
  *               - name
- *               - roleLevel
  *             properties:
  *               name:
  *                 type: string
- *                 example: "MANAGER"
  *               description:
  *                 type: string
- *                 example: "Manager role with limited access"
- *               nameToShow:
- *                 type: string
- *                 example: "Manager"
- *               isActive:
- *                 type: boolean
- *                 example: true
- *               roleLevel:
- *                 type: integer
- *                 example: 3
- *                 description: "Role hierarchy level: 1 = USER, 2 = TENANT_ADMIN, 3 = SUPER_ADMIN"
- *     responses:
- *       '201':
- *         description: Role created successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 201
- *                 message:
- *                   type: string
- *                   example: "Role created successfully"
- *                 data:
+ *               menus:
+ *                 type: array
+ *                 items:
  *                   type: object
  *                   properties:
- *                     id:
+ *                     menuId:
  *                       type: string
  *                       format: uuid
- *                     name:
- *                       type: string
- *                     description:
- *                       type: string
- *                     nameToShow:
- *                       type: string
- *                     isActive:
- *                       type: boolean
- *                     roleLevel:
- *                       type: integer
- *                     createdAt:
- *                       type: string
- *                       format: date-time
- *                     updatedAt:
- *                       type: string
- *                       format: date-time
- *       '400':
- *         description: Conflict or Validation Error
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role already exists"
- *       '500':
- *         description: Internal Server Error
- */
-router.post('/create', auth, rbac(['SUPERADMIN']), rolesController.createRole);
-
-/* ------------------------------------------------------------------ */
-/* UPDATE ROLE                                                        */
-/* ------------------------------------------------------------------ */
-/**
- * @swagger
- * /api/v1/roles/edit:
- *   patch:
- *     summary: Update an existing role
- *     description: Requires SUPER_ADMIN role. Only super admin can update existing roles.
- *     tags:
- *       - Roles
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - id
- *             properties:
- *               id:
- *                 type: string
- *                 format: uuid
- *                 description: UUID of the role to update
- *               name:
- *                 type: string
- *                 example: "MANAGER"
- *               description:
- *                 type: string
- *                 example: "Updated description"
- *               nameToShow:
- *                 type: string
- *                 example: "Manager"
- *               isActive:
- *                 type: boolean
- *                 example: true
- *               roleLevel:
- *                 type: integer
- *                 example: 3
- *     responses:
- *       '200':
- *         description: Role updated successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Role updated successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       format: uuid
- *                     name:
- *                       type: string
- *                     description:
- *                       type: string
- *                     nameToShow:
- *                       type: string
- *                     isActive:
- *                       type: boolean
- *                     roleLevel:
- *                       type: integer
- *                     createdAt:
- *                       type: string
- *                       format: date-time
- *                     updatedAt:
- *                       type: string
- *                       format: date-time
- *       '400':
- *         description: Bad Request (Not found or invalid input)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role not found"
- *       '409':
- *         description: Conflict (Role name already exists)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role name already exists"
- *       '500':
- *         description: Internal Server Error
- */
-router.patch('/edit', auth, rbac(['SUPERADMIN']), rolesController.updateRole);
-
-/* ------------------------------------------------------------------ */
-/* DELETE ROLE                                                        */
-/* ------------------------------------------------------------------ */
-/**
- * @swagger
- * /api/v1/roles/delete:
- *   delete:
- *     summary: Delete a role by ID
- *     description: Requires SUPER_ADMIN role. Only super admin can delete roles. Built-in roles cannot be deleted.
- *     tags:
- *       - Roles
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: query
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: UUID of the role to delete
- *     responses:
- *       '200':
- *         description: Role deleted successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Role deleted successfully"
- *       '400':
- *         description: Bad Request (Not found or invalid ID)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role not found"
- *       '403':
- *         description: Forbidden (Cannot delete built-in role)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Cannot delete built-in role"
- *       '500':
- *         description: Internal Server Error
- */
-router.delete(
-  '/delete',
-  auth,
-  rbac(['SUPERADMIN']),
-  rolesController.deleteRole,
-);
-
-/* ------------------------------------------------------------------ */
-/* GET ROLE PERMISSIONS                                               */
-/* ------------------------------------------------------------------ */
-/**
- * @swagger
- * /api/v1/roles/{id}/permissions:
- *   get:
- *     summary: Get all permissions assigned to a role
- *     description: Requires SUPER_ADMIN role. Only super admin can view role permissions.
- *     tags:
- *       - Roles
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: UUID of the role
- *     responses:
- *       '200':
- *         description: Role permissions retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Fetch role permissions successful"
- *                 data:
- *                   type: object
- *                   properties:
- *                     role:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           format: uuid
- *                         name:
- *                           type: string
  *                     permissions:
  *                       type: array
  *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                             format: uuid
- *                           name:
- *                             type: string
- *                           module:
- *                             type: string
- *                           action:
- *                             type: string
- *       '404':
- *         description: Role not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role not found"
- *       '500':
- *         description: Internal Server Error
+ *                         type: string
+ *                         enum: [read, write]
+ *     responses:
+ *       201:
+ *         description: Role created successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
  */
-router.get(
-  '/:id/permissions',
-  auth,
-  rbac(['SUPERADMIN']),
-  rolesController.getRolePermissions,
-);
+router.post("/", auth, rbac(["SUPERADMIN"]), rolesController.createRole);
 
-/* ------------------------------------------------------------------ */
-/* ASSIGN PERMISSIONS TO ROLE                                         */
-/* ------------------------------------------------------------------ */
 /**
  * @swagger
- * /api/v1/roles/{id}/permissions:
- *   put:
- *     summary: Assign permissions to a role
- *     description: Requires SUPER_ADMIN role. Only super admin can assign permissions to roles.
- *     tags:
- *       - Roles
+ * /api/v1/roles/{id}:
+ *   patch:
+ *     summary: Update a role with new menus and permissions
+ *     tags: [Roles]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -598,98 +142,38 @@ router.get(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: UUID of the role
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required:
- *               - permissionIds
  *             properties:
- *               permissionIds:
- *                 type: array
- *                 items:
- *                   type: string
- *                   format: uuid
- *                 description: Array of permission UUIDs to assign
- *                 example: ["perm-uuid-1", "perm-uuid-2"]
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [active, inactive, deleted]
  *     responses:
- *       '200':
- *         description: Permissions assigned successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Permissions assigned to role successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     roleId:
- *                       type: string
- *                       format: uuid
- *                     permissionIds:
- *                       type: array
- *                       items:
- *                         type: string
- *                         format: uuid
- *       '400':
- *         description: Bad Request (Permissions not found)
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Permissions not found: xxx"
- *       '404':
+ *       200:
+ *         description: Role updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
  *         description: Role not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role not found"
- *       '500':
- *         description: Internal Server Error
+ *       500:
+ *         description: Internal server error
  */
-router.put(
-  '/:id/permissions',
-  auth,
-  rbac(['SUPERADMIN']),
-  rolesController.assignPermissionsToRole,
-);
+router.patch("/:id", validateUuid("id"), auth, rbac(["SUPERADMIN"]), rolesController.updateRole);
 
-/* ------------------------------------------------------------------ */
-/* REVOKE ALL PERMISSIONS FROM ROLE                                   */
-/* ------------------------------------------------------------------ */
 /**
  * @swagger
- * /api/v1/roles/{id}/permissions:
+ * /api/v1/roles/{id}:
  *   delete:
- *     summary: Revoke all permissions from a role
- *     description: Requires SUPER_ADMIN role. Only super admin can revoke all permissions from a role.
- *     tags:
- *       - Roles
+ *     summary: Delete a role by ID
+ *     tags: [Roles]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -699,160 +183,379 @@ router.put(
  *         schema:
  *           type: string
  *           format: uuid
- *         description: UUID of the role
  *     responses:
- *       '200':
- *         description: All permissions revoked successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "All permissions revoked from role successfully"
- *                 data:
- *                   type: object
- *                   properties:
- *                     roleId:
- *                       type: string
- *                       format: uuid
- *       '404':
+ *       200:
+ *         description: Role deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
  *         description: Role not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role not found"
- *       '500':
- *         description: Internal Server Error
+ *       500:
+ *         description: Internal server error
  */
-router.delete(
-  '/:id/permissions',
-  auth,
-  rbac(['SUPERADMIN']),
-  rolesController.revokeAllPermissionsFromRole,
-);
+router.delete("/:id", validateUuid("id"), auth, rbac(["SUPERADMIN"]), rolesController.deleteRole);
 
 /* ------------------------------------------------------------------ */
-/* GET ROLE USERS                                                     */
+/*                     MENU GROUPS ENDPOINTS                           */
 /* ------------------------------------------------------------------ */
+
 /**
  * @swagger
- * /api/v1/roles/{id}/users:
+ * /api/v1/roles/menus:
  *   get:
- *     summary: Get all users with a specific role
- *     description: Requires SUPER_ADMIN role. Only super admin can view users by role.
- *     tags:
- *       - Roles
+ *     summary: Fetch all menu groups
+ *     tags: [Menus]
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: UUID of the role
  *       - in: query
  *         name: page
  *         schema:
  *           type: integer
  *           default: 1
- *         description: Page number
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 20
- *         description: Items per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
  *     responses:
- *       '200':
- *         description: Role users retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Fetch role users successful"
- *                 data:
- *                   type: object
- *                   properties:
- *                     role:
- *                       type: object
- *                       properties:
- *                         id:
- *                           type: string
- *                           format: uuid
- *                         name:
- *                           type: string
- *                     users:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                             format: uuid
- *                           username:
- *                             type: string
- *                           email:
- *                             type: string
- *                           status:
- *                             type: string
- *                     meta:
- *                       type: object
- *                       properties:
- *                         total:
- *                           type: integer
- *                         page:
- *                           type: integer
- *                         limit:
- *                           type: integer
- *                         totalPages:
- *                           type: integer
- *       '404':
- *         description: Role not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 message:
- *                   type: string
- *                   example: "Role not found"
- *       '500':
- *         description: Internal Server Error
+ *       200:
+ *         description: Menus fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get("/menus", auth, rbac(["SUPERADMIN"]), rolesController.getAllMenus);
+
+/**
+ * @swagger
+ * /api/v1/roles/menus/{id}:
+ *   get:
+ *     summary: Get menu group by ID
+ *     tags: [Menus]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Menu fetched successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Menu not found
+ *       500:
+ *         description: Internal server error
  */
 router.get(
-  '/:id/users',
+  "/menus/:id",
+  validateUuid("id"),
   auth,
-  rbac(['SUPERADMIN']),
-  rolesController.getRoleUsers,
+  rbac(["SUPERADMIN"]),
+  rolesController.getMenuById,
+);
+
+/**
+ * @swagger
+ * /api/v1/roles/menus:
+ *   post:
+ *     summary: Create a new menu group
+ *     tags: [Menus]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *             properties:
+ *               name:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               icon:
+ *                 type: string
+ *               parent_id:
+ *                 type: string
+ *                 format: uuid
+ *               sort_order:
+ *                 type: integer
+ *               is_active:
+ *                 type: boolean
+ *     responses:
+ *       201:
+ *         description: Menu created successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.post("/menus", auth, rbac(["SUPERADMIN"]), rolesController.createMenu);
+
+/**
+ * @swagger
+ * /api/v1/roles/menus/{id}:
+ *   patch:
+ *     summary: Update a menu group by ID
+ *     tags: [Menus]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               slug:
+ *                 type: string
+ *               icon:
+ *                 type: string
+ *               parent_id:
+ *                 type: string
+ *                 format: uuid
+ *               sort_order:
+ *                 type: integer
+ *               is_active:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Menu updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Menu not found
+ *       500:
+ *         description: Internal server error
+ */
+router.patch(
+  "/menus/:id",
+  validateUuid("id"),
+  auth,
+  rbac(["SUPERADMIN"]),
+  rolesController.updateMenu,
+);
+
+/**
+ * @swagger
+ * /api/v1/roles/menus/{id}:
+ *   delete:
+ *     summary: Delete a menu group by ID
+ *     tags: [Menus]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Menu deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Menu not found
+ *       500:
+ *         description: Internal server error
+ */
+router.delete(
+  "/menus/:id",
+  validateUuid("id"),
+  auth,
+  rbac(["SUPERADMIN"]),
+  rolesController.deleteMenu,
+);
+
+/* ------------------------------------------------------------------ */
+/*                     PERMISSIONS ENDPOINTS                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @swagger
+ * /api/v1/roles/:roleId/permissions:
+ *   post:
+ *     summary: Assign menu permission to role
+ *     tags: [Permissions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: roleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - menuGroupId
+ *               - permission_type
+ *             properties:
+ *               menuGroupId:
+ *                 type: string
+ *                 format: uuid
+ *               permission_type:
+ *                 type: string
+ *                 enum: [read, write]
+ *                 default: read
+ *     responses:
+ *       201:
+ *         description: Permission assigned successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Role or Menu not found
+ *       500:
+ *         description: Internal server error
+ */
+router.post(
+  "/:roleId/permissions",
+  auth,
+  rbac(["SUPERADMIN"]),
+  rolesController.assignPermissionToRole,
+);
+
+/**
+ * @swagger
+ * /api/v1/roles/:roleId/permissions/:menuGroupId:
+ *   delete:
+ *     summary: Remove permission from role
+ *     tags: [Permissions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: roleId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *       - in: path
+ *         name: menuGroupId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Permission removed successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Role or Menu not found
+ *       500:
+ *         description: Internal server error
+ */
+router.delete(
+  "/:roleId/permissions/:menuGroupId",
+  auth,
+  rbac(["SUPERADMIN"]),
+  rolesController.removePermissionFromRole,
+);
+
+/* ------------------------------------------------------------------ */
+/*                     ROLE ASSIGNMENT ENDPOINTS                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @swagger
+ * /api/v1/roles/assign:
+ *   post:
+ *     summary: Assign role to user
+ *     tags: [Role Assignment]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - roleId
+ *             properties:
+ *               userId:
+ *                 type: string
+ *                 format: uuid
+ *               roleId:
+ *                 type: string
+ *                 format: uuid
+ *     responses:
+ *       200:
+ *         description: Role assigned to user successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User or Role not found
+ *       500:
+ *         description: Internal server error
+ */
+router.post(
+  "/assign",
+  auth,
+  rbac(["SUPERADMIN"]),
+  rolesController.assignRoleToUser,
+);
+
+/**
+ * @swagger
+ * /api/v1/roles/assign/{userId}:
+ *   delete:
+ *     summary: Remove role from user
+ *     tags: [Role Assignment]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Role removed from user successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ *       500:
+ *         description: Internal server error
+ */
+router.delete(
+  "/assign/:userId",
+  auth,
+  rbac(["SUPERADMIN"]),
+  rolesController.removeRoleFromUser,
 );
 
 module.exports = router;

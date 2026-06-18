@@ -35,7 +35,7 @@ describe("Tenant Validators", () => {
       const { error, value } = validate(data, createTenantSchema);
 
       expect(error).toBeUndefined();
-      expect(value.status).toBe("active");
+      expect(value.status).toBe("ACTIVE");
       expect(value.maxUsers).toBe(10);
     });
 

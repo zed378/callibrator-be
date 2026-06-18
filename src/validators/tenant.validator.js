@@ -4,6 +4,28 @@
 const Joi = require("joi");
 
 // ==========================================
+// GET ALL TENANTS QUERY
+// ==========================================
+
+exports.getAllTenantsQuery = Joi.object({
+  page: Joi.number().integer().min(1).default(1),
+  limit: Joi.number().integer().min(1).max(100).default(20),
+  find: Joi.string().allow(null, ""),
+  status: Joi.string()
+    .valid("ACTIVE", "INACTIVE", "SUSPENDED", "active", "inactive", "suspended")
+    .insensitive()
+    .allow(null, ""),
+});
+
+// ==========================================
+// GET TENANT BODY/PARAMS
+// ==========================================
+
+exports.getTenantSchema = Joi.object({
+  tenantId: Joi.string().uuid().required(),
+});
+
+// ==========================================
 // CREATE TENANT
 // ==========================================
 
@@ -39,6 +61,7 @@ exports.createTenantSchema = Joi.object({
 // ==========================================
 
 exports.updateTenantSchema = Joi.object({
+  tenantId: Joi.string().uuid(),
   name: Joi.string().trim().min(2).max(100),
   code: Joi.string().trim().min(2).max(50),
   description: Joi.string().trim().allow(null, ""),
@@ -62,6 +85,23 @@ exports.updateTenantSchema = Joi.object({
     value.status = value.status.toUpperCase();
   }
   return value;
+});
+
+// ==========================================
+// DELETE TENANT QUERY/PARAMS
+// ==========================================
+
+exports.deleteTenantSchema = Joi.object({
+  tenantId: Joi.string().uuid().required(),
+  deletedBy: Joi.string().uuid().allow(null, ""),
+});
+
+// ==========================================
+// TENANT SETTINGS
+// ==========================================
+
+exports.tenantIdSchema = Joi.object({
+  tenantId: Joi.string().uuid().required(),
 });
 
 // ==========================================

@@ -19,7 +19,18 @@ const getRabbitMQConnection = async () => {
     process.env.RABBITMQ_URL ||
     `amqp://${process.env.RABBITMQ_HOST || "localhost"}:${process.env.RABBITMQ_PORT || 5672}`;
 
-  connection = await amqplib.connect(rabbitUrl);
+  const connectPromise = amqplib.connect(rabbitUrl);
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(
+      () => reject(new Error(`RabbitMQ connection timed out after ${RABBITMQ_CONNECT_TIMEOUT}ms`)),
+      RABBITMQ_CONNECT_TIMEOUT,
+    );
+  });
+
+  connection = await Promise.race([connectPromise, timeoutPromise]).catch((err) => {
+    logger.error("RabbitMQ connection failed", { error: err.message });
+    throw err;
+  });
 
   connection.on("error", (err) => {
     logger.error("RabbitMQ connection error", { error: err.message });
@@ -51,6 +62,11 @@ const createChannel = async () => {
 
 const EMAIL_QUEUE = "email_queue";
 const EMAIL_DLQ = "email_dlq";
+
+// Connection and consumer timeouts (in milliseconds)
+const RABBITMQ_CONNECT_TIMEOUT = parseInt(process.env.RABBITMQ_CONNECT_TIMEOUT) || 10000;
+const RABBITMQ_CONSUMER_TIMEOUT = parseInt(process.env.RABBITMQ_CONSUMER_TIMEOUT) || 30000;
+const RABBITMQ_PREFETCH_COUNT = parseInt(process.env.RABBITMQ_PREFETCH_COUNT) || 10;
 
 const initEmailQueue = async () => {
   try {
@@ -177,8 +193,14 @@ const processEmailQueue = async () => {
 
   const ch = await createChannel();
 
-  // Ack mode - manual acknowledgment
-  ch.prefetch(10); // Process 10 messages at a time
+  // Ack mode - manual acknowledgment with configurable prefetch
+  ch.prefetch(RABBITMQ_PREFETCH_COUNT);
+
+  // Consumer timeout to prevent hung workers
+  const consumerTimeout = setTimeout(() => {
+    logger.warn("Email queue consumer timeout reached");
+  }, RABBITMQ_CONSUMER_TIMEOUT);
+  consumerTimeout.unref(); // Don't prevent process exit
 
   const processJob = async (msg) => {
     if (!msg) return;

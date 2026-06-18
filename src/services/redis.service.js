@@ -1,5 +1,6 @@
 // src/services/redis.service.js
 const Redis = require("ioredis");
+const { logger } = require("../middlewares/activityLog");
 
 // ==========================================
 // REDIS CONNECTION
@@ -28,7 +29,7 @@ const getRedisConnection = () => {
   });
 
   redis.on("error", (err) => {
-    console.error({
+    logger.error({
       status: "Redis Connection Error",
       message: err.message,
     });
@@ -54,11 +55,11 @@ const initRedis = async () => {
           client.once("ready", resolve);
         }
       });
-      console.log("Redis connected successfully");
+      logger.info("Redis connected successfully");
     }
     return client;
   } catch (error) {
-    console.error({
+    logger.error({
       status: "Redis Initialization Failed",
       message: error.message,
     });
@@ -91,7 +92,7 @@ const get = async (key) => {
       return value;
     }
   } catch (error) {
-    console.error({ status: "Redis GET Error", message: error.message });
+    logger.error({ status: "Redis GET Error", message: error.message });
     return null;
   }
 };
@@ -112,7 +113,7 @@ const set = async (key, value, ttl = 300) => {
     await client.setex(key, ttl, serialized);
     return true;
   } catch (error) {
-    console.error({ status: "Redis SET Error", message: error.message });
+    logger.error({ status: "Redis SET Error", message: error.message });
     return false;
   }
 };
@@ -130,13 +131,13 @@ const del = async (key) => {
     await client.del(key);
     return true;
   } catch (error) {
-    console.error({ status: "Redis DEL Error", message: error.message });
+    logger.error({ status: "Redis DEL Error", message: error.message });
     return false;
   }
 };
 
 /**
- * Delete keys matching pattern
+ * Delete keys matching pattern — processes ALL batches via SCAN cursor
  * @param {string} pattern
  * @returns {Promise<number>}
  */
@@ -146,23 +147,27 @@ const delPattern = async (pattern) => {
     if (!client || !client.connected) return 0;
 
     let deleted = 0;
-    const cursor = "0";
-    const [nextCursor, keys] = await client.scan(
-      cursor,
-      "MATCH",
-      pattern,
-      "COUNT",
-      100,
-    );
+    let cursor = "0";
 
-    if (keys.length > 0) {
-      await client.del(...keys);
-      deleted = keys.length;
-    }
+    do {
+      const [nextCursor, keys] = await client.scan(
+        cursor,
+        "MATCH",
+        pattern,
+        "COUNT",
+        100,
+      );
+      cursor = nextCursor;
+
+      if (keys.length > 0) {
+        await client.del(...keys);
+        deleted += keys.length;
+      }
+    } while (cursor !== "0"); // "0" means iteration complete
 
     return deleted;
   } catch (error) {
-    console.error({
+    logger.error({
       status: "Redis DEL Pattern Error",
       message: error.message,
     });
@@ -198,7 +203,7 @@ const acquireLock = async (key, ttl = 5000) => {
     }
     return null;
   } catch (error) {
-    console.error({ status: "Redis Lock Error", message: error.message });
+    logger.error({ status: "Redis Lock Error", message: error.message });
     return null;
   }
 };
@@ -226,7 +231,7 @@ const releaseLock = async (key, lockId) => {
     const result = await client.eval(script, 1, lockKey, lockId);
     return result === 1;
   } catch (error) {
-    console.error({ status: "Redis Unlock Error", message: error.message });
+    logger.error({ status: "Redis Unlock Error", message: error.message });
     return false;
   }
 };
@@ -258,10 +263,10 @@ const closeRedis = async () => {
     if (redis) {
       await redis.quit();
       redis = null;
-      console.log("Redis connection closed");
+      logger.info("Redis connection closed");
     }
   } catch (error) {
-    console.error({ status: "Redis Close Error", message: error.message });
+    logger.error({ status: "Redis Close Error", message: error.message });
   }
 };
 

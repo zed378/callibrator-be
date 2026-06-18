@@ -1,219 +1,164 @@
 const rolesService = require("../services/roles.service");
-const { success } = require("../utils/response");
+const { asyncHandler } = require("../utils/controllerWrapper");
 
 // ==========================================
-// GET ALL ROLES
-// GET /api/v1/roles?page=1&limit=20&search=xxx
+//                     ROLES
 // ==========================================
 
-exports.getAllRoles = async (req, res, next) => {
-  try {
-    const { page = 1, limit = 20, search = "" } = req.query;
+exports.getAllRoles = asyncHandler(async (req, res) => {
+  const { page, limit, search } = req.query;
+  const result = await rolesService.getAllRoles({
+    limit: parseInt(limit) || 20,
+    offset: ((parseInt(page) || 1) - 1) * (parseInt(limit) || 20),
+    search: search || "",
+  });
+  return res.status(200).json({
+    success: true,
+    data: result.data,
+    pagination: {
+      page: result.page,
+      limit: result.limit,
+      total: result.count,
+    },
+  });
+});
 
-    const result = await rolesService.getAllRoles({
-      page,
-      limit,
-      search,
+exports.getRoleById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const role = await rolesService.getRoleById(id);
+  if (!role) {
+    return res.status(404).json({
+      success: false,
+      message: "Role not found",
     });
-
-    success(
-      res,
-      result.data,
-      result.meta,
-      result.message || "Roles fetched successfully",
-      result.status || 200,
-    );
-  } catch (error) {
-    next(error);
   }
-};
+  return res.status(200).json({ success: true, data: role });
+});
+
+exports.createRole = asyncHandler(async (req, res) => {
+  const { name, description } = req.body;
+  const role = await rolesService.createRole({ name, description });
+  const fullRole = await rolesService.getRoleById(role.id);
+  return res.status(201).json({ success: true, data: fullRole });
+});
+
+exports.updateRole = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, description, status } = req.body;
+  const role = await rolesService.updateRole(id, {
+    name,
+    description,
+    status,
+  });
+  return res.status(200).json({ success: true, data: role });
+});
+
+exports.deleteRole = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const result = await rolesService.deleteRole(id);
+  return res.status(200).json({ success: true, ...result });
+});
 
 // ==========================================
-// GET ROLE BY ID
-// POST /api/v1/roles/detail
+//                     MENU GROUPS
 // ==========================================
 
-exports.getRole = async (req, res, next) => {
-  try {
-    const { roleId } = req.body;
+exports.getAllMenus = asyncHandler(async (req, res) => {
+  const { page, limit, search } = req.query;
+  const result = await rolesService.getAllMenus({
+    limit: parseInt(limit) || 20,
+    offset: ((parseInt(page) || 1) - 1) * (parseInt(limit) || 20),
+    search: search || "",
+  });
+  return res.status(200).json({
+    success: true,
+    data: result.data,
+    pagination: {
+      page: result.page,
+      limit: result.limit,
+      total: result.count,
+    },
+  });
+});
 
-    const result = await rolesService.getRoleById(roleId);
-
-    success(
-      res,
-      result.data,
-      null,
-      result.message || "Role fetched successfully",
-      result.status || 200,
-    );
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ==========================================
-// CREATE ROLE
-// POST /api/v1/roles
-// ==========================================
-
-exports.createRole = async (req, res, next) => {
-  try {
-    const result = await rolesService.createRole(req.body);
-
-    success(
-      res,
-      result.data,
-      null,
-      result.message || "Role created successfully",
-      result.status || 201,
-    );
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ==========================================
-// UPDATE ROLE
-// PATCH /api/v1/roles
-// ==========================================
-
-exports.updateRole = async (req, res, next) => {
-  try {
-    const { id, ...data } = req.body;
-
-    const result = await rolesService.updateRole({
-      id,
-      data,
+exports.getMenuById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const menu = await rolesService.getMenuById(id);
+  if (!menu) {
+    return res.status(404).json({
+      success: false,
+      message: "Menu group not found",
     });
-
-    success(
-      res,
-      result.data,
-      null,
-      result.message || "Role updated successfully",
-      result.status || 200,
-    );
-  } catch (error) {
-    next(error);
   }
-};
+  return res.status(200).json({ success: true, data: menu });
+});
+
+exports.createMenu = asyncHandler(async (req, res) => {
+  const menu = await rolesService.createMenu(req.body);
+  return res.status(201).json({ success: true, data: menu });
+});
+
+exports.updateMenu = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const menu = await rolesService.updateMenu(id, req.body);
+  return res.status(200).json({ success: true, data: menu });
+});
+
+exports.deleteMenu = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const result = await rolesService.deleteMenu(id);
+  return res.status(200).json({ success: true, ...result });
+});
 
 // ==========================================
-// DELETE ROLE
-// DELETE /api/v1/roles?id=xxx
+//                     PERMISSIONS
 // ==========================================
 
-exports.deleteRole = async (req, res, next) => {
-  try {
-    const { id } = req.query;
+exports.getAllPermissions = asyncHandler(async (req, res) => {
+  const permissions = [
+    { permission_type: "read", description: "Read access" },
+    { permission_type: "write", description: "Write access" },
+  ];
+  return res.status(200).json({
+    success: true,
+    data: permissions,
+    pagination: {
+      page: 1,
+      limit: permissions.length,
+      total: permissions.length,
+    },
+  });
+});
 
-    const result = await rolesService.deleteRole(id);
+exports.assignPermissionToRole = asyncHandler(async (req, res) => {
+  const { roleId } = req.params;
+  const { menuGroupId, permission_type } = req.body;
+  const permission = await rolesService.assignMenuToRole(
+    roleId,
+    menuGroupId,
+    permission_type || "read",
+  );
+  return res.status(201).json({ success: true, data: permission });
+});
 
-    success(
-      res,
-      result.data,
-      null,
-      result.message || "Role deleted successfully",
-      result.status || 200,
-    );
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ==========================================
-// GET ROLE PERMISSIONS
-// GET /api/v1/roles/:id/permissions
-// ==========================================
-
-exports.getRolePermissions = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    const result = await rolesService.getRolePermissions(id);
-
-    success(
-      res,
-      result.data,
-      null,
-      result.message || "Role permissions fetched successfully",
-      result.status || 200,
-    );
-  } catch (error) {
-    next(error);
-  }
-};
+exports.removePermissionFromRole = asyncHandler(async (req, res) => {
+  const { roleId, menuGroupId } = req.params;
+  const result = await rolesService.removeMenuFromRole(roleId, menuGroupId);
+  return res.status(200).json({ success: true, ...result });
+});
 
 // ==========================================
-// ASSIGN PERMISSIONS TO ROLE
-// PUT /api/v1/roles/:id/permissions
+//                     ROLE ASSIGNMENT
 // ==========================================
 
-exports.assignPermissionsToRole = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { permissionIds } = req.body;
+exports.assignRoleToUser = asyncHandler(async (req, res) => {
+  const { userId, roleId } = req.body;
+  const user = await rolesService.assignRoleToUser(userId, roleId);
+  return res.status(200).json({ success: true, data: user });
+});
 
-    const result = await rolesService.assignPermissionsToRole({
-      roleId: id,
-      permissionIds,
-    });
-
-    success(
-      res,
-      result.data,
-      null,
-      result.message || "Permissions assigned successfully",
-      result.status || 200,
-    );
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ==========================================
-// REVOKE ALL PERMISSIONS FROM ROLE
-// DELETE /api/v1/roles/:id/permissions
-// ==========================================
-
-exports.revokeAllPermissionsFromRole = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-
-    const result = await rolesService.revokeAllPermissionsFromRole(id);
-
-    success(
-      res,
-      result.data,
-      null,
-      result.message || "All permissions revoked successfully",
-      result.status || 200,
-    );
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ==========================================
-// GET ROLE USERS
-// GET /api/v1/roles/:id/users
-// ==========================================
-
-exports.getRoleUsers = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    const { page = 1, limit = 20 } = req.query;
-
-    const result = await rolesService.getRoleUsers(id, { page, limit });
-
-    success(
-      res,
-      result.data,
-      result.meta,
-      result.message || "Role users fetched successfully",
-      result.status || 200,
-    );
-  } catch (error) {
-    next(error);
-  }
-};
+exports.removeRoleFromUser = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const result = await rolesService.removeRoleFromUser(userId);
+  return res.status(200).json({ success: true, ...result });
+});

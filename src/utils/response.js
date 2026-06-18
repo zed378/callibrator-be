@@ -169,11 +169,13 @@ const forbidden = (res, message = "Forbidden") => {
 const login = (res, data, token, session, message = "Login successful") => {
   return success(res, data, null, message, 200, {
     token,
-    session: {
-      id: session.id,
-      createdAt: session.createdAt,
-      expiresAt: session.expiresAt,
-    },
+    session: session
+      ? {
+          id: session.id,
+          createdAt: session.createdAt,
+          expiresAt: session.expiresAt,
+        }
+      : null,
   });
 };
 

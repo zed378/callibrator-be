@@ -56,7 +56,7 @@ const { Tenants } = require("../../models");
 describe("tenantUpload.service", () => {
   const mockTenant = {
     id: "tenant-123",
-    logo: "/uploads/tenant/old-logo.png",
+    logo: "old-logo.png",
     update: jest.fn().mockResolvedValue({}),
   };
 
@@ -82,14 +82,14 @@ describe("tenantUpload.service", () => {
         "uploads/tenant",
       );
       expect(mockTenant.update).toHaveBeenCalledWith(
-        { logo: "/uploads/tenant/new-logo.png" },
+        { logo: "new-logo.png" },
         { silent: true },
       );
       expect(logger.info).toHaveBeenCalledWith(
         "Tenant logo updated: tenant-123 by user-456",
       );
       expect(result).toEqual({
-        data: { logo: "/uploads/tenant/new-logo.png" },
+        data: { logo: "new-logo.png" },
         message: "Tenant logo updated successfully",
         status: 200,
       });
@@ -109,11 +109,11 @@ describe("tenantUpload.service", () => {
 
       expect(deleteUpload).not.toHaveBeenCalled();
       expect(mockTenant.update).toHaveBeenCalledWith(
-        { logo: "/uploads/tenant/new-logo.png" },
+        { logo: "new-logo.png" },
         { silent: true },
       );
       expect(result).toEqual({
-        data: { logo: "/uploads/tenant/new-logo.png" },
+        data: { logo: "new-logo.png" },
         message: "Tenant logo updated successfully",
         status: 200,
       });

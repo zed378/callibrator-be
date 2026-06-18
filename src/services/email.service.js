@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const mustache = require("mustache");
 
 const fs = require("fs");
 
@@ -38,7 +39,7 @@ const transporter = nodemailer.createTransport({
 // ==========================================
 
 const sendEmail = async ({ to, subject, html }) => {
-  return transporter.sendMail({
+  return getTransporter().sendMail({
     from: process.env.MAIL_FROM,
     to,
     subject,
