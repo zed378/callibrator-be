@@ -10,7 +10,7 @@ const {
   createMockRes,
   createMockReq,
   createMockNext,
-} = require("../test.utils");
+} = require("./test.utils");
 
 describe("asyncHandler", () => {
   it("should call the async function with req, res, next", async () => {

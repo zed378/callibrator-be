@@ -13,7 +13,7 @@ const {
   LockedError,
   InternalServerError,
 } = require("../../utils/appError");
-const { createMockRes } = require("../test.utils");
+const { createMockRes } = require("./test.utils");
 
 describe("AppError", () => {
   it("should extend native Error", () => {

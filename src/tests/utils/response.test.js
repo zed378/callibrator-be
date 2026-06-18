@@ -12,7 +12,7 @@ const {
   paginated,
   login,
 } = require("../../utils/response");
-const { createMockRes } = require("../test.utils");
+const { createMockRes } = require("./test.utils");
 
 describe("response utility", () => {
   describe("success", () => {
