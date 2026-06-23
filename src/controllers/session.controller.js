@@ -343,34 +343,34 @@ exports.getSessionStats = asyncHandlerWithMapping(async (req, res) => {
 
 function detectDevice(userAgent) {
   const ua = (userAgent || "").toLowerCase();
-  if (ua.includes("mobile")) return "Mobile";
-  if (ua.includes("tablet")) return "Tablet";
-  if (ua.includes("ipad")) return "iPad";
+  if (ua.includes("mobile")) {return "Mobile";}
+  if (ua.includes("tablet")) {return "Tablet";}
+  if (ua.includes("ipad")) {return "iPad";}
   return "Desktop";
 }
 
 function detectBrowser(userAgent) {
   const ua = (userAgent || "").toLowerCase();
-  if (ua.includes("edg/")) return "Microsoft Edge";
-  if (ua.includes("chrome")) return "Google Chrome";
-  if (ua.includes("firefox")) return "Firefox";
-  if (ua.includes("safari")) return "Safari";
-  if (ua.includes("msie") || ua.includes("trident")) return "Internet Explorer";
+  if (ua.includes("edg/")) {return "Microsoft Edge";}
+  if (ua.includes("chrome")) {return "Google Chrome";}
+  if (ua.includes("firefox")) {return "Firefox";}
+  if (ua.includes("safari")) {return "Safari";}
+  if (ua.includes("msie") || ua.includes("trident")) {return "Internet Explorer";}
   return "Unknown";
 }
 
 function detectOS(userAgent) {
   const ua = (userAgent || "").toLowerCase();
-  if (ua.includes("windows")) return "Windows";
-  if (ua.includes("mac os")) return "macOS";
-  if (ua.includes("linux")) return "Linux";
-  if (ua.includes("android")) return "Android";
-  if (ua.includes("ios")) return "iOS";
+  if (ua.includes("windows")) {return "Windows";}
+  if (ua.includes("mac os")) {return "macOS";}
+  if (ua.includes("linux")) {return "Linux";}
+  if (ua.includes("android")) {return "Android";}
+  if (ua.includes("ios")) {return "iOS";}
   return "Unknown";
 }
 
 function getSessionStatus(session) {
-  if (session.isRevoked) return "revoked";
-  if (new Date(session.expiredAt) < new Date()) return "expired";
+  if (session.isRevoked) {return "revoked";}
+  if (new Date(session.expiredAt) < new Date()) {return "expired";}
   return "active";
 }

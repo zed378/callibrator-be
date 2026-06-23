@@ -264,7 +264,7 @@ exports.functionName = asyncHandlerWithMapping(
   {
     // Error message patterns mapped to status codes
     "not found": 404,
-    invalid: 400,
+    "invalid": 400,
   },
 );
 ```
@@ -853,15 +853,144 @@ module.exports = {
 
 ## 10. Model Standards
 
+### Architectural Standard — Directory Structure and File Segregation
+
+**Directory Structure:** All database models must be isolated within the `models/` directory.
+
+**File Segregation:** Enforce a strict 1:1 ratio between models and files (e.g., `User.js`, `Tenant.js`, `Role.js`). Each model must reside in its own dedicated file. No composite or multi-model files are permitted.
+
+**Central Aggregation:** An `index.js` file within the `models/` directory serves as the single entry point for all model access. This file aggregates all model definitions and their associations.
+
 ### Model Naming
 
 - Use PascalCase for model class names
-- Use snake_case for file names
-- Models auto-loaded via `src/models/index.js`
+- Use PascalCase for file names (e.g., `User.js`, `Tenant.js`, `CalibrationDevice.js`)
+- Models auto-loaded dynamically via `src/models/index.js`
 
-### Model Definition
+### Model Definition — Execution Protocol
 
-Each model file exports an object with the Sequelize model instance:
+Each individual model file must export a **function** or **class** that accepts the Sequelize connection instance (`db`) and `DataTypes`. The model is defined and returned by this function. This enables dynamic loading and centralized association mapping.
+
+```javascript
+// User.js
+const { Sequelize, DataTypes } = require("sequelize");
+
+/**
+ * Define the Users model.
+ * @param {Sequelize} db - The Sequelize instance
+ * @param {typeof Sequelize} DataTypes - The Sequelize DataTypes
+ * @returns {object} The defined Sequelize model
+ */
+const defineModel = (db, DataTypes) => {
+  const Users = db.define(
+    "Users",
+    {
+      id: {
+        type: DataTypes.UUID,
+        defaultValue: DataTypes.UUIDV4,
+        primaryKey: true,
+      },
+      // ... other fields
+    },
+    {
+      tableName: "users",
+      timestamps: true,
+      paranoid: true,
+      underscored: true,
+    },
+  );
+
+  /**
+   * Define associations for this model.
+   * @param {object} models - The aggregated models object
+   */
+  Users.associate = (models) => {
+    Users.belongsTo(models.Roles, { foreignKey: "roleId", as: "role" });
+    Users.belongsTo(models.Tenants, { foreignKey: "tenantId", as: "tenant" });
+  };
+
+  return Users;
+};
+
+module.exports = defineModel;
+```
+
+### Model Index — Dynamic Loading Pattern
+
+The `models/index.js` file is **ONLY for dynamic aggregation**. It must dynamically read the directory contents, execute exported model definition functions, and map associations.
+
+```javascript
+// models/index.js
+const fs = require("fs");
+const path = require("path");
+const { Sequelize, DataTypes, Op } = require("sequelize");
+
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASS,
+  {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    dialect: process.env.DB_DIALECT || "postgres",
+    // ... other options
+  },
+);
+
+const db = {};
+
+const modelFiles = fs
+  .readdirSync(__dirname)
+  .filter((file) => {
+    return (
+      file.indexOf(".") !== 0 && // ignore dotfiles
+      file !== "index.js" && // ignore this file
+      file.slice(-3) === ".js" // only .js files
+    );
+  })
+  .map((file) => require(path.join(__dirname, file)));
+
+modelFiles.forEach((defineModel) => {
+  const model = defineModel(sequelize, DataTypes);
+  db[model.name] = model;
+});
+
+// Association Mapping
+Object.keys(db).forEach((modelName) => {
+  if (db[modelName].associate) {
+    db[modelName].associate(db);
+  }
+});
+
+// Global Export
+db.sequelize = sequelize;
+db.Sequelize = Sequelize;
+db.Op = Op;
+
+module.exports = db;
+```
+
+### Guidelines
+
+1. **One model per file** - Each model has its own `.js` file in `models/`
+2. **Export a definition function** - Models export a function that accepts `db` and `DataTypes`
+3. **Dynamic directory loading** - `index.js` uses `fs.readdirSync` to discover model files
+4. **Association via method** - Each model defines `associate(models)` method
+5. **Global export** - `index.js` exports a single `db` object for dependency injection
+6. **Use freezeTableName** - Prevent Sequelize from auto-pluralizing table names
+7. **Define aliases** - Use `as` for all associations to avoid confusion
+8. **No direct model imports** - All models must be accessed via the aggregated `db` object from `index.js`
+
+### Legacy Pattern (Deprecated)
+
+The following patterns are **deprecated** and must be migrated:
+
+- Multi-model files (e.g., a single file exporting `Users`, `Tenants`, `Roles`)
+- Direct model imports bypassing `index.js`
+- Inline associations defined in `index.js` instead of per-model `associate` methods
+- Exporting raw model instances instead of definition functions
+
+---
 
 ```javascript
 // user.js
@@ -996,7 +1125,7 @@ asyncHandlerWithMapping(
   {
     // Error message patterns to status codes
     "not found": 404,
-    invalid: 400,
+    "invalid": 400,
   },
 );
 ```

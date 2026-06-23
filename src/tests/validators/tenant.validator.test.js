@@ -74,6 +74,19 @@ describe("Tenant Validators", () => {
 
       expect(error).toBeUndefined();
     });
+
+    it("should accept null status and skip uppercase transformation", () => {
+      const data = {
+        name: "Acme Corp",
+        code: "acme",
+        status: null,
+      };
+
+      const { error, value } = validate(data, createTenantSchema);
+
+      expect(error).toBeUndefined();
+      expect(value.status).toBeNull();
+    });
   });
 
   describe("updateTenantSchema", () => {

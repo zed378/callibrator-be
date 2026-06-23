@@ -22,6 +22,10 @@ exports.createSession = async ({
   device,
   expiredAt,
 }) => {
+  // Provide default expiredAt if not provided (7 days from now)
+  const sessionExpiredAt =
+    expiredAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
   return await Sessions.create({
     tenantId,
     userId,
@@ -32,7 +36,7 @@ exports.createSession = async ({
     userAgent,
     device,
 
-    expiredAt,
+    expiredAt: sessionExpiredAt,
     lastActivityAt: new Date(),
   });
 };

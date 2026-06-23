@@ -10,6 +10,7 @@ const { Op } = require("sequelize");
  * - Permission check: hasPermission(userId, menuSlug, permissionType)
  * - All roles are global (not tenant-scoped)
  */
+const { get, set, del, delPattern, cacheKeys } = require("./redis.service");
 
 class RolesService {
   /**
@@ -129,9 +130,9 @@ class RolesService {
     }
 
     const updates = {};
-    if (name !== undefined) updates.name = name.trim();
-    if (description !== undefined) updates.description = description?.trim();
-    if (status !== undefined) updates.status = status;
+    if (name !== undefined) {updates.name = name.trim();}
+    if (description !== undefined) {updates.description = description?.trim();}
+    if (status !== undefined) {updates.status = status;}
 
     await role.update(updates);
     return role;
@@ -151,7 +152,7 @@ class RolesService {
     if (role.is_system) {
       // Deactivate instead of delete for system roles
       await role.update({ status: "inactive" });
-      await RoleMenuPermission.destroy({ where: { role_id: id } });
+      await RoleMenuPermission.destroy({ where: { roleId: id } });
       return { message: "System role deactivated" };
     }
 
@@ -181,13 +182,16 @@ class RolesService {
     }
 
     const [permission, created] = await RoleMenuPermission.findOrCreate({
-      where: { role_id: roleId, menu_group_id: menuGroupId },
-      defaults: { permission_type: permissionType },
+      where: { roleId: roleId, menuGroupId: menuGroupId },
+      defaults: { permissionType: permissionType },
     });
 
     if (!created) {
-      await permission.update({ permission_type: permissionType });
+      await permission.update({ permissionType: permissionType });
     }
+
+    // Invalidate role permissions cache
+    await del(cacheKeys.permissions(roleId));
 
     return permission;
   }
@@ -197,8 +201,10 @@ class RolesService {
    */
   static async removeMenuFromRole(roleId, menuGroupId) {
     await RoleMenuPermission.destroy({
-      where: { role_id: roleId, menu_group_id: menuGroupId },
+      where: { roleId: roleId, menuGroupId: menuGroupId },
     });
+    // Invalidate role permissions cache
+    await del(cacheKeys.permissions(roleId));
     return { message: "Menu permission removed" };
   }
 
@@ -273,6 +279,37 @@ class RolesService {
 
     // For read permission, both read and write roles qualify
     return ["read", "write"].includes(perm.permission_type);
+  }
+
+  /**
+   * Get cached role permissions matrix for fast middleware checks
+   */
+  static async getRolePermissionsMatrix(roleId) {
+    const cacheKey = cacheKeys.permissions(roleId);
+    const cached = await get(cacheKey);
+    if (cached) {return cached;}
+
+    const permissions = await RoleMenuPermission.findAll({
+      where: { role_id: roleId },
+      include: [
+        {
+          model: MenuGroup,
+          as: "menu",
+          attributes: ["name", "slug"],
+        },
+      ],
+    });
+
+    const matrix = {};
+    for (const p of permissions) {
+      if (!p.menu) {continue;}
+      const name = p.menu.name;
+      if (!matrix[name]) {matrix[name] = [];}
+      matrix[name].push(p.permission_type);
+    }
+
+    await set(cacheKey, matrix, 3600); // 1 hour
+    return matrix;
   }
 
   /**
@@ -459,17 +496,21 @@ class RolesService {
     }
 
     const updates = {};
-    if (data.name !== undefined) updates.name = data.name.trim();
+    if (data.name !== undefined) {updates.name = data.name.trim();}
     if (data.slug !== undefined)
-      updates.slug =
+    {updates.slug =
         data.slug?.trim() ||
-        data.name?.trim().toLowerCase().replace(/\s+/g, "-");
-    if (data.icon !== undefined) updates.icon = data.icon;
-    if (data.parent_id !== undefined) updates.parent_id = data.parent_id;
-    if (data.sort_order !== undefined) updates.sort_order = data.sort_order;
-    if (data.is_active !== undefined) updates.is_active = data.is_active;
+        data.name?.trim().toLowerCase().replace(/\s+/g, "-");}
+    if (data.icon !== undefined) {updates.icon = data.icon;}
+    if (data.parent_id !== undefined) {updates.parent_id = data.parent_id;}
+    if (data.sort_order !== undefined) {updates.sort_order = data.sort_order;}
+    if (data.is_active !== undefined) {updates.is_active = data.is_active;}
 
     await menu.update(updates);
+
+    // Invalidate all role permissions since menu name/status might have changed
+    await delPattern("permissions:role:*");
+
     return menu;
   }
 
@@ -485,8 +526,12 @@ class RolesService {
     }
 
     // Delete associated role permissions
-    await RoleMenuPermission.destroy({ where: { menu_group_id: id } });
+    await RoleMenuPermission.destroy({ where: { menuGroupId: id } });
     await menu.destroy();
+
+    // Invalidate all role permissions cache
+    await delPattern("permissions:role:*");
+
     return { message: "Menu group deleted successfully" };
   }
 }

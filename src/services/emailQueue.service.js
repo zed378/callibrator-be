@@ -178,7 +178,10 @@ const sendEmailDirectly = async (job) => {
  */
 const processEmailQueue = async () => {
   try {
-    await initEmailQueue();
+    const initialized = await initEmailQueue();
+    if (!initialized) {
+      throw new Error("Initialization failed");
+    }
   } catch (error) {
     logger.warn(
       "Failed to initialize RabbitMQ, email queue worker not started",
@@ -203,7 +206,7 @@ const processEmailQueue = async () => {
   consumerTimeout.unref(); // Don't prevent process exit
 
   const processJob = async (msg) => {
-    if (!msg) return;
+    if (!msg) {return;}
 
     let job;
     try {

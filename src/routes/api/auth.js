@@ -2,46 +2,41 @@
  * @swagger
  * tags:
  *   name: Auth
- *   description: Authentication endpoints
- * components:
- *   securitySchemes:
- *     bearerAuth:
- *       type: http
- *       scheme: bearer
- *       bearerFormat: JWT
+ *   description: Authentication endpoints (register, login, OTP, password reset, session management)
  */
 
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const rateLimit = require('express-rate-limit');
-const { auth } = require('../../middlewares/auth');
+const rateLimit = require("express-rate-limit");
+const { auth } = require("../../middlewares/auth");
+const { RATE_LIMIT } = require("../../constants/appConstants");
 const {
   authRateLimiter,
   recordAuthFailure,
   resetAuthAttempts,
   rateLimitHeaders,
-} = require('../../middlewares/tokenRateLimiter');
+} = require("../../middlewares/tokenRateLimiter");
 
 // IP-based rate limiter (DDoS protection — global limiters in index.js handle per-endpoint)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: RATE_LIMIT.STANDARD_WINDOW,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    status: 'Error',
-    message: 'Too many requests from this IP, please try again later',
+    status: "Error",
+    message: "Too many requests from this IP, please try again later",
   },
 });
 
 const otpLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
+  windowMs: RATE_LIMIT.HOUR_WINDOW,
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
-    status: 'Error',
-    message: 'Too many requests from this IP, please try again later',
+    status: "Error",
+    message: "Too many requests from this IP, please try again later",
   },
 });
 
@@ -56,7 +51,8 @@ const {
   verify,
   justUpdatePassword,
   passIsValid,
-} = require('../../controllers/auth.controller');
+  refresh,
+} = require("../../controllers/auth.controller");
 
 /* ------------------------------------------------------------------ */
 /* REGISTER */
@@ -73,90 +69,34 @@ const {
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - firstName
- *               - lastName
- *               - username
- *               - email
- *               - password
- *             properties:
- *               firstName:
- *                 type: string
- *                 example: John
- *               lastName:
- *                 type: string
- *                 example: Doe
- *               username:
- *                 type: string
- *                 example: johndoe
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
- *               password:
- *                 type: string
- *                 minLength: 6
- *                 example: Secret123
+ *             $ref: '#/components/schemas/RegisterRequest'
  *     responses:
  *       '201':
  *         description: Registration successful
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 201
- *                 message:
- *                   type: string
- *                   example: "Registration successful"
- *                 data:
- *                   type: object
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '409':
  *         description: Conflict (email or username already exists)
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 409
- *                 message:
- *                   type: string
- *                   example: "Email or username already exists"
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       '429':
  *         description: Too many requests - Rate limited (3 attempts per hour)
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 429
- *                 message:
- *                   type: string
- *                   example: "Too many registration attempts"
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post(
-  '/register',
+  "/register",
   authLimiter,
-  authRateLimiter('register'),
+  authRateLimiter("register"),
   rateLimitHeaders(),
   register,
-  recordAuthFailure('register'),
+  recordAuthFailure("register"),
 );
 
 /* ------------------------------------------------------------------ */
@@ -181,51 +121,21 @@ router.post(
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Account activated successfully"
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '400':
  *         description: Invalid, missing or expired token
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 400
- *                 message:
- *                   type: string
- *                   example: "Invalid or expired token"
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       '404':
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 404
- *                 message:
- *                   type: string
- *                   example: "User not found"
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.get('/activation', activation);
+router.get("/activation", activation);
 
 /* ------------------------------------------------------------------ */
 /* LOGIN */
@@ -242,18 +152,7 @@ router.get('/activation', activation);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - user
- *               - password
- *             properties:
- *               user:
- *                 type: string
- *                 description: Username or email
- *                 example: sys
- *               password:
- *                 type: string
- *                 example: 123123
+ *             $ref: '#/components/schemas/LoginRequest'
  *     responses:
  *       '200':
  *         description: Login successful
@@ -274,72 +173,34 @@ router.get('/activation', activation);
  *                 token:
  *                   type: string
  *                 data:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: string
- *                       format: uuid
- *                     username:
- *                       type: string
- *                     email:
- *                       type: string
+ *                   $ref: '#/components/schemas/User'
  *       '401':
  *         description: Invalid credentials
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 401
- *                 message:
- *                   type: string
- *                   example: "Invalid credentials"
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       '429':
  *         description: Too many login attempts - Rate limited (5 attempts per 15 minutes)
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 429
- *                 message:
- *                   type: string
- *                   example: "Too many login attempts"
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       '423':
  *         description: Account temporarily locked
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 423
- *                 message:
- *                   type: string
- *                   example: "Account temporarily locked"
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post(
-  '/login',
+  "/login",
   authLimiter,
-  authRateLimiter('login'),
+  authRateLimiter("login"),
   rateLimitHeaders(),
   login,
-  resetAuthAttempts('login'),
-  recordAuthFailure('login'),
+  resetAuthAttempts("login"),
+  recordAuthFailure("login"),
 );
 
 /* ------------------------------------------------------------------ */
@@ -357,71 +218,34 @@ router.post(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
+ *             $ref: '#/components/schemas/SendOtpRequest'
  *     responses:
  *       '200':
  *         description: OTP sent
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "OTP sent successfully"
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '404':
  *         description: User not found
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 404
- *                 message:
- *                   type: string
- *                   example: "User not found"
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       '429':
  *         description: Too many requests - Rate limited (3 attempts per 15 minutes)
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 429
- *                 message:
- *                   type: string
- *                   example: "Too many requests"
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post(
-  '/send-otp',
+  "/send-otp",
   otpLimiter,
-  authRateLimiter('forgotPassword'),
+  authRateLimiter("forgotPassword"),
   rateLimitHeaders(),
   sendOTP,
-  recordAuthFailure('forgotPassword'),
+  recordAuthFailure("forgotPassword"),
 );
 
 /* ------------------------------------------------------------------ */
@@ -439,77 +263,34 @@ router.post(
  *       content:
  *         application/json:
  *           schema:
- *             type: object
- *             required:
- *               - email
- *               - otp
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               otp:
- *                 type: string
- *               password:
- *                 type: string
- *                 minLength: 6
+ *             $ref: '#/components/schemas/ResetPasswordRequest'
  *     responses:
  *       '200':
  *         description: Password reset successful
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Password reset successful"
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '400':
  *         description: Invalid OTP
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 400
- *                 message:
- *                   type: string
- *                   example: "Invalid OTP"
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       '429':
  *         description: Too many requests - Rate limited (5 attempts per 5 minutes)
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 429
- *                 message:
- *                   type: string
- *                   example: "Too many requests"
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post(
-  '/reset-password',
+  "/reset-password",
   otpLimiter,
-  authRateLimiter('resetPassword'),
+  authRateLimiter("resetPassword"),
   rateLimitHeaders(),
   resetPassword,
-  recordAuthFailure('resetPassword'),
+  recordAuthFailure("resetPassword"),
 );
 
 /* ------------------------------------------------------------------ */
@@ -530,19 +311,9 @@ router.post(
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Logout successful"
+ *               $ref: '#/components/schemas/SuccessResponse'
  */
-router.post('/logout', auth, logout);
+router.post("/logout", auth, logout);
 
 /* ------------------------------------------------------------------ */
 /* LOGOUT ALL (requires auth) */
@@ -562,19 +333,9 @@ router.post('/logout', auth, logout);
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "All sessions revoked successfully"
+ *               $ref: '#/components/schemas/SuccessResponse'
  */
-router.post('/logout-all', auth, logoutAll);
+router.post("/logout-all", auth, logoutAll);
 
 /* ------------------------------------------------------------------ */
 /* VERIFY SESSION (requires auth) */
@@ -594,37 +355,15 @@ router.post('/logout-all', auth, logoutAll);
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Token valid"
- *                 data:
- *                   type: object
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '401':
  *         description: Invalid session
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: false
- *                 status:
- *                   type: integer
- *                   example: 401
- *                 message:
- *                   type: string
- *                   example: "Invalid session"
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
-router.post('/verify', auth, verify);
+router.post("/verify", auth, verify);
 
 /* ------------------------------------------------------------------ */
 /* JUST UPDATE PASSWORD (requires auth) */
@@ -644,19 +383,9 @@ router.post('/verify', auth, verify);
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 status:
- *                   type: integer
- *                   example: 200
- *                 message:
- *                   type: string
- *                   example: "Password updated successfully"
+ *               $ref: '#/components/schemas/SuccessResponse'
  */
-router.post('/just-update-password', auth, justUpdatePassword);
+router.post("/just-update-password", auth, justUpdatePassword);
 
 /* ------------------------------------------------------------------ */
 /* PASSWORD VALIDITY CHECK (requires auth) */
@@ -693,6 +422,76 @@ router.post('/just-update-password', auth, justUpdatePassword);
  *                     valid:
  *                       type: boolean
  */
-router.post('/pass-is-valid', auth, passIsValid);
+router.post("/pass-is-valid", auth, passIsValid);
+
+/* ------------------------------------------------------------------ */
+/* REFRESH TOKEN */
+/* ------------------------------------------------------------------ */
+/**
+ * @swagger
+ * /api/v1/auth/refresh:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Refresh an access token using a valid refresh token
+ *     description: |
+ *       - Requires a valid, unexpired, non-revoked refresh token
+ *       - Returns a new access token AND a new refresh token (rotation)
+ *       - The old refresh token is revoked immediately
+ *       - Supports token binding via sessionId for extra security
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refreshToken]
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *               sessionId:
+ *                 type: string
+ *     responses:
+ *       '200':
+ *         description: Tokens refreshed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 status:
+ *                   type: integer
+ *                   example: 200
+ *                 message:
+ *                   type: string
+ *                   example: "Token refreshed successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     token:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
+ *       '400':
+ *         description: Refresh token is required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       '401':
+ *         description: Invalid or expired refresh token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.post(
+  "/refresh",
+  authRateLimiter("refreshToken"),
+  rateLimitHeaders(),
+  refresh,
+);
 
 module.exports = router;

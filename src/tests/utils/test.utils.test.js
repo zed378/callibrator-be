@@ -11,7 +11,7 @@ const {
   wait,
   mockThrow,
   mockResolve,
-} = require("./test.utils");
+} = require("../test.utils");
 
 describe("createMockRes", () => {
   it("should return an object with mock methods", () => {

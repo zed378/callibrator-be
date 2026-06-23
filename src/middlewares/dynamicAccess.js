@@ -1,4 +1,6 @@
-const { RoleMenuPermission, User, Tenants } = require("../models");
+const { User, Tenants } = require("../models");
+const RolesService = require("../services/roles.service");
+const { logger } = require("./activityLog");
 
 /**
  * Dynamic RBAC Middleware
@@ -98,7 +100,8 @@ exports.dynamicAccess = (menuGroup, permissionType, options = {}) => {
             if (String(owner.tenantId) !== String(user.tenantId)) {
               return res.status(403).json({
                 success: false,
-                message: "Access denied: resource belongs to a different tenant",
+                message:
+                  "Access denied: resource belongs to a different tenant",
               });
             }
           }
@@ -165,43 +168,28 @@ exports.dynamicAccess = (menuGroup, permissionType, options = {}) => {
 };
 
 /**
- * Check permission for a specific menu group
+ * Check permission for a specific menu group using cached matrix
  */
 async function checkMenuPermission(menuName, permTypes, user, requireAll) {
-  // Get the menu group by name
-  const { MenuGroup } = require("../models");
-  const menuGroup = await MenuGroup.findOne({
-    where: { name: menuName, isActive: true },
-  });
+  // 1. Get cached permissions matrix
+  const matrix = await RolesService.getRolePermissionsMatrix(user.role.id);
 
-  if (!menuGroup) {
-    return {
-      allowed: false,
-      deniedTypes: permTypes,
-      menuGroup,
-      permission: null,
-    };
-  }
+  // 2. See if the menu exists in the user's role permissions
+  const rolePermsForMenu = matrix[menuName] || [];
 
-  // Check each permission type
   const typeResults = [];
-
   for (const permType of permTypes) {
-    const rolePerm = await RoleMenuPermission.findOne({
-      where: {
-        roleId: user.role.id,
-        menuGroupId: menuGroup.id,
-        permission_type: permType,
-      },
-    });
-
+    // If permType is 'read', 'write' also satisfies it.
+    let hasPerm = rolePermsForMenu.includes(permType);
+    if (!hasPerm && permType === "read" && rolePermsForMenu.includes("write")) {
+      hasPerm = true;
+    }
     typeResults.push({
       permissionType: permType,
-      allowed: !!rolePerm,
+      allowed: hasPerm,
     });
   }
 
-  // Determine if permissions are allowed (OR or AND logic)
   const allowed = requireAll
     ? typeResults.every((r) => r.allowed)
     : typeResults.some((r) => r.allowed);
@@ -210,13 +198,12 @@ async function checkMenuPermission(menuName, permTypes, user, requireAll) {
     .filter((r) => !r.allowed)
     .map((r) => r.permissionType);
 
-  // Return the first allowed permission
   const allowedResult = typeResults.find((r) => r.allowed);
 
   return {
     allowed,
     deniedTypes,
-    menuGroup,
+    menuGroup: { name: menuName }, // Mock structure
     permission: allowedResult
       ? { permission_type: allowedResult.permissionType }
       : null,
@@ -239,33 +226,26 @@ exports.hasDynamicPermission = async (req, res, next) => {
       });
     }
 
-    const { MenuGroup } = require("../models");
-    const menu = await MenuGroup.findOne({
-      where: { name: menuGroup, isActive: true },
-    });
-
-    if (!menu) {
-      return res.status(200).json({
-        success: true,
-        data: { allowed: false, permission: null },
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
       });
     }
 
-    const rolePerm = await RoleMenuPermission.findOne({
-      where: {
-        roleId: req.user.role.id,
-        menuGroupId: menu.id,
-        permission_type: permissionType,
-      },
-    });
+    const matrix = await RolesService.getRolePermissionsMatrix(req.user.role.id);
+    const rolePermsForMenu = matrix[menuGroup] || [];
+
+    let hasPerm = rolePermsForMenu.includes(permissionType);
+    if (!hasPerm && permissionType === "read" && rolePermsForMenu.includes("write")) {
+      hasPerm = true;
+    }
 
     return res.status(200).json({
       success: true,
       data: {
-        allowed: !!rolePerm,
-        permission: rolePerm
-          ? { permission_type: rolePerm.permission_type }
-          : null,
+        allowed: hasPerm,
+        permission: hasPerm ? { permission_type: permissionType } : null,
       },
     });
   } catch (error) {

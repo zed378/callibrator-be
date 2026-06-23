@@ -12,10 +12,24 @@ const {
   paginated,
   login,
 } = require("../../utils/response");
-const { createMockRes } = require("./test.utils");
+const { createMockRes } = require("../test.utils");
 
 describe("response utility", () => {
   describe("success", () => {
+    it("should use null data when data argument is undefined", () => {
+      const res = createMockRes();
+
+      success(res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        status: 200,
+        message: "Success",
+        data: null,
+      });
+    });
+
     it("should send success response with data and default message", () => {
       const res = createMockRes();
       const data = { id: 1, name: "test" };
@@ -387,6 +401,143 @@ describe("response utility", () => {
           id: "session-uuid",
           createdAt: new Date("2024-01-01"),
           expiresAt: new Date("2024-01-08"),
+        },
+      });
+    });
+
+    it("should send login response with null session (session key omitted)", () => {
+      const res = createMockRes();
+      const data = { id: "user-uuid", username: "test" };
+      const token = "jwt_token_here";
+
+      login(res, data, token, null);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        status: 200,
+        message: "Login successful",
+        data,
+        token,
+      });
+    });
+  });
+
+  describe("success with authData edge cases", () => {
+    it("should include only token when session is missing from authData", () => {
+      const res = createMockRes();
+      const data = { id: 1 };
+      const authData = {
+        token: "jwt_token_here",
+      };
+
+      success(res, data, null, "Success", 200, authData);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        status: 200,
+        message: "Success",
+        data,
+        token: "jwt_token_here",
+      });
+    });
+
+    it("should include only session when token is missing from authData", () => {
+      const res = createMockRes();
+      const data = { id: 1 };
+      const authData = {
+        session: {
+          id: "session-uuid",
+          createdAt: "2024-01-01T00:00:00Z",
+          expiresAt: "2024-01-08T00:00:00Z",
+        },
+      };
+
+      success(res, data, null, "Success", 200, authData);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        status: 200,
+        message: "Success",
+        data,
+        session: {
+          id: "session-uuid",
+          createdAt: "2024-01-01T00:00:00Z",
+          expiresAt: "2024-01-08T00:00:00Z",
+        },
+      });
+    });
+  });
+
+  describe("paginated without res.query", () => {
+    it("should handle missing res.query gracefully", () => {
+      const res = createMockRes();
+      // Intentionally not setting res.query
+      delete res.query;
+      const rows = [{ id: 1 }, { id: 2 }];
+      const count = 2;
+
+      paginated(res, rows, count, "Fetched", 200);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        status: 200,
+        message: "Fetched",
+        data: rows,
+        meta: {
+          total: 2,
+          page: 1,
+          limit: 20,
+          totalPages: 1,
+        },
+      });
+    });
+
+    it("should use default status code 200 when statusCode is undefined", () => {
+      const res = createMockRes();
+      res.query = { page: 1, limit: 20 };
+      const rows = [{ id: 1 }];
+      const count = 1;
+
+      paginated(res, rows, count, "Fetched", undefined);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        status: 200,
+        message: "Fetched",
+        data: rows,
+        meta: {
+          total: 1,
+          page: 1,
+          limit: 20,
+          totalPages: 1,
+        },
+      });
+    });
+
+    it("should use default message 'Success' when message is undefined", () => {
+      const res = createMockRes();
+      res.query = { page: 1, limit: 20 };
+      const rows = [{ id: 1 }];
+      const count = 1;
+
+      paginated(res, rows, count, undefined, 200);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        status: 200,
+        message: "Success",
+        data: rows,
+        meta: {
+          total: 1,
+          page: 1,
+          limit: 20,
+          totalPages: 1,
         },
       });
     });

@@ -171,10 +171,10 @@ const login = (res, data, token, session, message = "Login successful") => {
     token,
     session: session
       ? {
-          id: session.id,
-          createdAt: session.createdAt,
-          expiresAt: session.expiresAt,
-        }
+        id: session.id,
+        createdAt: session.createdAt,
+        expiresAt: session.expiresAt,
+      }
       : null,
   });
 };

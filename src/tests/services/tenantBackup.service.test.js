@@ -9,6 +9,13 @@ const mockFs = {
   writeFileSync: jest.fn(),
   readFileSync: jest.fn(),
   unlinkSync: jest.fn(),
+  createReadStream: jest.fn(() => ({
+    on: jest.fn(function (event, cb) {
+      if (event === "data") {cb(Buffer.from("mock data"));}
+      if (event === "end") {cb();}
+      return this;
+    }),
+  })),
 };
 
 jest.mock("fs", () => mockFs);
@@ -17,6 +24,7 @@ jest.mock("fs", () => mockFs);
 jest.mock("path", () => ({
   join: jest.fn((...args) => "/mock/" + args.join("/")),
   dirname: jest.fn(() => "/mock"),
+  resolve: jest.fn(() => "/mock/resolved"),
 }));
 
 // Mock crypto module
@@ -40,8 +48,6 @@ jest.mock("jszip", () => {
     generateAsync: mockZipGenerateAsync,
   }));
 });
-
-jest.mock("jszip", { actual: true });
 
 // Mock uuid
 jest.mock("uuid", () => ({
@@ -67,10 +73,12 @@ const mockTenantBackup = {
   getLatestBackup: jest.fn(),
   hasValidBackups: jest.fn(),
   COUNT: jest.fn(),
+  count: jest.fn(),
   destroy: jest.fn(),
   bulkCreate: jest.fn(),
   findAll: jest.fn(),
   findOne: jest.fn(),
+  DEFAULT_RETENTION_DAYS: 30,
   BACKUP_TYPES: {
     FULL: "FULL",
     PARTIAL: "PARTIAL",
@@ -87,7 +95,7 @@ const mockTenantBackup = {
   },
 };
 
-const mockTenants = {
+const mockTenant = {
   findByPk: jest.fn(),
 };
 
@@ -168,7 +176,7 @@ const mockSequelize = {
 
 jest.mock("../../models", () => ({
   TenantBackup: mockTenantBackup,
-  Tenants: mockTenants,
+  Tenant: mockTenant,
   Users: mockUsers,
   TenantSettings: mockTenantSettings,
   TenantRoles: mockTenantRoles,
@@ -178,7 +186,7 @@ jest.mock("../../models", () => ({
   Sessions: mockSessions,
 }));
 
-jest.mock("../../models/tenant_backup", () => mockTenantBackup);
+jest.mock("../../models/tenant_backup", () => ({ TenantBackup: mockTenantBackup }));
 
 // Mock activity log
 jest.mock("../../middlewares/activityLog", () => ({
@@ -193,7 +201,7 @@ jest.mock("../../middlewares/activityLog", () => ({
 // Mock appError
 jest.mock("../../utils/appError", () => {
   class AppError extends Error {
-    constructor(message, statusCode) {
+    constructor(statusCode, message) {
       super(message);
       this.statusCode = statusCode;
     }
@@ -214,6 +222,7 @@ const {
   restoreBackup,
   deleteBackup,
   getBackupStats,
+  cleanupExpiredBackups,
 } = require("../../services/tenantBackup.service");
 
 describe("Tenant Backup Service", () => {
@@ -222,11 +231,22 @@ describe("Tenant Backup Service", () => {
   const mockBackupId = "backup-789";
 
   const mockModels = {
+    sequelize: {
+      ...mockSequelize,
+      models: {
+        Users: {
+          destroy: jest.fn(),
+          bulkCreate: jest.fn(),
+          findOrCreate: jest.fn(),
+        },
+      },
+    },
     Sequelize: mockSequelize.Sequelize,
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFs.existsSync.mockReset();
     mockFs.existsSync.mockReturnValue(true);
     mockFs.mkdirSync.mockReturnValue(undefined);
   });
@@ -239,7 +259,7 @@ describe("Tenant Backup Service", () => {
         status: "PENDING",
       };
 
-      const mockTenant = {
+      const mockTenantData = {
         id: mockTenantId,
         name: "Test Tenant",
         toJSON: jest.fn(() => ({ id: mockTenantId, name: "Test Tenant" })),
@@ -250,7 +270,7 @@ describe("Tenant Backup Service", () => {
         ...mockBackup,
         status: "COMPLETED",
       });
-      mockTenants.findByPk.mockResolvedValue(mockTenant);
+      mockTenant.findByPk.mockResolvedValue(mockTenantData);
       mockTenantSettings.findAll.mockResolvedValue([]);
       mockTenantRoles.findAll.mockResolvedValue([]);
       mockTenantFeatures.findAll.mockResolvedValue([]);
@@ -291,7 +311,15 @@ describe("Tenant Backup Service", () => {
         .mockResolvedValueOnce({ ...mockBackup, status: "IN_PROGRESS" })
         .mockResolvedValueOnce({ ...mockBackup, status: "FAILED" });
 
-      mockTenants.findByPk.mockRejectedValue(new Error("Database error"));
+      const mockTenantData = {
+        id: mockTenantId,
+        name: "Test Tenant",
+        toJSON: jest.fn(() => ({ id: mockTenantId, name: "Test Tenant" })),
+      };
+
+      mockTenant.findByPk
+        .mockResolvedValueOnce(mockTenantData)
+        .mockRejectedValueOnce(new Error("Database error"));
 
       await expect(
         createBackup({
@@ -320,8 +348,8 @@ describe("Tenant Backup Service", () => {
 
       const result = await downloadBackup(mockBackupId, mockModels);
 
-      expect(result.filePath).toBe("/mock/backups/backup.zip");
-      expect(result.metadata).toEqual(mockBackup);
+      expect(result.data.filePath).toBe("/mock/backups/backup.zip");
+      expect(result.data.metadata).toEqual(mockBackup);
     });
 
     it("should throw error if backup not found", async () => {
@@ -372,7 +400,7 @@ describe("Tenant Backup Service", () => {
                   settings: [],
                   tenantRoles: [],
                   tenantFeatures: [],
-                  users: [],
+                  users: [{ username: "test1", email: "test1@example.com" }],
                   userPermissions: [],
                   auditLogs: [],
                 }),
@@ -424,7 +452,7 @@ describe("Tenant Backup Service", () => {
       };
 
       mockTenantBackup.findByPk.mockResolvedValue(mockBackup);
-      mockFs.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(false);
+      mockFs.existsSync.mockReturnValue(false);
 
       await expect(
         restoreBackup({
@@ -434,6 +462,55 @@ describe("Tenant Backup Service", () => {
         }),
       ).rejects.toThrow("Backup file not found on storage");
     });
+
+    it("should restore a backup successfully with mergeData=false", async () => {
+      const mockBackup = {
+        id: mockBackupId,
+        status: "COMPLETED",
+        filePath: "/mock/backups/backup.zip",
+      };
+
+      mockTenantBackup.findByPk.mockResolvedValue(mockBackup);
+      mockFs.existsSync.mockReturnValue(true);
+      mockFs.readFileSync.mockReturnValue(Buffer.from("mock-zip-data"));
+
+      const MockJSZip = require("jszip");
+      const mockZipInstance = {
+        loadAsync: jest.fn().mockResolvedValue({
+          files: {
+            "tenant_data_full.json": {
+              async: jest.fn().mockResolvedValue(
+                JSON.stringify({
+                  metadata: { version: "1.0" },
+                  tenant: { id: mockTenantId },
+                  users: [{ username: "test1", email: "test1@example.com" }],
+                }),
+              ),
+            },
+          },
+        }),
+      };
+      MockJSZip.mockImplementation(() => mockZipInstance);
+
+      const mockTransaction = { commit: jest.fn(), rollback: jest.fn() };
+      mockSequelize.transaction.mockResolvedValue(mockTransaction);
+      mockTenantBackup.updateStatus.mockResolvedValue({
+        ...mockBackup,
+        status: "RESTORED",
+      });
+
+      const result = await restoreBackup({
+        backupId: mockBackupId,
+        restoredById: mockUserId,
+        models: mockModels,
+        mergeData: false,
+      });
+
+      expect(result.success).toBe(true);
+      expect(mockUsers.destroy).toHaveBeenCalled();
+      expect(mockUsers.bulkCreate).toHaveBeenCalled();
+    });
+
   });
 
   describe("deleteBackup", () => {
@@ -493,24 +570,96 @@ describe("Tenant Backup Service", () => {
         { dataValues: { totalSize: 1048576 } },
       ]);
 
+      const mockDate = new Date("2026-01-01T00:00:00Z");
       mockTenantBackup.getLatestBackup.mockResolvedValue({
         id: "latest-backup",
-        createdAt: new Date(),
+        createdAt: mockDate,
       });
 
       mockTenantBackup.hasValidBackups.mockResolvedValue(true);
 
       const stats = await getBackupStats(mockTenantId, mockModels);
 
-      expect(stats.totalBackups).toBe(10);
-      expect(stats.completedBackups).toBe(8);
-      expect(stats.failedBackups).toBe(2);
-      expect(stats.totalSize).toBe(1048576);
-      expect(stats.latestBackup).toEqual({
+      expect(stats.data.totalBackups).toBe(10);
+      expect(stats.data.completedBackups).toBe(8);
+      expect(stats.data.failedBackups).toBe(2);
+      expect(stats.data.totalSize).toBe(1048576);
+      expect(stats.data.latestBackup).toEqual({
         id: "latest-backup",
-        createdAt: new Date(),
+        createdAt: mockDate,
       });
-      expect(stats.hasValidBackups).toBe(true);
+      expect(stats.data.hasValidBackups).toBe(true);
+    });
+  });
+
+  describe("cleanupExpiredBackups", () => {
+    it("should clean up expired backups successfully", async () => {
+      const mockBackup1 = {
+        id: "backup-1",
+        filePath: "/path/to/backup1.zip",
+        destroy: jest.fn().mockResolvedValue(),
+      };
+      const mockBackup2 = {
+        id: "backup-2",
+        filePath: "/path/to/backup2.zip",
+        destroy: jest.fn().mockResolvedValue(),
+      };
+
+      mockTenantBackup.findAll.mockResolvedValue([mockBackup1, mockBackup2]);
+      mockFs.existsSync.mockReturnValue(true);
+
+      const result = await cleanupExpiredBackups(mockTenantId, mockModels);
+
+      expect(mockTenantBackup.findAll).toHaveBeenCalled();
+      expect(mockFs.unlinkSync).toHaveBeenCalledWith("/path/to/backup1.zip");
+      expect(mockFs.unlinkSync).toHaveBeenCalledWith("/path/to/backup2.zip");
+      expect(mockBackup1.destroy).toHaveBeenCalled();
+      expect(mockBackup2.destroy).toHaveBeenCalled();
+      expect(result).toEqual({
+        success: true,
+        status: 200,
+        message: "Expired backups cleanup completed",
+        data: { deletedCount: 2 },
+      });
+    });
+
+    it("should handle error during deletion gracefully", async () => {
+      const mockBackup = {
+        id: "backup-1",
+        filePath: "/path/to/backup1.zip",
+        destroy: jest.fn().mockRejectedValue(new Error("Failed to delete")),
+      };
+
+      mockTenantBackup.findAll.mockResolvedValue([mockBackup]);
+      mockFs.existsSync.mockReturnValue(true);
+
+      const result = await cleanupExpiredBackups(null, mockModels);
+
+      expect(result.data.deletedCount).toBe(0);
+    });
+  });
+
+  describe("deleteBackup failure handling", () => {
+    it("should handle deletion failure and revert status", async () => {
+      const mockBackup = {
+        id: mockBackupId,
+        filePath: "/mock/backups/backup.zip",
+        status: "COMPLETED",
+        destroy: jest.fn().mockRejectedValue(new Error("Database deletion error")),
+      };
+
+      mockTenantBackup.findByPk.mockResolvedValue(mockBackup);
+      mockFs.existsSync.mockReturnValue(true);
+
+      await expect(
+        deleteBackup(mockBackupId, mockUserId, mockModels),
+      ).rejects.toThrow("Failed to delete backup");
+
+      expect(mockTenantBackup.updateStatus).toHaveBeenCalledWith(
+        mockBackupId,
+        { status: "COMPLETED" },
+        mockModels,
+      );
     });
   });
 });

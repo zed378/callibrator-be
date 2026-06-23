@@ -80,10 +80,10 @@ const initRedis = async () => {
 const get = async (key) => {
   try {
     const client = getRedisConnection();
-    if (!client || !client.connected) return null;
+    if (!client || !client.connected) {return null;}
 
     const value = await client.get(key);
-    if (!value) return null;
+    if (!value) {return null;}
 
     // Try to parse as JSON, fallback to string
     try {
@@ -106,7 +106,7 @@ const get = async (key) => {
 const set = async (key, value, ttl = 300) => {
   try {
     const client = getRedisConnection();
-    if (!client || !client.connected) return false;
+    if (!client || !client.connected) {return false;}
 
     const serialized =
       typeof value === "string" ? value : JSON.stringify(value);
@@ -126,7 +126,7 @@ const set = async (key, value, ttl = 300) => {
 const del = async (key) => {
   try {
     const client = getRedisConnection();
-    if (!client || !client.connected) return false;
+    if (!client || !client.connected) {return false;}
 
     await client.del(key);
     return true;
@@ -144,7 +144,7 @@ const del = async (key) => {
 const delPattern = async (pattern) => {
   try {
     const client = getRedisConnection();
-    if (!client || !client.connected) return 0;
+    if (!client || !client.connected) {return 0;}
 
     let deleted = 0;
     let cursor = "0";
@@ -184,7 +184,7 @@ const delPattern = async (pattern) => {
 const acquireLock = async (key, ttl = 5000) => {
   try {
     const client = getRedisConnection();
-    if (!client || !client.connected) return null;
+    if (!client || !client.connected) {return null;}
 
     const lockKey = `lock:${key}`;
     const lockId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -217,7 +217,7 @@ const acquireLock = async (key, ttl = 5000) => {
 const releaseLock = async (key, lockId) => {
   try {
     const client = getRedisConnection();
-    if (!client || !client.connected) return false;
+    if (!client || !client.connected) {return false;}
 
     const lockKey = `lock:${key}`;
     const script = `

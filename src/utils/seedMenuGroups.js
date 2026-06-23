@@ -14,6 +14,7 @@ function getMenuGroupId(slug) {
     management: "a0000000-0000-0000-0000-000000000003",
     security: "a0000000-0000-0000-0000-000000000004",
     profile: "a0000000-0000-0000-0000-000000000005",
+    warehouse: "a0000000-0000-0000-0000-000000000006",
   };
   return (
     ids[slug] || `a0000000-0000-0000-0000-${Date.now().toString().slice(-4)}`
@@ -32,44 +33,52 @@ async function seedMenuGroups() {
       slug: "home",
       icon: "Home",
       sortOrder: 0,
-      isActive: true,
+      is_active: true,
     },
     {
       name: "Dashboard",
       slug: "dashboard",
       icon: "LayoutGrid",
       sortOrder: 1,
-      isActive: true,
+      is_active: true,
     },
     {
       name: "Account",
       slug: "account",
       icon: "User",
       sortOrder: 2,
-      isActive: true,
+      is_active: true,
     },
     {
       name: "Management",
       slug: "management",
       icon: "Settings",
       sortOrder: 3,
-      isActive: true,
+      is_active: true,
     },
     {
       name: "Security",
       slug: "security",
       icon: "Shield",
       sortOrder: 4,
-      isActive: true,
+      is_active: true,
     },
     {
       name: "Profile",
       slug: "profile",
       icon: "UserCircle",
       sortOrder: 5,
-      isActive: true,
+      is_active: true,
       description:
         "Profile menu group contains profile page and change password sub-routes",
+    },
+    {
+      name: "Warehouse",
+      slug: "warehouse",
+      icon: "Warehouse",
+      sortOrder: 6,
+      is_active: true,
+      description: "Warehouse, stock, and inventory management",
     },
   ];
 
@@ -85,14 +94,14 @@ async function seedMenuGroups() {
         slug: groupData.slug,
         icon: groupData.icon,
         sortOrder: groupData.sortOrder,
-        isActive: groupData.isActive,
+        is_active: groupData.is_active,
       });
       logger.info(`Created menu group: ${groupData.name}`);
     } else {
       await group.update({
         icon: groupData.icon,
         sortOrder: groupData.sortOrder,
-        isActive: groupData.isActive,
+        is_active: groupData.is_active,
       });
     }
   }
@@ -149,7 +158,6 @@ async function seedRoleMenuPermissions() {
         continue;
       }
 
-      // Check if permission already exists
       const existing = await RoleMenuPermission.findOne({
         where: {
           roleId: role.id,

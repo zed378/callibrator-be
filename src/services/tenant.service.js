@@ -54,7 +54,7 @@ const TENANT_LOGO_BASE_URL = `${process.env.HOST_URL || "http://localhost:5000"}
  * @returns {Object} - Transformed tenant data
  */
 const transformTenant = (tenant) => {
-  if (!tenant) return null;
+  if (!tenant) {return null;}
   const data = tenant.toJSON ? tenant.toJSON() : { ...tenant };
   data.logoBaseUrl = data.logo ? `${TENANT_LOGO_BASE_URL}/${data.logo}` : null;
   return data;
@@ -126,11 +126,11 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
       ],
       where: whereClause
         ? {
-            [Op.or]: [{ tenant_id: tenantRows.map((t) => t.id) }],
-          }
+          [Op.or]: [{ tenant_id: tenantRows.map((t) => t.id) }],
+        }
         : {
-            tenant_id: tenantRows.map((t) => t.id),
-          },
+          tenant_id: tenantRows.map((t) => t.id),
+        },
       group: ["tenant_id"],
       raw: true,
     });
@@ -152,12 +152,12 @@ exports.fetchTenants = async ({ find, page = 1, limit = DEFAULT_LIMIT }) => {
 
     const resultData = {
       rows: transformedRows,
-      count,
+      count: totalCount,
       meta: {
-        total: count,
+        total: totalCount,
         page: Number(page),
         limit: Number(limit),
-        totalPages: Math.ceil(count / Number(limit)),
+        totalPages: Math.ceil(totalCount / Number(limit)),
       },
     };
 
@@ -261,6 +261,23 @@ exports.fetchSpecificTenant = async (tenantId) => {
     logger.error("Error fetching specific tenant", { error: error.message });
     throw new AppError(500, "Internal server error");
   }
+};
+
+// ------------------------------------------------------------------
+// MIDDLEWARE HELPERS (No ORM leak in middlewares)
+// ------------------------------------------------------------------
+exports.getTenantByIdForMiddleware = async (tenantId) => {
+  return await Tenants.findByPk(tenantId, {
+    attributes: ["id", "name", "status"],
+  });
+};
+
+exports.getTenantByCodeForMiddleware = async (tenantCode) => {
+  return await Tenants.findOne({
+    // Changed to 'code' as querying 'name' with a 'code' header is incorrect
+    where: { code: tenantCode, status: "active" },
+    attributes: ["id", "name", "status"],
+  });
 };
 
 // ------------------------------------------------------------------
@@ -423,7 +440,7 @@ exports.updateTenant = async (tenantId, input, updatedBy) => {
     }
 
     // Delete old logo file if new logo is being uploaded and old logo exists and is not default
-    let newLogo = logo || tenant.logo;
+    const newLogo = logo || tenant.logo;
     if (logo && logo !== tenant.logo) {
       const oldLogoFilename = (tenant.logo || "").split("/").pop();
       if (oldLogoFilename && oldLogoFilename !== "default.svg") {

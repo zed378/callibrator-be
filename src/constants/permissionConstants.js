@@ -21,22 +21,22 @@
  */
 const USER_PERMISSIONS = {
   // Global permissions (module:action)
-  CREATE: 'user:create',
-  READ: 'user:read',
-  UPDATE: 'user:update',
-  DELETE: 'user:delete',
+  CREATE: "user:create",
+  READ: "user:read",
+  UPDATE: "user:update",
+  DELETE: "user:delete",
 
   // Self permissions (module:self:action) - Note: self-delete is not included
   // Users cannot delete their own accounts via permission system
-  SELF_UPDATE: 'user:self:update',
-  SELF_READ: 'user:self:read',
+  SELF_UPDATE: "user:self:update",
+  SELF_READ: "user:self:read",
 
   // Tenant permissions (module:tenant:action)
-  TENANT_CREATE: 'user:tenant:create',
-  TENANT_READ: 'user:tenant:read',
-  TENANT_UPDATE: 'user:tenant:update',
-  TENANT_DELETE: 'user:tenant:delete',
-  TENANT_ASSIGN: 'user:tenant:assign',
+  TENANT_CREATE: "user:tenant:create",
+  TENANT_READ: "user:tenant:read",
+  TENANT_UPDATE: "user:tenant:update",
+  TENANT_DELETE: "user:tenant:delete",
+  TENANT_ASSIGN: "user:tenant:assign",
 };
 
 /**
@@ -46,24 +46,24 @@ const USER_PERMISSIONS = {
  */
 const TENANT_PERMISSIONS = {
   // Global permissions (module:action)
-  CREATE: 'tenant:create',
-  READ: 'tenant:read',
-  UPDATE: 'tenant:update',
-  DELETE: 'tenant:delete',
+  CREATE: "tenant:create",
+  READ: "tenant:read",
+  UPDATE: "tenant:update",
+  DELETE: "tenant:delete",
 
   // Self permissions (module:self:action)
-  SELF_UPDATE: 'tenant:self:update',
-  SELF_READ: 'tenant:self:read',
+  SELF_UPDATE: "tenant:self:update",
+  SELF_READ: "tenant:self:read",
 
   // Tenant permissions (module:tenant:action)
-  TENANT_READ: 'tenant:tenant:read',
-  TENANT_ASSIGN: 'tenant:tenant:assign',
+  TENANT_READ: "tenant:tenant:read",
+  TENANT_ASSIGN: "tenant:tenant:assign",
 
   // Backup permissions
-  BACKUP_CREATE: 'tenant:backup:create',
-  BACKUP_READ: 'tenant:backup:read',
-  BACKUP_RESTORE: 'tenant:backup:restore',
-  BACKUP_DELETE: 'tenant:backup:delete',
+  BACKUP_CREATE: "tenant:backup:create",
+  BACKUP_READ: "tenant:backup:read",
+  BACKUP_RESTORE: "tenant:backup:restore",
+  BACKUP_DELETE: "tenant:backup:delete",
 };
 
 /**
@@ -72,11 +72,11 @@ const TENANT_PERMISSIONS = {
  */
 const ROLE_MODULE_PERMISSIONS = {
   // Global permissions (module:action)
-  CREATE: 'role:create',
-  READ: 'role:read',
-  UPDATE: 'role:update',
-  DELETE: 'role:delete',
-  ASSIGN_PERMISSIONS: 'role:assign:permissions',
+  CREATE: "role:create",
+  READ: "role:read",
+  UPDATE: "role:update",
+  DELETE: "role:delete",
+  ASSIGN_PERMISSIONS: "role:assign:permissions",
 };
 
 /**
@@ -85,25 +85,25 @@ const ROLE_MODULE_PERMISSIONS = {
  * @deprecated Use dynamic table permissions instead
  */
 const ROLE_PERMISSION_CATEGORIES = {
-  SUPER_ADMIN: 'ALL',
+  SUPER_ADMIN: "ALL",
   TENANT_ADMIN: [
-    'user:tenant:create',
-    'user:tenant:read',
-    'user:tenant:update',
-    'user:tenant:delete',
-    'user:tenant:assign',
-    'user:self:update',
-    'user:self:read',
-    'tenant:tenant:read',
-    'tenant:tenant:assign',
-    'tenant:self:update',
-    'tenant:self:read',
-    'tenant:backup:create',
-    'tenant:backup:read',
-    'tenant:backup:restore',
-    'tenant:backup:delete',
+    "user:tenant:create",
+    "user:tenant:read",
+    "user:tenant:update",
+    "user:tenant:delete",
+    "user:tenant:assign",
+    "user:self:update",
+    "user:self:read",
+    "tenant:tenant:read",
+    "tenant:tenant:assign",
+    "tenant:self:update",
+    "tenant:self:read",
+    "tenant:backup:create",
+    "tenant:backup:read",
+    "tenant:backup:restore",
+    "tenant:backup:delete",
   ],
-  USER: ['user:self:update', 'user:self:read'],
+  USER: ["user:self:update", "user:self:read"],
 };
 
 module.exports = {

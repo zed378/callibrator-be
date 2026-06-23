@@ -1,77 +1,115 @@
 /**
- * Test utility functions
- * Provides mock helpers for Express requests/responses/next and Sequelize models.
+ * Test utilities — helpers for creating mock req/res/next, models, transactions,
+ * and utility functions commonly used across unit tests.
  */
 
 /**
- * Create a mock Express `res` object with chainable stubs.
+ * Create a mock Express `res` object with chainable .status(), .json(), etc.
+ * @param {Object} options - Optional custom properties
+ * @returns {Object}
  */
-const createMockRes = (overrides = {}) => ({
-  status: jest.fn().mockReturnThis(),
-  json: jest.fn().mockReturnThis(),
-  send: jest.fn().mockReturnThis(),
-  set: jest.fn().mockReturnThis(),
-  end: jest.fn().mockReturnThis(),
-  ...overrides,
-});
+function createMockRes(options = {}) {
+  const res = {
+    statusCode: 200,
+    headers: {},
+    json: jest.fn().mockReturnThis(),
+    status: jest.fn().mockReturnThis(),
+    send: jest.fn().mockReturnThis(),
+    setHeader: jest.fn(),
+    getHeader: jest.fn(),
+    locals: {},
+    ...options,
+  };
+  res.status.mockImplementation((code) => {
+    res.statusCode = code;
+    return res;
+  });
+  return res;
+}
 
 /**
  * Create a mock Express `req` object.
+ * @param {Object} overrides - Properties to override on the mock req
+ * @returns {Object}
  */
-const createMockReq = (overrides = {}) => ({
-  body: overrides.body || {},
-  query: overrides.query || {},
-  params: overrides.params || {},
-  headers: overrides.headers || {},
-  user: overrides.user || null,
-  ip: overrides.ip || "127.0.0.1",
-  tenantId: overrides.tenantId || null,
-  tenant: overrides.tenant || null,
-  ...overrides,
-});
+function createMockReq(overrides = {}) {
+  const req = {
+    body: {},
+    query: {},
+    params: {},
+    user: null,
+    headers: {},
+    ip: "127.0.0.1",
+    ...overrides,
+  };
+  return req;
+}
 
 /**
- * Create a mock `next` function.
+ * Create a mock `next` function for Express middleware tests.
+ * @returns {Function}
  */
-const createMockNext = () => jest.fn();
+function createMockNext() {
+  const next = jest.fn();
+  return next;
+}
 
 /**
- * Create a mock Sequelize model with common CRUD methods.
+ * Create a mock Sequelize model with common methods.
+ * @param {Object} overrides - Additional static methods to mock
+ * @returns {Object}
  */
-const createMockModel = (overrides = {}) => ({
-  findOne: jest.fn(),
-  findAndCountAll: jest.fn(),
-  findByPk: jest.fn(),
-  findAll: jest.fn(),
-  create: jest.fn(),
-  update: jest.fn(),
-  destroy: jest.fn(),
-  count: jest.fn(),
-  ...overrides,
-});
+function createMockModel(overrides = {}) {
+  return {
+    findOne: jest.fn(),
+    findAll: jest.fn(),
+    findByPk: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    destroy: jest.fn(),
+    count: jest.fn(),
+    ...overrides,
+  };
+}
 
 /**
- * Create a mock Sequelize transaction.
+ * Create a mock Sequelize transaction object.
+ * @returns {Object}
  */
-const createMockTransaction = () => ({
-  commit: jest.fn().mockResolvedValue(undefined),
-  rollback: jest.fn().mockResolvedValue(undefined),
-});
+function createMockTransaction() {
+  const mockTransaction = {
+    commit: jest.fn().mockResolvedValue(undefined),
+    rollback: jest.fn().mockResolvedValue(undefined),
+  };
+  return mockTransaction;
+}
 
 /**
- * Return a Promise that resolves after `ms` milliseconds.
+ * Wait for a specified number of milliseconds.
+ * @param {number} ms - Milliseconds to wait
+ * @returns {Promise<void>}
  */
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 /**
- * Return a mock function that rejects with the given error.
+ * Create a mock function that always rejects with the given error.
+ * @param {Error} error - The error to reject with
+ * @returns {Function}
  */
-const mockThrow = (error) => jest.fn().mockRejectedValue(error);
+function mockThrow(error) {
+  return jest.fn().mockRejectedValue(error);
+}
 
 /**
- * Return a mock function that resolves with the given value.
+ * Create a mock function that always resolves with the given value.
+ * @param {*} value - The value to resolve with
+ * @returns {Function}
  */
-const mockResolve = (value) => jest.fn().mockResolvedValue(value);
+function mockResolve(value) {
+  return jest.fn().mockResolvedValue(value);
+}
 
 module.exports = {
   createMockRes,

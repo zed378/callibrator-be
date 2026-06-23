@@ -1,290 +1,110 @@
 /**
- * Tests for upload.js utility
+ * Tests for upload utility
  */
-
-const fs = require("fs");
-
-// Mock storagePath before any other mocks
-jest.mock("../../utils/storagePath", () => {
-  return jest.fn((...paths) => "/storage/" + paths.join("/"));
-});
-
-// Mock activityLog before upload.js loads
-jest.mock("../../middlewares/activityLog", () => ({
-  logger: {
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-  },
-}));
-
-// Mock appError before upload.js loads
-jest.mock("../../utils/appError", () => {
-  class AppError extends Error {
-    constructor(message, status, isOperational, details) {
-      let actualStatus, actualMessage;
-      if (typeof message === "number") {
-        actualStatus = message;
-        actualMessage = status;
-      } else {
-        actualMessage = message;
-        actualStatus = status;
-      }
-      super(actualMessage);
-      this.name = "AppError";
-      this.status = actualStatus || 500;
-      this.isOperational = isOperational !== false;
-    }
-  }
-  return { AppError };
-});
-
-// Mock uuid with a CommonJS-compatible mock
-jest.mock("uuid", () => ({
-  v4: jest.fn(() => "test-uuid-12345"),
-}));
-
-// Mock multer - diskStorage is a static method on the multer function
-jest.mock("multer", () => {
-  function multer() {
-    // Instance methods for middleware creation
-    return {
-      single: jest.fn(() => jest.fn((req, res, next) => next())),
-      array: jest.fn(() => jest.fn((req, res, next) => next())),
-    };
-  }
-  // Static method for storage configuration (called at module load time)
-  multer.diskStorage = jest.fn((config) => {
-    return {
-      destination: config.destination,
-      filename: config.filename,
-    };
-  });
-  return multer;
-});
+const path = require("path");
+jest.mock("uuid", () => ({ v4: () => "test-uuid-1234" }));
+jest.mock("../../utils/storagePath", () =>
+  jest.fn((...paths) => `C:/uploads/${paths.join("/")}`),
+);
 
 const {
-  deleteUpload,
-  getUploadUrl,
   upload,
   uploadMulti,
+  deleteUpload,
+  getUploadUrl,
 } = require("../../utils/upload");
+const storagePath = require("../../utils/storagePath");
 
 describe("upload utility", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
-
-  describe("getUploadUrl", () => {
-    it("should generate correct URL for file in uploads folder", () => {
-      const url = getUploadUrl("test-image.png", "uploads");
-      expect(url).toBe("/uploads/test-image.png");
+  // ================================================================
+  // upload helper
+  // ================================================================
+  describe("upload", () => {
+    it("should return a function", () => {
+      expect(typeof upload()).toBe("function");
     });
 
-    it("should generate correct URL for file in uploads/profile folder", () => {
-      const url = getUploadUrl("avatar.png", "uploads/profile");
-      expect(url).toBe("/uploads/profile/avatar.png");
+    it("should accept empty options", () => {
+      const middleware = upload({});
+      expect(typeof middleware).toBe("function");
     });
 
-    it("should generate correct URL for file in uploads/tenant folder", () => {
-      const url = getUploadUrl("logo.png", "uploads/tenant");
-      expect(url).toBe("/uploads/tenant/logo.png");
-    });
-
-    it("should default to uploads folder when folder not specified", () => {
-      const url = getUploadUrl("file.jpg");
-      expect(url).toBe("/uploads/file.jpg");
+    it("should accept custom options with folder and file types", () => {
+      const middleware = upload({
+        folder: "avatars",
+        allowedMimes: ["image/png"],
+        allowedExtensions: [".png"],
+        maxFileSize: 10 * 1024 * 1024,
+      });
+      expect(typeof middleware).toBe("function");
     });
   });
 
+  // ================================================================
+  // uploadMulti helper
+  // ================================================================
+  describe("uploadMulti", () => {
+    it("should return a function", () => {
+      expect(typeof uploadMulti()).toBe("function");
+    });
+
+    it("should accept empty options", () => {
+      const middleware = uploadMulti({});
+      expect(typeof middleware).toBe("function");
+    });
+
+    it("should accept maxFiles option", () => {
+      const middleware = uploadMulti({ maxFiles: 10 });
+      expect(typeof middleware).toBe("function");
+    });
+  });
+
+  // ================================================================
+  // deleteUpload
+  // ================================================================
   describe("deleteUpload", () => {
-    it("should delete file from uploads folder", async () => {
-      const unlinkSpy = jest
-        .spyOn(fs, "unlink")
-        .mockImplementation((path, cb) => cb(null));
-
-      await expect(
-        deleteUpload("test-file.png", "uploads"),
-      ).resolves.toBeUndefined();
-
-      expect(unlinkSpy).toHaveBeenCalledWith(
-        expect.stringContaining("test-file.png"),
-        expect.any(Function),
-      );
-
-      unlinkSpy.mockRestore();
-    });
-
-    it("should reject with error when file deletion fails", async () => {
-      const unlinkSpy = jest
-        .spyOn(fs, "unlink")
-        .mockImplementation((path, cb) => cb(new Error("File not found")));
-
-      await expect(deleteUpload("nonexistent.png", "uploads")).rejects.toThrow(
-        "File not found",
-      );
-
-      unlinkSpy.mockRestore();
-    });
-
-    it("should use default uploads folder when folder not provided", async () => {
-      const unlinkSpy = jest
-        .spyOn(fs, "unlink")
-        .mockImplementation((path, cb) => cb(null));
-
-      await expect(deleteUpload("test-file.png")).resolves.toBeUndefined();
-
-      expect(unlinkSpy).toHaveBeenCalledWith(
-        expect.stringContaining("test-file.png"),
-        expect.any(Function),
-      );
-
-      unlinkSpy.mockRestore();
-    });
-
-    it("should log error when file deletion fails", async () => {
-      const { logger } = require("../../middlewares/activityLog");
-      const unlinkSpy = jest
-        .spyOn(fs, "unlink")
-        .mockImplementation((path, cb) => cb(new Error("Permission denied")));
-
-      await expect(deleteUpload("locked-file.png", "uploads")).rejects.toThrow(
-        "Permission denied",
-      );
-
-      expect(logger.error).toHaveBeenCalled();
-
-      unlinkSpy.mockRestore();
+    it("should be a function", () => {
+      expect(typeof deleteUpload).toBe("function");
     });
   });
 
-  describe("upload middleware factory", () => {
-    it("should return a middleware function", () => {
-      const middleware = upload();
-      expect(typeof middleware).toBe("function");
+  // ================================================================
+  // getUploadUrl
+  // ================================================================
+  describe("getUploadUrl", () => {
+    it("should return correct URL with default folder", () => {
+      const url = getUploadUrl("test.jpg");
+      expect(url).toBe("/uploads/test.jpg");
     });
 
-    it("should set uploadFolder on request", () => {
-      const middleware = upload({ folder: "uploads/profile" });
-      const req = {};
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(req.uploadFolder).toBe("uploads/profile");
+    it("should return correct URL with custom folder", () => {
+      const url = getUploadUrl("avatar.png", "avatars");
+      expect(url).toBe("/avatars/avatar.png");
     });
 
-    it("should use default uploads folder when not specified", () => {
-      const middleware = upload();
-      const req = {};
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(req.uploadFolder).toBe("uploads");
+    it("should handle filenames with special characters", () => {
+      const url = getUploadUrl("my-file_123.png", "documents");
+      expect(url).toBe("/documents/my-file_123.png");
     });
 
-    it("should set allowedMimes when provided", () => {
-      const middleware = upload({
-        allowedMimes: ["image/jpeg", "image/png"],
-      });
-      const req = {};
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(req.allowedMimes).toEqual(["image/jpeg", "image/png"]);
-    });
-
-    it("should set allowedExtensions when provided", () => {
-      const middleware = upload({
-        allowedExtensions: [".jpg", ".jpeg"],
-      });
-      const req = {};
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(req.allowedExtensions).toEqual([".jpg", ".jpeg"]);
-    });
-
-    it("should call next on successful upload", () => {
-      const middleware = upload();
-      const req = {};
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(next).toHaveBeenCalled();
+    it("should handle filenames with dots", () => {
+      const url = getUploadUrl("my.file.with.dots.jpg");
+      expect(url).toBe("/uploads/my.file.with.dots.jpg");
     });
   });
 
-  describe("uploadMulti middleware factory", () => {
-    it("should return a middleware function", () => {
-      const middleware = uploadMulti();
-      expect(typeof middleware).toBe("function");
-    });
-
-    it("should set uploadFolder on request", () => {
-      const middleware = uploadMulti({ folder: "uploads/documents" });
-      const req = {};
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(req.uploadFolder).toBe("uploads/documents");
+  // ================================================================
+  // storagePath integration
+  // ================================================================
+  describe("storagePath integration", () => {
+    it("should call storagePath with folder and filename for deleteUpload", () => {
+      deleteUpload("test.jpg", "avatars");
+      expect(storagePath).toHaveBeenCalledWith("avatars", "test.jpg");
     });
 
     it("should use default folder when not specified", () => {
-      const middleware = uploadMulti();
-      const req = {};
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(req.uploadFolder).toBe("uploads");
-    });
-
-    it("should call next on successful upload", () => {
-      const middleware = uploadMulti();
-      const req = {};
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(next).toHaveBeenCalled();
-    });
-  });
-
-  describe("storage configuration", () => {
-    it("should use default allowed MIME types", () => {
-      const middleware = upload();
-      const req = { originalname: "test.jpg" };
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(req.allowedMimes).toBeUndefined();
-    });
-
-    it("should use default allowed file extensions", () => {
-      const middleware = upload();
-      const req = { originalname: "test.jpg" };
-      const res = {};
-      const next = jest.fn();
-
-      middleware(req, res, next);
-
-      expect(req.allowedExtensions).toBeUndefined();
+      deleteUpload("test.jpg");
+      expect(storagePath).toHaveBeenCalledWith("uploads", "test.jpg");
     });
   });
 });

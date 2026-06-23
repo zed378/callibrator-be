@@ -145,7 +145,7 @@ exports.fetchUsers = async ({
 
     const totalPages = Math.ceil(data.count / safeLimit);
 
-    if (transaction) await transaction.commit();
+    if (transaction) {await transaction.commit();}
 
     // Count users by status (single query with grouping)
     const statusCounts = { ACTIVE: 0, INACTIVE: 0, LOCKED: 0, SUSPENDED: 0 };
@@ -191,7 +191,7 @@ exports.fetchUsers = async ({
       },
     };
   } catch (err) {
-    if (transaction) await transaction.rollback();
+    if (transaction) {await transaction.rollback();}
 
     logger.error("Error fetching users", {
       err: err.message,
@@ -731,7 +731,7 @@ exports.updateUserAvatar = async (userId, filename, updatedBy) => {
       status: 200,
     };
   } catch (error) {
-    if (error.name === "AppError" || error.status) throw error;
+    if (error.name === "AppError" || error.status) {throw error;}
     logger.error("Error updating user avatar", { error: error.message });
     throw new AppError(500, "Failed to update user avatar");
   }
@@ -768,7 +768,7 @@ exports.removeUserAvatar = async (userId, updatedBy) => {
       status: 200,
     };
   } catch (error) {
-    if (error.name === "AppError" || error.status) throw error;
+    if (error.name === "AppError" || error.status) {throw error;}
     logger.error("Error removing user avatar", { error: error.message });
     throw new AppError(500, "Failed to remove user avatar");
   }

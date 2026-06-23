@@ -146,7 +146,8 @@ exports.deleteUser = asyncHandler(async (req, res) => {
     return res.status(400).json({
       success: false,
       status: 400,
-      message: "Validation failed - userId is required and must be a valid UUID",
+      message:
+        "Validation failed - userId is required and must be a valid UUID",
       errors: formatErrors(error.details),
     });
   }
@@ -212,14 +213,7 @@ exports.getAllUsersSimple = asyncHandler(async (req, res) => {
   const { Users, Roles } = require("../models");
 
   const users = await Users.findAll({
-    attributes: [
-      "id",
-      "username",
-      "first_name",
-      "last_name",
-      "email",
-      "role_id",
-    ],
+    attributes: ["id", "username", "firstName", "lastName", "email", "roleId"],
     include: [
       {
         model: Roles,
@@ -227,7 +221,7 @@ exports.getAllUsersSimple = asyncHandler(async (req, res) => {
         attributes: ["id", "name", "description"],
       },
     ],
-    order: [["first_name", "ASC"]],
+    order: [["firstName", "ASC"]],
     raw: true,
     nest: true,
   });

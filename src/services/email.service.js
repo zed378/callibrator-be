@@ -39,7 +39,7 @@ const transporter = nodemailer.createTransport({
 // ==========================================
 
 const sendEmail = async ({ to, subject, html }) => {
-  return getTransporter().sendMail({
+  return transporter.sendMail({
     from: process.env.MAIL_FROM,
     to,
     subject,

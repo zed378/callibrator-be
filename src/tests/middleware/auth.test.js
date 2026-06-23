@@ -1,221 +1,316 @@
-/**
- * Tests for Auth Middleware
- */
-
-const { auth } = require("../../middlewares/auth");
-
-// Mock JWT utilities
+// Mock dependencies BEFORE requires
 jest.mock("../../utils/jwt", () => ({
   verifyAccessToken: jest.fn(),
 }));
+jest.mock("../../services/auth.service", () => ({
+  getAuthUserWithTenant: jest.fn(),
+}));
+jest.mock("../../services/tenant.service", () => ({
+  getTenantByCodeForMiddleware: jest.fn(),
+  getTenantByIdForMiddleware: jest.fn(),
+}));
+
+const { auth, optionalAuth, superAdminOnly } = require("../../middlewares/auth");
+const { createMockReq, createMockNext } = require("../utils/test.utils");
+const { ROLE_NAMES } = require("../../constants");
 
 const { verifyAccessToken } = require("../../utils/jwt");
+const authService = require("../../services/auth.service");
+const tenantService = require("../../services/tenant.service");
 
-// Mock services
-jest.mock("../../services/session.service", () => ({
-  SessionService: {
-    findByToken: jest.fn(),
-  },
-}));
-
-jest.mock("../../services/redis.service", () => ({
-  get: jest.fn(),
-  set: jest.fn(),
-  del: jest.fn(),
-}));
+// Remove response.js mock since it's cleaner to test the actual responses
 
 describe("auth Middleware", () => {
-  let req;
-  let res;
-  let next;
+  let req, res, next;
 
   beforeEach(() => {
     jest.clearAllMocks();
-
-    next = jest.fn();
-    req = {
-      headers: {
-        authorization: "Bearer test-token",
-      },
-      cookies: {},
+    req = createMockReq();
+    // createMockRes does not seem to preserve jest.fn() correctly when passed to actual utils/response.js?
+    // Let's create it manually just in case
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
     };
-    res = {};
+    next = createMockNext();
+
+    // Prevent console.error output during tests
+    jest.spyOn(console, "error").mockImplementation(() => {});
   });
 
-  describe("token extraction", () => {
-    it("should extract Bearer token from Authorization header", () => {
-      const mockUser = {
-        id: "user-1",
-        email: "test@example.com",
-        username: "testuser",
-        roleId: "role-1",
-        tenantId: "tenant-1",
-        status: "ACTIVE",
-      };
-
-      verifyAccessToken.mockReturnValue({ sub: "user-1" });
-      require("../../services/session.service").SessionService.findByPk = jest
-        .fn()
-        .mockResolvedValue({ userId: "user-1" });
-
-      auth(req, res, next);
-
-      expect(next).toHaveBeenCalled();
-    });
-
-    it("should return 401 when no Authorization header", () => {
-      req.headers.authorization = null;
-
-      auth(req, res, next);
-
+  describe("auth", () => {
+    it("should return unauthorized if no authorization header", async () => {
+      await auth(req, res, next);
       expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        status: 401,
-        message: "Authentication required",
-        data: null,
-      });
+      expect(next).not.toHaveBeenCalled();
     });
 
-    it("should return 401 when Authorization header is malformed", () => {
-      req.headers.authorization = "InvalidToken";
-
-      auth(req, res, next);
-
+    it("should return unauthorized if header doesn't start with Bearer", async () => {
+      req.headers.authorization = "Basic token";
+      await auth(req, res, next);
       expect(res.status).toHaveBeenCalledWith(401);
     });
-  });
 
-  describe("token verification", () => {
-    it("should return 401 when token is invalid", () => {
+    it("should return unauthorized if token is invalid", async () => {
+      req.headers.authorization = "Bearer invalid-token";
       verifyAccessToken.mockImplementation(() => {
         throw new Error("Invalid token");
       });
-
-      auth(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        status: 401,
-        message: "Invalid or expired token",
-        data: null,
-      });
-    });
-
-    it("should attach user to request when token is valid", () => {
-      const mockUser = {
-        id: "user-1",
-        email: "test@example.com",
-        username: "testuser",
-        roleId: "role-1",
-        tenantId: "tenant-1",
-        status: "ACTIVE",
-        role: { name: "SUPER_ADMIN", roleLevel: 3 },
-        tenant: { id: "tenant-1", name: "Test Tenant" },
-      };
-
-      verifyAccessToken.mockReturnValue({ sub: "user-1" });
-      require("../../models").Users.findOne = jest
-        .fn()
-        .mockResolvedValue(mockUser);
-      require("../../services/session.service").SessionService.findByPk = jest
-        .fn()
-        .mockResolvedValue({ userId: "user-1" });
-
-      auth(req, res, next);
-
-      expect(req.user).toBeDefined();
-      expect(req.user.email).toBe("test@example.com");
-    });
-  });
-
-  describe("user status validation", () => {
-    it("should return 403 when user is banned", () => {
-      const mockUser = {
-        id: "user-1",
-        email: "test@example.com",
-        isBanned: true,
-        status: "ACTIVE",
-      };
-
-      verifyAccessToken.mockReturnValue({ sub: "user-1" });
-      require("../../models").Users.findOne = jest
-        .fn()
-        .mockResolvedValue(mockUser);
-
-      auth(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        success: false,
-        status: 403,
-        message: "Account is banned",
-        data: null,
-      });
-    });
-
-    it("should return 403 when user is inactive", () => {
-      const mockUser = {
-        id: "user-1",
-        email: "test@example.com",
-        status: "INACTIVE",
-      };
-
-      verifyAccessToken.mockReturnValue({ sub: "user-1" });
-      require("../../models").Users.findOne = jest
-        .fn()
-        .mockResolvedValue(mockUser);
-
-      auth(req, res, next);
-
-      expect(res.status).toHaveBeenCalledWith(403);
-    });
-  });
-
-  describe("session validation", () => {
-    it("should return 401 when session is invalid", () => {
-      const mockUser = {
-        id: "user-1",
-        email: "test@example.com",
-        status: "ACTIVE",
-      };
-
-      verifyAccessToken.mockReturnValue({ sub: "user-1" });
-      require("../../models").Users.findOne = jest
-        .fn()
-        .mockResolvedValue(mockUser);
-      require("../../services/session.service").SessionService.findByPk = jest
-        .fn()
-        .mockResolvedValue(null);
-
-      auth(req, res, next);
-
+      await auth(req, res, next);
       expect(res.status).toHaveBeenCalledWith(401);
     });
 
-    it("should attach session to request when valid", () => {
+    it("should return unauthorized if user not found", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      authService.getAuthUserWithTenant.mockResolvedValue(null);
+
+      await auth(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("should return forbidden if user is banned (isActive=false)", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      authService.getAuthUserWithTenant.mockResolvedValue({ isActive: false });
+
+      await auth(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it("should return forbidden if user is suspended or inactive", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      authService.getAuthUserWithTenant.mockResolvedValue({
+        isActive: true,
+        status: "SUSPENDED",
+      });
+
+      await auth(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it("should attach user and token to req if successful", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
       const mockUser = {
         id: "user-1",
-        email: "test@example.com",
+        isActive: true,
         status: "ACTIVE",
+        role: { name: ROLE_NAMES.USER },
       };
-      const mockSession = {
-        id: "session-1",
-        expiresAt: new Date(Date.now() + 86400000),
+      authService.getAuthUserWithTenant.mockResolvedValue(mockUser);
+
+      await auth(req, res, next);
+      expect(req.user).toEqual(mockUser);
+      expect(req.token).toBe("valid-token");
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should attach tenant context if user has tenantId", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      const mockUser = {
+        id: "user-1",
+        isActive: true,
+        status: "ACTIVE",
+        tenantId: "t-1",
+        tenant: { id: "t-1", name: "Tenant 1" },
+        role: { name: ROLE_NAMES.USER },
       };
+      authService.getAuthUserWithTenant.mockResolvedValue(mockUser);
 
-      verifyAccessToken.mockReturnValue({ sub: "user-1" });
-      require("../../models").Users.findOne = jest
-        .fn()
-        .mockResolvedValue(mockUser);
-      require("../../services/session.service").SessionService.findByPk = jest
-        .fn()
-        .mockResolvedValue(mockSession);
+      await auth(req, res, next);
+      expect(req.tenantId).toBe("t-1");
+      expect(req.tenant).toEqual(mockUser.tenant);
+      expect(next).toHaveBeenCalled();
+    });
 
-      auth(req, res, next);
+    it("should return forbidden if user tenant is suspended", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      const mockUser = {
+        id: "user-1",
+        isActive: true,
+        status: "ACTIVE",
+        tenantId: "t-1",
+        tenant: { id: "t-1", name: "Tenant 1", status: "suspended" },
+        role: { name: ROLE_NAMES.USER },
+      };
+      authService.getAuthUserWithTenant.mockResolvedValue(mockUser);
 
-      expect(req.session).toBeDefined();
+      await auth(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it("should allow SUPER_ADMIN to override tenant via x-tenant-code", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      req.headers["x-tenant-code"] = "CODE";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      const mockUser = {
+        id: "user-1",
+        isActive: true,
+        status: "ACTIVE",
+        role: { name: ROLE_NAMES.SUPER_ADMIN },
+      };
+      authService.getAuthUserWithTenant.mockResolvedValue(mockUser);
+      tenantService.getTenantByCodeForMiddleware.mockResolvedValue({ id: "t-override" });
+
+      await auth(req, res, next);
+      expect(req.tenantId).toBe("t-override");
+      expect(tenantService.getTenantByCodeForMiddleware).toHaveBeenCalledWith("CODE");
+    });
+
+    it("should not set tenant context if x-tenant-code is invalid", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      req.headers["x-tenant-code"] = "INVALID";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      const mockUser = {
+        id: "user-1",
+        isActive: true,
+        status: "ACTIVE",
+        role: { name: ROLE_NAMES.SUPER_ADMIN },
+      };
+      authService.getAuthUserWithTenant.mockResolvedValue(mockUser);
+      tenantService.getTenantByCodeForMiddleware.mockResolvedValue(null);
+
+      await auth(req, res, next);
+      expect(req.tenantId).toBeUndefined();
+    });
+
+    it("should allow SUPER_ADMIN to override tenant via x-tenant-id", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      req.headers["x-tenant-id"] = "ID";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      const mockUser = {
+        id: "user-1",
+        isActive: true,
+        status: "ACTIVE",
+        role: { name: ROLE_NAMES.SUPER_ADMIN },
+      };
+      authService.getAuthUserWithTenant.mockResolvedValue(mockUser);
+      tenantService.getTenantByIdForMiddleware.mockResolvedValue({ id: "t-override", status: "ACTIVE" });
+
+      await auth(req, res, next);
+      expect(req.tenantId).toBe("t-override");
+    });
+
+    it("should not set tenant context if x-tenant-id is invalid", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      req.headers["x-tenant-id"] = "INVALID";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      const mockUser = {
+        id: "user-1",
+        isActive: true,
+        status: "ACTIVE",
+        role: { name: ROLE_NAMES.SUPER_ADMIN },
+      };
+      authService.getAuthUserWithTenant.mockResolvedValue(mockUser);
+      tenantService.getTenantByIdForMiddleware.mockResolvedValue(null);
+
+      await auth(req, res, next);
+      expect(req.tenantId).toBeUndefined();
+    });
+
+    it("should not set tenant context if x-tenant-id is not ACTIVE", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      req.headers["x-tenant-id"] = "ID";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      const mockUser = {
+        id: "user-1",
+        isActive: true,
+        status: "ACTIVE",
+        role: { name: ROLE_NAMES.SUPER_ADMIN },
+      };
+      authService.getAuthUserWithTenant.mockResolvedValue(mockUser);
+      tenantService.getTenantByIdForMiddleware.mockResolvedValue({ id: "t-override", status: "SUSPENDED" });
+
+      await auth(req, res, next);
+      expect(req.tenantId).toBeUndefined();
+    });
+  });
+
+  describe("optionalAuth", () => {
+    it("should call next() without attaching user if no header provided", async () => {
+      await optionalAuth(req, res, next);
+      expect(req.user).toBeNull();
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should attach user if valid token provided", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      authService.getAuthUserWithTenant.mockResolvedValue({
+        id: "user-1", isActive: true, status: "ACTIVE", tenantId: "t-1",
+      });
+      await optionalAuth(req, res, next);
+      expect(req.user.id).toBe("user-1");
+      expect(req.tenantId).toBe("t-1");
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should attach user if valid token provided and user is INACTIVE", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      authService.getAuthUserWithTenant.mockResolvedValue({
+        id: "user-1", isActive: true, status: "INACTIVE",
+      });
+      await optionalAuth(req, res, next);
+      expect(req.user.id).toBe("user-1");
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should not attach user if user is SUSPENDED", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      authService.getAuthUserWithTenant.mockResolvedValue({
+        id: "user-1", isActive: true, status: "SUSPENDED",
+      });
+      await optionalAuth(req, res, next);
+      expect(req.user).toBeNull();
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should not attach user if user has no tenantId (branch coverage)", async () => {
+      req.headers.authorization = "Bearer valid-token";
+      verifyAccessToken.mockReturnValue({ id: "user-1" });
+      authService.getAuthUserWithTenant.mockResolvedValue({
+        id: "user-1", isActive: true, status: "ACTIVE",
+      });
+      await optionalAuth(req, res, next);
+      expect(req.user.id).toBe("user-1");
+      expect(req.tenantId).toBeUndefined();
+      expect(next).toHaveBeenCalled();
+    });
+
+    it("should ignore error and call next() if token invalid", async () => {
+      req.headers.authorization = "Bearer invalid";
+      verifyAccessToken.mockImplementation(() => { throw new Error(); });
+      await optionalAuth(req, res, next);
+      expect(req.user).toBeNull();
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
+  describe("superAdminOnly", () => {
+    it("should return forbidden if no user", () => {
+      superAdminOnly(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it("should return forbidden if not super admin", () => {
+      req.user = { role: { name: "USER" } };
+      superAdminOnly(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it("should call next if super admin", () => {
+      req.user = { role: { name: ROLE_NAMES.SUPER_ADMIN } };
+      superAdminOnly(req, res, next);
+      expect(next).toHaveBeenCalled();
     });
   });
 });

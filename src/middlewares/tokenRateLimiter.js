@@ -29,6 +29,7 @@ const {
 } = require("../services/rateLimiter.service");
 const { verifyAccessToken } = require("../utils/jwt");
 const { Users } = require("../models");
+const { logger } = require("./activityLog");
 
 /**
  * Create a rate limiter middleware for a specific endpoint
@@ -249,13 +250,13 @@ const checkRateLimit = (endpoint = "default") => {
             : tokenBlockStatus.reason,
           retryAfter: lockoutStatus.isLocked
             ? Math.max(
-                0,
-                Math.ceil((lockoutStatus.lockoutUntil - Date.now()) / 1000),
-              )
+              0,
+              Math.ceil((lockoutStatus.lockoutUntil - Date.now()) / 1000),
+            )
             : Math.max(
-                0,
-                Math.ceil((tokenBlockStatus.blockUntil - Date.now()) / 1000),
-              ),
+              0,
+              Math.ceil((tokenBlockStatus.blockUntil - Date.now()) / 1000),
+            ),
         });
       }
 

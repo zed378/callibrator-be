@@ -2,25 +2,24 @@
  * Tests for Auth Controller
  */
 
-const { authController } = require("../../controllers/auth.controller");
-const { authMiddleware } = require("../../middlewares/auth");
-
-// Mock services
+// Mock services FIRST (required for --experimental-vm-modules hoisting)
 jest.mock("../../services/auth.service", () => ({
-  AuthService: {
-    registerUser: jest.fn(),
-    activateUser: jest.fn(),
-    loginUser: jest.fn(),
-    logoutUser: jest.fn(),
-    sendOtp: jest.fn(),
-    resetPassword: jest.fn(),
-    verifyOtp: jest.fn(),
-  },
+  registerUser: jest.fn(),
+  activateAccount: jest.fn(),
+  loginUser: jest.fn(),
+  logoutSession: jest.fn(),
+  logoutAllUserSessions: jest.fn(),
+  requestOTP: jest.fn(),
+  processResetPassword: jest.fn(),
+  verifyOtp: jest.fn(),
+  verifyEmail: jest.fn(),
+  passIsValid: jest.fn(),
+  refreshUserToken: jest.fn(),
+  verifyUserSession: jest.fn(),
+  justUpdatePassword: jest.fn(),
 }));
 
-const { AuthService } = require("../../services/auth.service");
-
-// Mock response helper
+// Mock response helper FIRST
 jest.mock("../../utils/response", () => ({
   success: jest.fn(),
   error: jest.fn(),
@@ -28,6 +27,9 @@ jest.mock("../../utils/response", () => ({
   badRequest: jest.fn(),
 }));
 
+const authController = require("../../controllers/auth.controller");
+const { authMiddleware } = require("../../middlewares/auth");
+const authService = require("../../services/auth.service");
 const { success, error, login, badRequest } = require("../../utils/response");
 
 describe("authController", () => {
@@ -69,7 +71,7 @@ describe("authController", () => {
 
       req.body = mockUserData;
 
-      AuthService.registerUser.mockResolvedValue({
+      authService.registerUser.mockResolvedValue({
         success: true,
         status: 201,
         message:
@@ -77,24 +79,21 @@ describe("authController", () => {
         data: { email: "test@example.com" },
       });
 
+      req.headers.origin = "http://localhost:3000";
+
       await authController.register(req, res);
 
-      expect(AuthService.registerUser).toHaveBeenCalledWith(mockUserData);
+      expect(authService.registerUser).toHaveBeenCalledWith(mockUserData, "http://localhost:3000");
       expect(success).toHaveBeenCalled();
     });
 
     it("should return 400 when registration fails", async () => {
       req.body = {
-        username: "testuser",
-        email: "test@example.com",
+        email: "existing@example.com",
         password: "TestPass123",
       };
 
-      AuthService.registerUser.mockResolvedValue({
-        success: false,
-        status: 400,
-        message: "Email already exists",
-      });
+      authService.registerUser.mockRejectedValue(new Error("Email already registered"));
 
       await authController.register(req, res);
 
@@ -102,34 +101,38 @@ describe("authController", () => {
     });
   });
 
-  describe("activate", () => {
+  describe("activation", () => {
     it("should activate user account successfully", async () => {
       req.query = { token: "activation-token-123" };
 
-      AuthService.activateUser.mockResolvedValue({
+      authService.activateAccount.mockResolvedValue({
         success: true,
         status: 200,
-        message: "Account activated successfully. You can now log in.",
+        message: "Account activated successfully",
       });
 
-      await authController.activate(req, res);
+      await authController.activation(req, res);
 
-      expect(AuthService.activateUser).toHaveBeenCalledWith(
+      expect(authService.activateAccount).toHaveBeenCalledWith(
         "activation-token-123",
       );
       expect(success).toHaveBeenCalled();
     });
 
+    it("should return 400 when activation token is missing", async () => {
+      req.query = {};
+
+      await authController.activation(req, res);
+
+      expect(error).toHaveBeenCalled();
+    });
+
     it("should return 400 when activation token is invalid", async () => {
       req.query = { token: "invalid-token" };
 
-      AuthService.activateUser.mockResolvedValue({
-        success: false,
-        status: 400,
-        message: "Invalid or expired activation token",
-      });
+      authService.activateAccount.mockRejectedValue(new Error("Invalid or expired activation token"));
 
-      await authController.activate(req, res);
+      await authController.activation(req, res);
 
       expect(error).toHaveBeenCalled();
     });
@@ -144,7 +147,7 @@ describe("authController", () => {
 
       req.body = mockCredentials;
 
-      AuthService.loginUser.mockResolvedValue({
+      authService.loginUser.mockResolvedValue({
         success: true,
         status: 200,
         message: "Login successful",
@@ -155,9 +158,15 @@ describe("authController", () => {
         },
       });
 
+      req.headers["user-agent"] = "jest-agent";
+
       await authController.login(req, res);
 
-      expect(AuthService.loginUser).toHaveBeenCalledWith(mockCredentials);
+      expect(authService.loginUser).toHaveBeenCalledWith({
+        ...mockCredentials,
+        ip: "127.0.0.1",
+        userAgent: "jest-agent",
+      });
       expect(login).toHaveBeenCalled();
     });
 
@@ -167,11 +176,7 @@ describe("authController", () => {
         password: "wrongpassword",
       };
 
-      AuthService.loginUser.mockResolvedValue({
-        success: false,
-        status: 401,
-        message: "Invalid email or password",
-      });
+      authService.loginUser.mockRejectedValue(new Error("Invalid credentials"));
 
       await authController.login(req, res);
 
@@ -181,9 +186,7 @@ describe("authController", () => {
 
   describe("logout", () => {
     it("should logout successfully", async () => {
-      req.body = { refreshToken: "refresh-token-123" };
-
-      AuthService.logoutUser.mockResolvedValue({
+      authService.logoutSession.mockResolvedValue({
         success: true,
         status: 200,
         message: "Logout successful",
@@ -191,27 +194,41 @@ describe("authController", () => {
 
       await authController.logout(req, res);
 
-      expect(AuthService.logoutUser).toHaveBeenCalledWith({
-        userId: "user-1",
-        refreshToken: "refresh-token-123",
-      });
+      expect(authService.logoutSession).toHaveBeenCalled();
       expect(success).toHaveBeenCalled();
     });
   });
 
-  describe("sendOtp", () => {
+  describe("logoutAll", () => {
+    it("should logout all sessions successfully", async () => {
+      req.user = { id: "user-1" };
+
+      authService.logoutAllUserSessions.mockResolvedValue({
+        success: true,
+        status: 200,
+        message: "All sessions revoked successfully",
+      });
+
+      await authController.logoutAll(req, res);
+
+      expect(authService.logoutAllUserSessions).toHaveBeenCalledWith("user-1");
+      expect(success).toHaveBeenCalled();
+    });
+  });
+
+  describe("sendOTP", () => {
     it("should send OTP successfully", async () => {
       req.body = { email: "test@example.com" };
 
-      AuthService.sendOtp.mockResolvedValue({
+      authService.requestOTP.mockResolvedValue({
         success: true,
         status: 200,
-        message: "OTP sent to your email",
+        message: "If the account exists, OTP has been sent",
       });
 
-      await authController.sendOtp(req, res);
+      await authController.sendOTP(req, res);
 
-      expect(AuthService.sendOtp).toHaveBeenCalledWith("test@example.com");
+      expect(authService.requestOTP).toHaveBeenCalledWith(req.body);
       expect(success).toHaveBeenCalled();
     });
   });
@@ -224,7 +241,7 @@ describe("authController", () => {
         newPassword: "NewPass123",
       };
 
-      AuthService.resetPassword.mockResolvedValue({
+      authService.processResetPassword.mockResolvedValue({
         success: true,
         status: 200,
         message: "Password reset successful",
@@ -232,7 +249,7 @@ describe("authController", () => {
 
       await authController.resetPassword(req, res);
 
-      expect(AuthService.resetPassword).toHaveBeenCalled();
+      expect(authService.processResetPassword).toHaveBeenCalledWith(req.body);
       expect(success).toHaveBeenCalled();
     });
   });
@@ -240,8 +257,9 @@ describe("authController", () => {
   describe("verify", () => {
     it("should verify token successfully", async () => {
       req.user = { id: "user-1", email: "test@example.com" };
+      req.session = { id: "session-1" };
 
-      AuthService.verifyToken.mockResolvedValue({
+      authService.verifyUserSession.mockResolvedValue({
         success: true,
         status: 200,
         data: { user: { id: "user-1" } },
@@ -250,6 +268,99 @@ describe("authController", () => {
       await authController.verify(req, res);
 
       expect(success).toHaveBeenCalled();
+    });
+  });
+
+  describe("justUpdatePassword", () => {
+    it("should update password successfully", async () => {
+      req.user = { id: "user-1" };
+      req.body = { newPassword: "NewPass123" };
+
+      authService.justUpdatePassword.mockResolvedValue({
+        success: true,
+        status: 200,
+        message: "Password updated successfully",
+      });
+
+      await authController.justUpdatePassword(req, res);
+
+      expect(authService.justUpdatePassword).toHaveBeenCalledWith("user-1", "NewPass123");
+      expect(success).toHaveBeenCalled();
+    });
+  });
+
+  describe("passIsValid", () => {
+    it("should validate password successfully", async () => {
+      req.user = { id: "user-1" };
+      req.body = { password: "TestPass123" };
+
+      authService.passIsValid.mockResolvedValue({
+        success: true,
+        status: 200,
+        data: { isValid: true },
+        message: "Password is valid",
+      });
+
+      await authController.passIsValid(req, res);
+
+      expect(authService.passIsValid).toHaveBeenCalledWith("user-1", "TestPass123");
+      expect(success).toHaveBeenCalled();
+    });
+  });
+
+  describe("refresh", () => {
+    it("should refresh token successfully", async () => {
+      req.body = { refreshToken: "refresh-token-123", sessionId: "session-1" };
+      req.ip = "127.0.0.1";
+      req.headers["user-agent"] = "jest-agent";
+
+      authService.refreshUserToken.mockResolvedValue({
+        success: true,
+        status: 200,
+        data: { token: "new-access-token" },
+        message: "Token refreshed successfully",
+      });
+
+      await authController.refresh(req, res);
+
+      expect(authService.refreshUserToken).toHaveBeenCalledWith(
+        "refresh-token-123",
+        "session-1",
+        "127.0.0.1",
+        "jest-agent",
+      );
+      expect(success).toHaveBeenCalled();
+    });
+
+    it("should refresh token successfully without sessionId", async () => {
+      req.body = { refreshToken: "refresh-token-123" };
+      req.ip = "127.0.0.1";
+      req.headers["user-agent"] = "jest-agent";
+
+      authService.refreshUserToken.mockResolvedValue({
+        success: true,
+        status: 200,
+        data: { token: "new-access-token" },
+        message: "Token refreshed successfully",
+      });
+
+      await authController.refresh(req, res);
+
+      expect(authService.refreshUserToken).toHaveBeenCalledWith(
+        "refresh-token-123",
+        null,
+        "127.0.0.1",
+        "jest-agent",
+      );
+      expect(success).toHaveBeenCalled();
+    });
+
+    it("should return 400 when refresh token is missing", async () => {
+      req.body = {};
+
+      await authController.refresh(req, res);
+
+      expect(error).toHaveBeenCalled();
     });
   });
 });

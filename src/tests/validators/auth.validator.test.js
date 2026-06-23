@@ -135,6 +135,38 @@ describe("Auth Validators", () => {
 
       expect(error).toBeUndefined();
     });
+
+    it("should validate correct login data with username as key", () => {
+      const data = {
+        username: "johndoe",
+        password: "Password123",
+      };
+
+      const { error } = validate(data, loginSchema);
+
+      expect(error).toBeUndefined();
+    });
+
+    it("should validate correct login data with email as key", () => {
+      const data = {
+        email: "john@example.com",
+        password: "Password123",
+      };
+
+      const { error } = validate(data, loginSchema);
+
+      expect(error).toBeUndefined();
+    });
+
+    it("should reject when all identity fields (user, username, email) are missing", () => {
+      const data = {
+        password: "Password123",
+      };
+
+      const { error } = validate(data, loginSchema);
+
+      expect(error).toBeDefined();
+    });
   });
 
   describe("forgotPasswordSchema", () => {

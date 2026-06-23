@@ -49,6 +49,10 @@ router.use(auth);
  *     responses:
  *       '200':
  *         description: Session statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
  */
 router.get("/stats", rbac(["SUPERADMIN"]), getSessionStats);
 
@@ -94,6 +98,10 @@ router.get("/stats", rbac(["SUPERADMIN"]), getSessionStats);
  *     responses:
  *       '200':
  *         description: Sessions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
  */
 router.get("/", rbac(["SUPERADMIN"]), getAllSessions);
 
@@ -119,8 +127,16 @@ router.get("/", rbac(["SUPERADMIN"]), getAllSessions);
  *     responses:
  *       '200':
  *         description: Session retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '404':
  *         description: Session not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get("/:id", validateUuid("id"), rbac(["SUPERADMIN"]), getSessionById);
 
@@ -155,10 +171,22 @@ router.get("/:id", validateUuid("id"), rbac(["SUPERADMIN"]), getSessionById);
  *     responses:
  *       '200':
  *         description: Session revoked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '404':
  *         description: Session not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       '403':
  *         description: Access denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/:id/revoke", validateUuid("id"), rbac(["SUPERADMIN"]), revokeSession);
 
@@ -193,8 +221,16 @@ router.post("/:id/revoke", validateUuid("id"), rbac(["SUPERADMIN"]), revokeSessi
  *     responses:
  *       '200':
  *         description: Sessions revoked successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '403':
  *         description: Access denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.post("/user/:userId/revoke-all", rbac(["SUPERADMIN"]), revokeAllUserSessions);
 
@@ -220,10 +256,22 @@ router.post("/user/:userId/revoke-all", rbac(["SUPERADMIN"]), revokeAllUserSessi
  *     responses:
  *       '200':
  *         description: Session deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/SuccessResponse'
  *       '404':
  *         description: Session not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  *       '400':
  *         description: Can only delete revoked or expired sessions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.delete("/:id", validateUuid("id"), rbac(["SUPERADMIN"]), deleteSession);
 

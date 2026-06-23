@@ -24,11 +24,7 @@ exports.getAllUsersQuery = Joi.object({
 // ==========================================
 
 exports.createUserSchema = Joi.object({
-  username: Joi.string()
-    .alphanum()
-    .min(3)
-    .max(30)
-    .required(),
+  username: Joi.string().alphanum().min(3).max(30).required(),
   firstName: Joi.string().trim().min(2).max(100).required(),
   lastName: Joi.string().trim().min(2).max(100).required(),
   email: Joi.string().email().required(),
@@ -38,17 +34,14 @@ exports.createUserSchema = Joi.object({
   status: Joi.string()
     .valid("ACTIVE", "INACTIVE", "SUSPENDED", "active", "inactive", "suspended")
     .default("ACTIVE")
-    .insensitive(),
+    .insensitive()
+    .allow(null),
 }).custom((value, helpers) => {
   if (value.status && typeof value.status === "string") {
     value.status = value.status.toUpperCase();
   }
-  if (value.email) {
-    value.email = value.email.toLowerCase();
-  }
-  if (value.username) {
-    value.username = value.username.toLowerCase();
-  }
+  value.email = value.email.toLowerCase();
+  value.username = value.username.toLowerCase();
   return value;
 });
 

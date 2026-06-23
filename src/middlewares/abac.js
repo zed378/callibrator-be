@@ -1,4 +1,4 @@
-const { Tenants, Users } = require("../models");
+const tenantService = require("../services/tenant.service");
 
 /**
  * ABAC (Attribute-Based Access Control) Middleware
@@ -49,9 +49,7 @@ exports.abac = (permissions, options = {}) => {
         const resourceTenantId = req.params.tenantId || req.body.tenantId;
 
         if (resourceTenantId) {
-          const tenant = await Tenants.findByPk(resourceTenantId, {
-            attributes: ["id"],
-          });
+          const tenant = await tenantService.getTenantByIdForMiddleware(resourceTenantId);
 
           if (!tenant) {
             return res.status(404).json({

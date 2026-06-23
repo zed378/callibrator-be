@@ -1,18 +1,24 @@
 /**
  * dbReady utility tests
  */
+jest.mock("../../middlewares/activityLog", () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
+}));
+
 const { waitForDbReady } = require("../../utils/dbReady");
 const { logger } = require("../../middlewares/activityLog");
 
 describe("waitForDbReady", () => {
-  let mockSequelize;
   let mockAuthenticate;
   let mockQuery;
+  let mockSequelize;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.useFakeTimers();
-
     mockAuthenticate = jest.fn();
     mockQuery = jest.fn();
 
@@ -22,18 +28,25 @@ describe("waitForDbReady", () => {
     };
   });
 
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
   describe("successful connection", () => {
+    it("should use all defaults when called without options", async () => {
+      mockAuthenticate.mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
+
+      const result = await waitForDbReady(mockSequelize);
+
+      expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+      expect(result).toBeDefined();
+      expect(result).toContain("attempt 1");
+    });
+
     it("should resolve on first attempt when DB is immediately ready", async () => {
-      mockAuthenticate.mockResolvedValueOnce(undefined);
-      mockQuery.mockResolvedValueOnce([1]);
+      mockAuthenticate.mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
 
       const result = await waitForDbReady(mockSequelize, {
         maxAttempts: 5,
-        delayMs: 100,
+        delayMs: 1,
       });
 
       expect(mockAuthenticate).toHaveBeenCalledTimes(1);
@@ -42,22 +55,32 @@ describe("waitForDbReady", () => {
     });
 
     it("should use default maxAttempts and delayMs", async () => {
-      mockAuthenticate.mockResolvedValueOnce(undefined);
-      mockQuery.mockResolvedValueOnce([1]);
+      mockAuthenticate.mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
 
-      const result = await waitForDbReady(mockSequelize);
+      const result = await waitForDbReady(mockSequelize, { delayMs: 1 });
 
       expect(mockAuthenticate).toHaveBeenCalledTimes(1);
       expect(result).toBeDefined();
     });
 
+    it("should use defaults when called with empty options object", async () => {
+      mockAuthenticate.mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
+
+      const result = await waitForDbReady(mockSequelize, {});
+
+      expect(result).toBeDefined();
+      expect(result).toContain("attempt 1");
+    });
+
     it("should include attempt count in message", async () => {
-      mockAuthenticate.mockResolvedValueOnce(undefined);
-      mockQuery.mockResolvedValueOnce([1]);
+      mockAuthenticate.mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
 
       const result = await waitForDbReady(mockSequelize, {
         maxAttempts: 3,
-        delayMs: 50,
+        delayMs: 1,
       });
 
       expect(result).toContain("attempt 1");
@@ -69,17 +92,13 @@ describe("waitForDbReady", () => {
       const retryError = new Error("Connection refused");
       mockAuthenticate
         .mockRejectedValueOnce(retryError)
-        .mockResolvedValueOnce(undefined);
-      mockQuery.mockResolvedValueOnce([1]);
+        .mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
 
-      const promise = waitForDbReady(mockSequelize, {
+      const result = await waitForDbReady(mockSequelize, {
         maxAttempts: 3,
-        delayMs: 100,
+        delayMs: 1,
       });
-
-      jest.runOnlyPendingTimers();
-
-      const result = await promise;
 
       expect(mockAuthenticate).toHaveBeenCalledTimes(2);
       expect(result).toContain("Database connection established");
@@ -94,21 +113,21 @@ describe("waitForDbReady", () => {
 
       await expect(
         waitForDbReady(mockSequelize, {
-          maxAttempts: maxAttempts,
-          delayMs: 100,
+          maxAttempts,
+          delayMs: 1,
         }),
       ).rejects.toThrow(`Database not ready after ${maxAttempts} attempts`);
 
       expect(mockAuthenticate).toHaveBeenCalledTimes(maxAttempts);
     });
 
-    it("should fail immediately when attempt 0 already exceeds maxAttempts", async () => {
+    it("should fail immediately when maxAttempts is 0", async () => {
       mockAuthenticate.mockRejectedValue(new Error("Connection refused"));
 
       await expect(
         waitForDbReady(mockSequelize, {
           maxAttempts: 0,
-          delayMs: 100,
+          delayMs: 1,
         }),
       ).rejects.toThrow("Database not ready after 0 attempts");
     });
@@ -118,16 +137,13 @@ describe("waitForDbReady", () => {
       mockAuthenticate
         .mockRejectedValueOnce(retryError)
         .mockRejectedValueOnce(retryError)
-        .mockResolvedValueOnce(undefined);
-      mockQuery.mockResolvedValueOnce([1]);
+        .mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
 
-      const promise = waitForDbReady(mockSequelize, {
+      const result = await waitForDbReady(mockSequelize, {
         maxAttempts: 5,
-        delayMs: 50,
+        delayMs: 1,
       });
-
-      jest.runOnlyPendingTimers();
-      const result = await promise;
 
       expect(result).toContain("Database connection established");
       expect(logger.warn).toHaveBeenCalled();
@@ -139,7 +155,7 @@ describe("waitForDbReady", () => {
       await expect(
         waitForDbReady(mockSequelize, {
           maxAttempts: 2,
-          delayMs: 50,
+          delayMs: 1,
         }),
       ).rejects.toThrow();
 
@@ -150,56 +166,48 @@ describe("waitForDbReady", () => {
   describe("query fails but authenticate succeeds", () => {
     it("should retry when authenticate succeeds but query fails", async () => {
       const queryError = new Error("Query failed");
-      mockAuthenticate
-        .mockResolvedValueOnce(undefined)
-        .mockResolvedValueOnce(undefined);
-      mockQuery.mockRejectedValueOnce(queryError).mockResolvedValueOnce([1]);
+      mockQuery.mockRejectedValueOnce(queryError).mockResolvedValue([1]);
 
-      const promise = waitForDbReady(mockSequelize, {
+      const result = await waitForDbReady(mockSequelize, {
         maxAttempts: 3,
-        delayMs: 50,
+        delayMs: 1,
       });
 
-      jest.runOnlyPendingTimers();
-      const result = await promise;
-
-      expect(mockAuthenticate).toHaveBeenCalledTimes(2);
+      // authenticate is called once; query fails once then succeeds
+      expect(mockQuery).toHaveBeenCalledTimes(2);
       expect(result).toContain("Database connection established");
     });
   });
 
   describe("custom configuration", () => {
     it("should use custom maxAttempts", async () => {
-      mockAuthenticate.mockResolvedValueOnce(undefined);
-      mockQuery.mockResolvedValueOnce([1]);
+      mockAuthenticate.mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
 
       const result = await waitForDbReady(mockSequelize, {
         maxAttempts: 20,
-        delayMs: 500,
+        delayMs: 1,
       });
 
       expect(result).toBeDefined();
     });
 
     it("should pass through attempt number in recursive calls", async () => {
-      const errors = [];
-      for (let i = 0; i < 2; i++) {
-        errors.push(new Error(`Attempt ${i + 1} failed`));
-      }
+      const errors = [
+        new Error("Attempt 1 failed"),
+        new Error("Attempt 2 failed"),
+      ];
 
       mockAuthenticate
         .mockRejectedValueOnce(errors[0])
         .mockRejectedValueOnce(errors[1])
-        .mockResolvedValueOnce(undefined);
-      mockQuery.mockResolvedValueOnce([1]);
+        .mockResolvedValue(undefined);
+      mockQuery.mockResolvedValue([1]);
 
-      const promise = waitForDbReady(mockSequelize, {
+      const result = await waitForDbReady(mockSequelize, {
         maxAttempts: 5,
-        delayMs: 50,
+        delayMs: 1,
       });
-
-      jest.runOnlyPendingTimers();
-      const result = await promise;
 
       expect(result).toContain("attempt 3");
     });

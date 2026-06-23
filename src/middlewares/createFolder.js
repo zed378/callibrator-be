@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 
 const storagePath = require("../utils/storagePath");
+const { logger } = require("./activityLog");
 
 const isPackaged = !!process.pkg;
 
@@ -47,11 +48,11 @@ exports.ensureFolderExisted = () => {
           recursive: true,
         });
 
-        console.log(`[FOLDER CREATED] ${folder}`);
+        logger.info(`[FOLDER CREATED] ${folder}`);
       }
     }
   } catch (error) {
-    console.error("Failed to initialize folders:", error.message);
+    logger.error(`Failed to initialize folders: ${error.message}`);
 
     process.exit(1);
   }

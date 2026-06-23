@@ -125,3 +125,17 @@ exports.passIsValid = asyncHandlerWithMapping(async (req, res) => {
   const result = await authService.passIsValid(userId, password);
   success(res, result.data, null, result.message, 200);
 }, {});
+
+exports.refresh = asyncHandlerWithMapping(async (req, res) => {
+  const { refreshToken, sessionId } = req.body;
+  if (!refreshToken) {
+    throw new AppError(400, "Refresh token is required");
+  }
+  const result = await authService.refreshUserToken(
+    refreshToken,
+    sessionId || null,
+    req.ip,
+    req.headers["user-agent"],
+  );
+  success(res, result.data, null, result.message, 200);
+}, {});

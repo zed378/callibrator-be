@@ -15,9 +15,20 @@
  *   const result = await migrationService.seedAll();
  */
 
-const bcrypt = require("bcryptjs");
 const { Op } = require("sequelize");
-const { Users, Roles, MenuGroup, RoleMenuPermission } = require("../models");
+const {
+  Users,
+  Roles,
+  MenuGroup,
+  RoleMenuPermission,
+  Warehouse,
+  StorageLocation,
+  Stock,
+  StockTransfer,
+  StockAdjustment,
+  StockOpname,
+} = require("../models");
+const { hashPassword } = require("../utils/password");
 const { seedMenuGroups } = require("../utils/seedMenuGroups");
 const {
   ROLE_NAMES,
@@ -25,6 +36,7 @@ const {
   PASSWORD_SALT_ROUNDS,
   ROLE_MENU_ASSIGNMENTS,
   MENU_SLUGS,
+  PROFILE_SUB_ROUTES,
   PERMISSION_TYPES,
 } = require("../constants");
 const { logger } = require("../middlewares/activityLog");
@@ -42,36 +54,36 @@ const DEFAULT_ROLES = [
     name: "SUPERADMIN",
     description: "System Super Administrator",
     nameToShow: "Super Admin",
-    is_system: true,
+    isSystem: true,
     status: "active",
-    sort_order: 0,
+    sortOrder: 0,
   },
   {
     id: ROLE_IDS.HEALTCARE_ADMIN,
     name: "HEALTHCARE ADMIN",
     description: "Healthcare Administrator",
     nameToShow: "Admin Faskes",
-    is_system: true,
+    isSystem: true,
     status: "active",
-    sort_order: 1,
+    sortOrder: 1,
   },
   {
     id: ROLE_IDS.CALIBRATOR_ADMIN,
     name: "CALIBRATOR ADMIN",
     description: "Calibrator Administrator",
     nameToShow: "Admin Kalibrator",
-    is_system: true,
+    isSystem: true,
     status: "active",
-    sort_order: 2,
+    sortOrder: 2,
   },
   {
     id: ROLE_IDS.USER,
     name: "USER",
     description: "Authenticated User",
     nameToShow: "Normal User",
-    is_system: true,
+    isSystem: true,
     status: "active",
-    sort_order: 3,
+    sortOrder: 3,
   },
 ];
 
@@ -85,63 +97,63 @@ const APPLICATION_ROLES = [
     name: "TECHNICIAN",
     description: "Technician",
     nameToShow: "Teknisi",
-    is_system: false,
+    isSystem: false,
     status: "active",
-    sort_order: 4,
+    sortOrder: 4,
   },
   {
     id: ROLE_IDS.SUPERVISOR,
     name: "SUPERVISOR",
     description: "Supervisor",
     nameToShow: "Penyelia",
-    is_system: false,
+    isSystem: false,
     status: "active",
-    sort_order: 5,
+    sortOrder: 5,
   },
   {
     id: ROLE_IDS.ENGINEERING_MANAGER,
     name: "ENGINEERING MANAGER",
     description: "Enginnering Manager",
     nameToShow: "Manajer Teknik",
-    is_system: false,
+    isSystem: false,
     status: "active",
-    sort_order: 6,
+    sortOrder: 6,
   },
   {
     id: ROLE_IDS.HEALTHCARE_TECHNICIAN,
     name: "HEALTHCARE TECHNICIAN",
     description: "Healthcare Technician",
     nameToShow: "Teknisi Faskes",
-    is_system: false,
+    isSystem: false,
     status: "active",
-    sort_order: 7,
+    sortOrder: 7,
   },
   {
     id: ROLE_IDS.FACILITY_MAINTENANCE,
     name: "FACILITY MAINTENANCE",
     description: "Facility Maintainance",
     nameToShow: "IPSRS",
-    is_system: false,
+    isSystem: false,
     status: "active",
-    sort_order: 8,
+    sortOrder: 8,
   },
   {
     id: ROLE_IDS.WAREHOUSE_STAFF,
     name: "WAREHOUSE STAFF",
     description: "Warehouse Staff",
     nameToShow: "Gudang",
-    is_system: false,
+    isSystem: false,
     status: "active",
-    sort_order: 9,
+    sortOrder: 9,
   },
   {
     id: ROLE_IDS.ROOM_USER,
     name: "ROOM USER",
     description: "Room User",
     nameToShow: "User Ruangan",
-    is_system: false,
+    isSystem: false,
     status: "active",
-    sort_order: 10,
+    sortOrder: 10,
   },
 ];
 
@@ -151,33 +163,160 @@ const APPLICATION_ROLES = [
 const DEFAULT_SYSTEM_USERS = [
   {
     email: "sys@mail.com",
-    username: "sys@mail.com",
+    username: "sys",
     password: "123123",
-    first_name: "Super",
-    last_name: "System",
+    firstName: "Super",
+    lastName: "System",
     status: "ACTIVE",
-    role_id: ROLE_IDS.SUPER_ADMIN,
+    roleId: ROLE_IDS.SUPER_ADMIN,
+    isEmailVerified: true,
   },
 ];
 
 /**
  * Default menu slugs that every role gets
+ * Profile menu group contains both profile page and change-password sub-routes
  */
-const DEFAULT_MENUS = [MENU_SLUGS.PROFILE, MENU_SLUGS.CHANGE_PASSWORD];
+const DEFAULT_MENUS = [MENU_SLUGS.PROFILE, PROFILE_SUB_ROUTES.CHANGE_PASSWORD];
 
 // ==========================================
 // HELPER FUNCTIONS
 // ==========================================
 
+// ==========================================
+// DATABASE OPERATIONS
+// ==========================================
+
 /**
- * Hash password using bcrypt
- * @param {string} password - Plain text password
- * @returns {Promise<string>} Hashed password
+ * Drop all seeded tables (truncate)
+ * @returns {Promise<Object>} Result of drop operation
  */
-const hashPassword = async (password) => {
-  const salt = await bcrypt.genSalt(PASSWORD_SALT_ROUNDS);
-  return bcrypt.hash(password, salt);
-};
+async function dropSeededTables() {
+  const result = {
+    stockTransfersDeleted: 0,
+    stockAdjustmentsDeleted: 0,
+    stockOpnamesDeleted: 0,
+    stocksDeleted: 0,
+    storageLocationsDeleted: 0,
+    warehousesDeleted: 0,
+    usersDeleted: 0,
+    roleMenuPermissionsDeleted: 0,
+    menuGroupsDeleted: 0,
+    rolesDeleted: 0,
+    errors: [],
+  };
+
+  try {
+    // Delete dependent tables first
+    result.stockTransfersDeleted = await StockTransfer.destroy({ where: {}, force: true });
+    logger.info(`Dropped ${result.stockTransfersDeleted} stock transfers`);
+
+    result.stockAdjustmentsDeleted = await StockAdjustment.destroy({ where: {}, force: true });
+    logger.info(`Dropped ${result.stockAdjustmentsDeleted} stock adjustments`);
+
+    result.stockOpnamesDeleted = await StockOpname.destroy({ where: {}, force: true });
+    logger.info(`Dropped ${result.stockOpnamesDeleted} stock opnames`);
+
+    result.stocksDeleted = await Stock.destroy({ where: {}, force: true });
+    logger.info(`Dropped ${result.stocksDeleted} stocks`);
+
+    result.storageLocationsDeleted = await StorageLocation.destroy({ where: {}, force: true });
+    logger.info(`Dropped ${result.storageLocationsDeleted} storage locations`);
+
+    result.warehousesDeleted = await Warehouse.destroy({ where: {}, force: true });
+    logger.info(`Dropped ${result.warehousesDeleted} warehouses`);
+
+    // Delete users (foreign key dependency)
+    result.usersDeleted = await Users.destroy({
+      where: {},
+      force: true,
+    });
+    logger.info(`Dropped ${result.usersDeleted} users`);
+
+    // Delete role menu permissions
+    result.roleMenuPermissionsDeleted = await RoleMenuPermission.destroy({
+      where: {},
+      force: true,
+    });
+    logger.info(
+      `Dropped ${result.roleMenuPermissionsDeleted} role menu permissions`,
+    );
+
+    // Delete menu groups
+    result.menuGroupsDeleted = await MenuGroup.destroy({
+      where: {},
+      force: true,
+    });
+    logger.info(`Dropped ${result.menuGroupsDeleted} menu groups`);
+
+    // Delete roles last
+    result.rolesDeleted = await Roles.destroy({
+      where: {},
+      force: true,
+    });
+    logger.info(`Dropped ${result.rolesDeleted} roles`);
+
+    return result;
+  } catch (error) {
+    result.errors.push(`Error dropping tables: ${error.message}`);
+    logger.error(`Failed to drop tables: ${error.message}`);
+    return result;
+  }
+}
+
+/**
+ * Sync database tables (recreate all tables)
+ * @returns {Promise<Object>} Result of sync operation
+ */
+async function syncTables() {
+  const result = {
+    synced: false,
+    errors: [],
+  };
+
+  try {
+    const { db } = require("../config");
+    await db.sync({ force: true });
+    result.synced = true;
+    logger.info("All database tables synced successfully");
+    return result;
+  } catch (error) {
+    result.errors.push(`Error syncing tables: ${error.message}`);
+    logger.error(`Failed to sync tables: ${error.message}`);
+    return result;
+  }
+}
+
+/**
+ * Drop tables, sync, and seed - complete reset and seed operation
+ * @returns {Promise<Object>} Complete operation result
+ */
+async function resetAndSeed() {
+  logger.info("=== Starting database reset and seed ===");
+
+  const result = {
+    drop: await dropSeededTables(),
+  };
+
+  // Sync tables
+  result.sync = await syncTables();
+  if (!result.sync.synced) {
+    logger.error("Table sync failed, aborting seed");
+    return result;
+  }
+
+  // Step 1: Seed roles first (needed for menu permission assignments)
+  result.roles = await seedAllRoles();
+
+  // Step 2: Seed menu groups and assign role permissions (requires roles to exist)
+  result.menuGroups = await seedMenuGroupsAndItems();
+
+  // Step 3: Seed users (last, as they reference roles)
+  result.users = await seedUsers();
+
+  logger.info("=== Database reset and seed completed ===");
+  return result;
+}
 
 // ==========================================
 // ROLE SEEDING
@@ -313,7 +452,7 @@ async function seedMenuGroupsAndItems() {
   try {
     // Seed menu groups (profile contains change-password as sub-route)
     await seedMenuGroups();
-    result.menuGroupsCreated = 6; // 5 original + profile (with change-password sub-route)
+    result.menuGroupsCreated = 7; // 6 original + profile (with change-password sub-route)
     logger.info("Menu groups seeded successfully");
 
     // Seed role menu permissions using ROLE_MENU_ASSIGNMENTS from constants
@@ -341,19 +480,18 @@ async function seedMenuGroupsAndItems() {
           continue;
         }
 
-        // Check if permission already exists
         const existing = await RoleMenuPermission.findOne({
           where: {
-            role_id: role.id,
-            menu_group_id: menuGroup.id,
+            roleId: role.id,
+            menuGroupId: menuGroup.id,
           },
         });
 
         if (!existing) {
           await RoleMenuPermission.create({
-            role_id: role.id,
-            menu_group_id: menuGroup.id,
-            permission_type: permissionType,
+            roleId: role.id,
+            menuGroupId: menuGroup.id,
+            permissionType: permissionType,
           });
           result.permissionsAssigned++;
         } else {
@@ -407,19 +545,18 @@ async function seedRoleMenuPermissions(roleName, menuSlugs, permissionType) {
         continue;
       }
 
-      // Check if permission already exists
       const existing = await RoleMenuPermission.findOne({
         where: {
-          role_id: role.id,
-          menu_group_id: menuGroup.id,
+          roleId: role.id,
+          menuGroupId: menuGroup.id,
         },
       });
 
       if (!existing) {
         await RoleMenuPermission.create({
-          role_id: role.id,
-          menu_group_id: menuGroup.id,
-          permission_type: permissionType,
+          roleId: role.id,
+          menuGroupId: menuGroup.id,
+          permissionType: permissionType,
         });
         result.permissionsAssigned++;
       }
@@ -466,10 +603,11 @@ async function seedUsers() {
         email: userData.email,
         username: userData.username,
         password: hashedPassword,
-        first_name: userData.first_name,
-        last_name: userData.last_name,
+        firstName: userData.firstName,
+        lastName: userData.lastName,
         status: userData.status,
-        role_id: userData.role_id,
+        roleId: userData.roleId,
+        isEmailVerified: userData.isEmailVerified !== undefined ? userData.isEmailVerified : true,
       });
 
       result.usersCreated++;
@@ -621,6 +759,11 @@ async function unseedAll() {
 // ==========================================
 
 module.exports = {
+  // Database operations
+  dropSeededTables,
+  syncTables,
+  resetAndSeed,
+
   // Role seeding
   seedDefaultRoles,
   seedApplicationRoles,

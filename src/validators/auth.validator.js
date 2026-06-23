@@ -57,12 +57,16 @@ exports.registerSchema = Joi.object({
 
 exports.loginSchema = Joi.object({
   user: Joi.alternatives()
-    .try(Joi.string().email(), Joi.string().alphanum())
-    .required(),
+    .try(Joi.string().email(), Joi.string())
+    .optional(),
+  username: Joi.alternatives()
+    .try(Joi.string().email(), Joi.string())
+    .optional(),
+  email: Joi.string().email().optional(),
   password: Joi.string().required(),
   ip: Joi.string().optional(),
   userAgent: Joi.string().optional(),
-});
+}).or("user", "username", "email");
 
 // ==========================================
 // VERIFY OTP

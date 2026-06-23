@@ -139,6 +139,16 @@ describe("tenantUpload.service", () => {
       expect(logger.warn).toHaveBeenCalled();
       expect(result).toBeDefined();
     });
+
+    it("should throw InternalServerError if a non-AppError occurs", async () => {
+      mockTenant.update.mockRejectedValueOnce(new Error("Database connection failed"));
+
+      await expect(
+        updateTenantLogo("tenant-123", "new-logo.png", "user-456"),
+      ).rejects.toThrow("Failed to update tenant logo");
+
+      expect(logger.error).toHaveBeenCalled();
+    });
   });
 
   describe("removeTenantLogo", () => {
@@ -186,6 +196,67 @@ describe("tenantUpload.service", () => {
       await expect(removeTenantLogo("invalid-id", "user-456")).rejects.toThrow(
         "Tenant not found",
       );
+    });
+
+    it("should continue if logo deletion fails", async () => {
+      deleteUpload.mockRejectedValue(new Error("File not found"));
+
+      const result = await removeTenantLogo("tenant-123", "user-456");
+
+      expect(logger.warn).toHaveBeenCalled();
+      expect(result.data.logo).toBeNull();
+    });
+
+    it("should throw InternalServerError if a non-AppError occurs", async () => {
+      mockTenant.update.mockRejectedValueOnce(new Error("Database connection failed"));
+
+      await expect(
+        removeTenantLogo("tenant-123", "user-456"),
+      ).rejects.toThrow("Failed to remove tenant logo");
+
+      expect(logger.error).toHaveBeenCalled();
+    });
+    it("should not delete logo if it is default.svg", async () => {
+      Tenants.findByPk.mockResolvedValue({
+        ...mockTenant,
+        logo: "path/to/default.svg",
+      });
+
+      const result = await removeTenantLogo("tenant-123", "user-456");
+
+      expect(deleteUpload).not.toHaveBeenCalled();
+      expect(mockTenant.update).toHaveBeenCalledWith(
+        { logo: null },
+        { silent: true },
+      );
+    });
+
+    it("should not delete logo if it resolves to a falsy filename in updateTenantLogo", async () => {
+      Tenants.findByPk.mockResolvedValue({
+        ...mockTenant,
+        logo: "/",
+      });
+
+      const result = await updateTenantLogo(
+        "tenant-123",
+        "new-logo.png",
+        "user-456",
+      );
+
+      expect(deleteUpload).not.toHaveBeenCalled();
+      expect(result).toBeDefined();
+    });
+
+    it("should not delete logo if it resolves to a falsy filename in removeTenantLogo", async () => {
+      Tenants.findByPk.mockResolvedValue({
+        ...mockTenant,
+        logo: "/",
+      });
+
+      const result = await removeTenantLogo("tenant-123", "user-456");
+
+      expect(deleteUpload).not.toHaveBeenCalled();
+      expect(result).toBeDefined();
     });
   });
 });

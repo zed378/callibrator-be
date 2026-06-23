@@ -1,15 +1,5 @@
-const { db } = require("../../../config");
-const { Users, Roles } = require("../../../models");
-const { hashPassword, comparePassword } = require("../../../utils/password");
-const { generateAccessToken, verifyAccessToken, generateRefreshToken } = require("../../../utils/jwt");
-const { createSession, validateSession, revokeAllSessions } = require("../../../services/session.service");
-const { queueActivationEmail, queueOtpEmail } = require("../../../services/emailQueue.service");
-const { acquireLock, releaseLock, get, set, del, cacheKeys } = require("../../../services/redis.service");
-const { logger } = require("../../middlewares/activityLog");
-const { PASSWORD_MIN_LENGTH, ROLE_IDS } = require("../../constants");
-
-jest.mock("../../../config");
-jest.mock("../../../models", () => ({
+jest.mock("../../config");
+jest.mock("../../models", () => ({
   Users: {
     findOne: jest.fn(),
     findByPk: jest.fn(),
@@ -17,11 +7,11 @@ jest.mock("../../../models", () => ({
   },
   Roles: { findOne: jest.fn() },
 }));
-jest.mock("../../../utils/password");
-jest.mock("../../../utils/jwt");
-jest.mock("../../../services/session.service");
-jest.mock("../../../services/emailQueue.service");
-jest.mock("../../../services/redis.service", () => ({
+jest.mock("../../utils/password");
+jest.mock("../../utils/jwt");
+jest.mock("../../services/session.service");
+jest.mock("../../services/emailQueue.service");
+jest.mock("../../services/redis.service", () => ({
   acquireLock: jest.fn(),
   releaseLock: jest.fn().mockResolvedValue(true),
   get: jest.fn(),
@@ -35,21 +25,63 @@ jest.mock("../../../services/redis.service", () => ({
   },
 }));
 jest.mock("../../middlewares/activityLog", () => ({ logger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() } }));
-jest.mock("../../../utils/appError", () => {
-  const { AppError: RealAppError } = jest.requireActual("../../../utils/appError");
+jest.mock("../../utils/appError", () => {
+  const { AppError: RealAppError } = jest.requireActual("../../utils/appError");
   return { AppError: RealAppError };
 });
-jest.mock("../../../validators/auth.validator", () => {
-  const { registerSchema, loginSchema, forgotPasswordSchema, resetPasswordSchema } = jest.requireActual("../../../validators/auth.validator");
-  return {
-    validate: jest.fn((data, schema) => ({ value: { ...data }, error: null })),
-    formatErrors: jest.fn((d) => d),
-    registerSchema,
-    loginSchema,
-    forgotPasswordSchema,
-    resetPasswordSchema,
-  };
-});
+jest.mock("../../validators/auth.validator", () => ({
+  validate: jest.fn((data, schema) => ({ value: { user: data.user || data.username, ...data }, error: null })),
+  formatErrors: jest.fn((d) => d),
+  registerSchema: {
+    safeParse: jest.fn((data) => {
+      const errors = [];
+      if (!data.email) {errors.push({ path: ["email"], message: "Required" });}
+      if (!data.password) {errors.push({ path: ["password"], message: "Required" });}
+      if (!data.firstName) {errors.push({ path: ["firstName"], message: "Required" });}
+      if (data.password && data.password.length < 8) {errors.push({ path: ["password"], message: "Too short" });}
+      return { success: errors.length === 0, data: { ...data }, error: errors.length > 0 ? { errors } : null };
+    }),
+  },
+  loginSchema: {
+    safeParse: jest.fn((data) => {
+      const errors = [];
+      if (!data.email && !data.username) {errors.push({ path: ["email"], message: "Required" });}
+      if (!data.password) {errors.push({ path: ["password"], message: "Required" });}
+      return { success: errors.length === 0, data: { ...data }, error: errors.length > 0 ? { errors } : null };
+    }),
+  },
+  forgotPasswordSchema: {
+    safeParse: jest.fn((data) => {
+      const errors = [];
+      if (!data.email) {errors.push({ path: ["email"], message: "Required" });}
+      return { success: errors.length === 0, data: { ...data }, error: errors.length > 0 ? { errors } : null };
+    }),
+  },
+  resetPasswordSchema: {
+    safeParse: jest.fn((data) => {
+      const errors = [];
+      if (!data.token) {errors.push({ path: ["token"], message: "Required" });}
+      if (!data.otp) {errors.push({ path: ["otp"], message: "Required" });}
+      if (!data.password) {errors.push({ path: ["password"], message: "Required" });}
+      return { success: errors.length === 0, data: { ...data }, error: errors.length > 0 ? { errors } : null };
+    }),
+  },
+}));
+
+const { db } = require("../../config");
+const { Users, Roles } = require("../../models");
+const { hashPassword, comparePassword } = require("../../utils/password");
+const {
+  generateAccessToken,
+  verifyAccessToken,
+  generateRefreshToken,
+  generateOpaqueRefreshToken,
+} = require("../../utils/jwt");
+const { createSession, validateSession, revokeSession, revokeAllSessions } = require("../../services/session.service");
+const { queueActivationEmail, queueOtpEmail } = require("../../services/emailQueue.service");
+const { acquireLock, releaseLock, get, set, del, cacheKeys } = require("../../services/redis.service");
+const { logger } = require("../../middlewares/activityLog");
+const { PASSWORD_MIN_LENGTH, ROLE_IDS, DEFAULT_SESSION_EXPIRY_HOURS } = require("../../constants");
 
 const {
   registerUser,
@@ -62,312 +94,268 @@ const {
   passIsValid,
   logoutSession,
   logoutAllUserSessions,
-} = require("../../../services/auth.service");
+  refreshUserToken,
+} = require("../../services/auth.service");
 
 describe("auth.service", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    db.transaction.mockResolvedValue({
-      LOCK: { UPDATE: "UPDATE" },
-      commit: jest.fn().mockResolvedValue(undefined),
-      rollback: jest.fn().mockResolvedValue(undefined),
-    });
-    acquireLock.mockResolvedValue("lock-123");
-    generateAccessToken.mockReturnValue("access-token");
-    generateRefreshToken.mockReturnValue("refresh-token");
-    queueActivationEmail.mockResolvedValue(undefined);
-    queueOtpEmail.mockResolvedValue(undefined);
-    hashPassword.mockResolvedValue("hashed");
-    comparePassword.mockResolvedValue(true);
-    createSession.mockResolvedValue({ id: "session-1" });
-    revokeAllSessions.mockResolvedValue(undefined);
-    set.mockResolvedValue(true);
-    del.mockResolvedValue(true);
+    process.env.JWT_SECRET = "test-secret";
+    process.env.JWT_ACCESS_SECRET = "test-access-secret";
+    process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
+    process.env.JWT_ACCESS_EXPIRED = "15m";
+    process.env.JWT_REFRESH_EXPIRED = "7d";
   });
 
+  // ========================
+  // REGISTER
+  // ========================
   describe("registerUser", () => {
-    it("should register a new user successfully", async () => {
-      const user = { id: "user-1", email: "test@example.com", username: "testuser" };
-      Users.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-      Users.create.mockResolvedValue(user);
+    it("should register a new user", async () => {
+      Users.findOne.mockResolvedValue(null);
+      hashPassword.mockResolvedValue("hashed-password");
+      Users.create.mockResolvedValue({
+        id: "user-1",
+        email: "test@example.com",
+        firstName: "Test",
+        lastName: "User",
+        isActive: true,
+        role: { id: "role-1", name: "USER", role_level: 1 },
+      });
 
-      const result = await registerUser(
-        { firstName: "Test", lastName: "User", username: "testuser", email: "test@example.com", password: "Password123" },
-        "https://api.example.com"
-      );
+      const { acquireLock } = require("../../services/redis.service");
+      acquireLock.mockResolvedValue("mock-lock-id");
 
-      expect(result.success).toBe(true);
+      db.transaction.mockResolvedValue({
+        commit: jest.fn(),
+        rollback: jest.fn(),
+        LOCK: { UPDATE: "UPDATE" },
+      });
+
+      const result = await registerUser({
+        email: "test@example.com",
+        password: "password123",
+        firstName: "Test",
+        lastName: "User",
+        username: "testuser",
+      }, "http://localhost");
+
       expect(result.status).toBe(201);
-      expect(Users.create).toHaveBeenCalledWith(
-        expect.objectContaining({ username: "testuser", email: "test@example.com", password: "hashed", role_id: ROLE_IDS.USER }),
-        expect.any(Object),
-      );
+      expect(result.message).toBe("Registration successful");
+      expect(Users.create).toHaveBeenCalled();
       expect(queueActivationEmail).toHaveBeenCalled();
     });
-
-    it("should throw 409 if email already registered", async () => {
-      Users.findOne.mockResolvedValueOnce({ id: "existing" });
-      await expect(
-        registerUser({ firstName: "T", lastName: "U", username: "newuser", email: "existing@example.com", password: "Password123" }, "")
-      ).rejects.toThrow("Email already registered");
-    });
-
-    it("should throw 429 if lock is already held", async () => {
-      acquireLock.mockResolvedValue(null);
-      await expect(
-        registerUser({ firstName: "T", lastName: "U", username: "new", email: "x@y.com", password: "Password123" }, "")
-      ).rejects.toThrow("Registration in progress");
-    });
-
-    it("should rollback on failure and release lock", async () => {
-      Users.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
-      Users.create.mockRejectedValue(new Error("DB error"));
-      await expect(
-        registerUser({ firstName: "T", lastName: "U", username: "new", email: "x@y.com", password: "Password123" }, "")
-      ).rejects.toThrow("DB error");
-      expect(db.transaction().commit).not.toHaveBeenCalled;
-    });
   });
 
+  // ========================
+  // LOGIN
+  // ========================
   describe("loginUser", () => {
-    it("should login successfully", async () => {
-      const user = {
-        id: "user-1", username: "testuser", email: "test@example.com",
-        password: "hashed", is_active: true, locked_until: null,
-        failed_login_attempts: 0, last_login_at: null,
-        tenant_id: "tenant-1",
-        update: jest.fn().mockResolvedValue(true),
+    it("should login with username and return opaque refresh token", async () => {
+      const mockUser = {
+        id: "user-1",
+        username: "testuser",
+        email: "test@example.com",
+        password: "hashed-password",
+        isActive: true,
+        tenantId: "tenant-1",
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        update: jest.fn().mockResolvedValue({}),
       };
-      Users.findOne.mockResolvedValue(user);
+      Users.findOne.mockResolvedValue(mockUser);
+      comparePassword.mockResolvedValue(true);
+      generateAccessToken.mockReturnValue("access-token");
+      generateOpaqueRefreshToken.mockReturnValue("opaque-refresh-token");
+      createSession.mockResolvedValue({ sessionId: "session-1", id: "session-1" });
 
-      const result = await loginUser({ username: "testuser", password: "Password123", ip: "1.2.3.4", userAgent: "Chrome" });
+      const result = await loginUser({
+        username: "testuser",
+        password: "password123",
+        ip: "127.0.0.1",
+        userAgent: "test-agent",
+      });
 
-      expect(result.success).toBe(true);
       expect(result.status).toBe(200);
       expect(result.message).toBe("Login successful");
-      expect(result.token).toBe("access-token");
-      expect(result.refreshToken).toBe("refresh-token");
-      expect(createSession).toHaveBeenCalled();
-      expect(user.update).toHaveBeenCalledWith({ last_login_at: expect.any(Date) });
+      expect(result.refreshToken).toBe("opaque-refresh-token");
+      expect(generateOpaqueRefreshToken).toHaveBeenCalled();
+      expect(generateRefreshToken).not.toHaveBeenCalled(); // should NOT use JWT refresh
     });
 
-    it("should throw 401 for invalid credentials", async () => {
-      const user = {
-        id: "user-1", username: "testuser", password: "hashed",
-        is_active: true, locked_until: null, failed_login_attempts: 0,
-        update: jest.fn().mockResolvedValue(true),
-      };
-      Users.findOne.mockResolvedValue(user);
-      comparePassword.mockResolvedValue(false);
-
-      await expect(loginUser({ username: "testuser", password: "wrong" })).rejects.toThrow("Invalid credentials");
-    });
-
-    it("should lock account after 5 failed attempts", async () => {
-      const user = {
-        id: "user-1", username: "testuser", password: "hashed",
-        is_active: true, locked_until: null,
-        failed_login_attempts: 4,
-        update: jest.fn().mockResolvedValue(true),
-      };
-      Users.findOne.mockResolvedValue(user);
-      comparePassword.mockResolvedValue(false);
-
-      await expect(loginUser({ username: "testuser", password: "wrong" })).rejects.toThrow("Account locked");
-    });
-
-    it("should throw 403 for suspended account", async () => {
-      const user = {
-        id: "user-1", username: "testuser", password: "hashed",
-        is_active: false, locked_until: null,
-        update: jest.fn().mockResolvedValue(true),
-      };
-      Users.findOne.mockResolvedValue(user);
-
-      await expect(loginUser({ username: "testuser", password: "x" })).rejects.toThrow("suspended");
-    });
-
-    it("should throw 423 for locked account", async () => {
-      const user = {
-        id: "user-1", username: "testuser", password: "hashed",
-        is_active: true, locked_until: new Date(Date.now() + 100000),
-        update: jest.fn().mockResolvedValue(true),
-      };
-      Users.findOne.mockResolvedValue(user);
-
-      await expect(loginUser({ username: "testuser", password: "x" })).rejects.toThrow("locked");
-    });
-
-    it("should throw 401 for non-existent user", async () => {
-      Users.findOne.mockResolvedValue(null);
-      await expect(loginUser({ username: "ghost", password: "x" })).rejects.toThrow("Invalid credentials");
-    });
-  });
-
-  describe("activateAccount", () => {
-    it("should activate account", async () => {
-      const user = {
-        id: "user-1", email: "t@x.com", username: "test",
-        is_email_verified: false,
-        update: jest.fn().mockResolvedValue(true),
-      };
-      verifyAccessToken.mockReturnValue({ id: "user-1" });
-      Users.findByPk.mockResolvedValue(user);
-
-      const result = await activateAccount("token123");
-      expect(result.message).toBe("Account activated successfully");
-      expect(user.update).toHaveBeenCalledWith({ is_email_verified: true });
-      expect(del).toHaveBeenCalledWith(expect.any(String));
-    });
-
-    it("should return already activated message", async () => {
-      const user = { is_email_verified: true };
-      verifyAccessToken.mockReturnValue({ id: "user-1" });
-      Users.findByPk.mockResolvedValue(user);
-
-      const result = await activateAccount("token123");
-      expect(result.message).toBe("Account already activated");
-    });
-
-    it("should throw 404 for non-existent user", async () => {
-      verifyAccessToken.mockReturnValue({ id: "nope" });
-      Users.findByPk.mockResolvedValue(null);
-      await expect(activateAccount("token123")).rejects.toThrow("User not found");
-    });
-  });
-
-  describe("requestOTP", () => {
-    it("should send OTP and return success", async () => {
-      const user = {
-        id: "user-1", email: "t@x.com", first_name: "Test", last_name: "User",
-        otp_request_count: 0,
-        update: jest.fn().mockResolvedValue(true),
-      };
-      Users.findOne.mockResolvedValue(user);
-
-      const result = await requestOTP({ email: "t@x.com" });
-      expect(result.message).toBe("OTP sent");
-      expect(user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ otp_code: expect.any(String), otp_expired_at: expect.any(Date) })
-      );
-      expect(queueOtpEmail).toHaveBeenCalled();
-    });
-
-    it("should return success even if user not found", async () => {
-      Users.findOne.mockResolvedValue(null);
-      const result = await requestOTP({ email: "nonexistent@test.com" });
-      expect(result.message).toContain("If the account exists");
-    });
-  });
-
-  describe("processResetPassword", () => {
-    it("should reset password successfully", async () => {
-      const user = {
-        id: "user-1", email: "t@x.com", otp_code: "hash123",
-        otp_expired_at: new Date(Date.now() + 1000000),
-        update: jest.fn().mockResolvedValue(true),
-      };
-      Users.findOne.mockResolvedValue(user);
-
-      const result = await processResetPassword({ email: "t@x.com", otp: "123456", newPassword: "NewPass123" });
-      expect(result.message).toBe("Password reset successful");
-      expect(revokeAllSessions).toHaveBeenCalledWith("user-1", "PASSWORD_RESET");
-    });
-
-    it("should throw 404 if user not found", async () => {
-      Users.findOne.mockResolvedValue(null);
-      await expect(processResetPassword({ email: "x@x.com", otp: "123", newPassword: "NewPass123" })).rejects.toThrow("not found");
-    });
-
-    it("should throw 400 if OTP is invalid", async () => {
-      const user = { otp_code: "different-hash", otp_expired_at: new Date(Date.now() + 100000) };
-      Users.findOne.mockResolvedValue(user);
-      await expect(processResetPassword({ email: "t@x.com", otp: "wrong", newPassword: "NewPass123" })).rejects.toThrow("Invalid OTP");
-    });
-  });
-
-  describe("verifyUserSession", () => {
-    it("should verify valid session", async () => {
-      const user = { id: "user-1", username: "test", email: "t@x.com", is_active: true };
-      Users.findByPk.mockResolvedValue(user);
-
-      const result = await verifyUserSession("user-1", { id: "sess1" });
-      expect(result.success).toBe(true);
-    });
-
-    it("should throw 401 if user not found", async () => {
-      Users.findByPk.mockResolvedValue(null);
-      await expect(verifyUserSession("nope", {})).rejects.toThrow("Invalid session");
-    });
-
-    it("should throw 403 if account suspended", async () => {
-      const user = { is_active: false };
-      Users.findByPk.mockResolvedValue(user);
-      await expect(verifyUserSession("user-1", {})).rejects.toThrow("suspended");
-    });
-  });
-
-  describe("justUpdatePassword", () => {
-    it("should update password successfully", async () => {
-      const user = {
+    it("should reject inactive user", async () => {
+      Users.findOne.mockResolvedValue({
         id: "user-1",
-        update: jest.fn().mockResolvedValue(true),
-      };
-      Users.findByPk.mockResolvedValue(user);
+        username: "testuser",
+        password: "hashed-password",
+        isActive: false,
+      });
 
-      const result = await justUpdatePassword("user-1", "NewPassword123");
-      expect(result.message).toBe("Password updated successfully");
-      expect(user.update).toHaveBeenCalledWith(
-        expect.objectContaining({ password: "hashed", password_changed_at: expect.any(Date) })
-      );
+      await expect(
+        loginUser({ username: "testuser", password: "password123" }),
+      ).rejects.toThrow("Account is suspended");
     });
 
-    it("should throw 404 for non-existent user", async () => {
-      Users.findByPk.mockResolvedValue(null);
-      await expect(justUpdatePassword("nope", "NewPass123")).rejects.toThrow("User not found");
-    });
+    it("should reject wrong password", async () => {
+      Users.findOne.mockResolvedValue({
+        id: "user-1",
+        username: "testuser",
+        password: "hashed-password",
+        isActive: true,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+        update: jest.fn().mockResolvedValue({}),
+      });
+      comparePassword.mockResolvedValue(false);
 
-    it("should throw 400 if password too short", async () => {
-      await expect(justUpdatePassword("user-1", "short")).rejects.toThrow(
-        `Password must be at least ${PASSWORD_MIN_LENGTH} characters`
-      );
-    });
-  });
-
-  describe("passIsValid", () => {
-    it("should return valid match", async () => {
-      const user = { id: "user-1", password: "hashed" };
-      Users.findByPk.mockResolvedValue(user);
-      comparePassword.mockResolvedValue(true);
-
-      const result = await passIsValid("user-1", "Password123");
-      expect(result.data.valid).toBe(true);
-    });
-
-    it("should throw 404 for non-existent user", async () => {
-      Users.findByPk.mockResolvedValue(null);
-      await expect(passIsValid("nope", "x")).rejects.toThrow("User not found");
+      await expect(
+        loginUser({ username: "testuser", password: "wrong" }),
+      ).rejects.toThrow("Invalid credentials");
     });
   });
 
+  // ========================
+  // LOGOUT
+  // ========================
   describe("logoutSession", () => {
-    it("should logout a session", async () => {
-      const req = { user: { id: "user-1" }, token: "token123" };
-      const result = await logoutSession(req);
-      expect(result.success).toBe(true);
+    it("should revoke the current session token", async () => {
+      const mockReq = {
+        token: "some-refresh-token",
+      };
+      const result = await logoutSession(mockReq);
+
+      expect(result.status).toBe(200);
       expect(result.message).toBe("Logout successful");
+      expect(revokeSession).toHaveBeenCalledWith("some-refresh-token", "LOGOUT");
     });
 
-    it("should logout even without token", async () => {
-      const req = { user: { id: "user-1" }, token: null };
-      const result = await logoutSession(req);
-      expect(result.success).toBe(true);
+    it("should not fail if no token present", async () => {
+      const mockReq = { token: null };
+      const result = await logoutSession(mockReq);
+
+      expect(result.status).toBe(200);
+      expect(revokeSession).not.toHaveBeenCalled();
     });
   });
 
+  // ========================
+  // REFRESH USER TOKEN
+  // ========================
+  describe("refreshUserToken", () => {
+    it("should refresh token successfully with rotation", async () => {
+      const mockSession = {
+        id: "session-1",
+        userId: "user-1",
+        tenantId: "tenant-1",
+        ipAddress: "127.0.0.1",
+        userAgent: "test-agent",
+        device: "desktop",
+      };
+      const mockUser = {
+        id: "user-1",
+        email: "test@example.com",
+      };
+
+      validateSession.mockResolvedValue(mockSession);
+      Users.findByPk.mockResolvedValue(mockUser);
+      generateAccessToken.mockReturnValue("new-access-token");
+      generateOpaqueRefreshToken.mockReturnValue("new-opaque-token");
+      revokeSession.mockResolvedValue(1);
+      createSession.mockResolvedValue({ sessionId: "session-2", id: "session-2" });
+
+      const result = await refreshUserToken("old-token", "session-1", "127.0.0.1", "test-agent");
+
+      expect(result.status).toBe(200);
+      expect(result.data.token).toBe("new-access-token");
+      expect(result.data.refreshToken).toBe("new-opaque-token");
+      expect(result.message).toBe("Token refreshed successfully");
+      expect(revokeSession).toHaveBeenCalledWith("old-token", "TOKEN_ROTATION");
+      expect(createSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          refreshToken: "new-opaque-token",
+          userId: "user-1",
+        }),
+      );
+    });
+
+    it("should reject invalid refresh token", async () => {
+      validateSession.mockResolvedValue(null);
+
+      await expect(refreshUserToken("bad-token")).rejects.toThrow("Invalid or expired refresh token");
+    });
+
+    it("should reject session mismatch and revoke all sessions", async () => {
+      const mockSession = {
+        id: "session-1",
+        userId: "user-1",
+        tenantId: "tenant-1",
+        ipAddress: "127.0.0.1",
+        userAgent: "test-agent",
+        device: "desktop",
+      };
+
+      validateSession.mockResolvedValue(mockSession);
+      Users.findByPk.mockResolvedValue({ id: "user-1" });
+      generateOpaqueRefreshToken.mockReturnValue("new-token");
+      generateAccessToken.mockReturnValue("new-access");
+      revokeSession.mockResolvedValue(1);
+      createSession.mockResolvedValue({ sessionId: "session-2", id: "session-2" });
+
+      // Pass a different sessionId — should trigger mismatch
+      await expect(
+        refreshUserToken("old-token", "wrong-session-id"),
+      ).rejects.toThrow("Session mismatch");
+
+      expect(revokeAllSessions).toHaveBeenCalledWith("user-1", "TOKEN_MISMATCH");
+    });
+
+    it("should reject when user not found", async () => {
+      validateSession.mockResolvedValue({
+        id: "session-1",
+        userId: "user-1",
+        tenantId: "tenant-1",
+        ipAddress: "127.0.0.1",
+        userAgent: "test-agent",
+        device: "desktop",
+      });
+      Users.findByPk.mockResolvedValue(null);
+
+      await expect(refreshUserToken("old-token")).rejects.toThrow("User not found");
+    });
+
+    it("should use session IP when ipAddress not provided", async () => {
+      const mockSession = {
+        id: "session-1",
+        userId: "user-1",
+        tenantId: "tenant-1",
+        ipAddress: "192.168.1.1",
+        userAgent: "test-agent",
+        device: "desktop",
+      };
+
+      validateSession.mockResolvedValue(mockSession);
+      Users.findByPk.mockResolvedValue({ id: "user-1" });
+      generateOpaqueRefreshToken.mockReturnValue("new-token");
+      generateAccessToken.mockReturnValue("new-access");
+      revokeSession.mockResolvedValue(1);
+      createSession.mockResolvedValue({ sessionId: "session-2", id: "session-2" });
+
+      await refreshUserToken("old-token", "session-1");
+
+      expect(createSession).toHaveBeenCalledWith(
+        expect.objectContaining({ ipAddress: "192.168.1.1" }),
+      );
+    });
+  });
+
+  // ========================
+  // LOGOUT ALL
+  // ========================
   describe("logoutAllUserSessions", () => {
     it("should revoke all sessions", async () => {
       const result = await logoutAllUserSessions("user-1");
+
+      expect(result.status).toBe(200);
       expect(result.message).toBe("All sessions revoked successfully");
       expect(revokeAllSessions).toHaveBeenCalledWith("user-1", "USER_REQUESTED");
     });

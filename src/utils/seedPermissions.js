@@ -315,20 +315,20 @@ async function grantPermissionsToRoles(
     if (tenantAdminRole) {
       const tenantAdminPermissions = USER_PERMISSIONS.TENANT_CREATE
         ? [
-            // User tenant permissions
-            USER_PERMISSIONS.TENANT_CREATE,
-            USER_PERMISSIONS.TENANT_READ,
-            USER_PERMISSIONS.TENANT_UPDATE,
-            USER_PERMISSIONS.TENANT_DELETE,
-            USER_PERMISSIONS.TENANT_ASSIGN,
-            USER_PERMISSIONS.SELF_UPDATE,
-            USER_PERMISSIONS.SELF_READ,
-            // Tenant permissions
-            TENANT_PERMISSIONS.TENANT_READ,
-            TENANT_PERMISSIONS.TENANT_ASSIGN,
-            TENANT_PERMISSIONS.SELF_UPDATE,
-            TENANT_PERMISSIONS.SELF_READ,
-          ]
+          // User tenant permissions
+          USER_PERMISSIONS.TENANT_CREATE,
+          USER_PERMISSIONS.TENANT_READ,
+          USER_PERMISSIONS.TENANT_UPDATE,
+          USER_PERMISSIONS.TENANT_DELETE,
+          USER_PERMISSIONS.TENANT_ASSIGN,
+          USER_PERMISSIONS.SELF_UPDATE,
+          USER_PERMISSIONS.SELF_READ,
+          // Tenant permissions
+          TENANT_PERMISSIONS.TENANT_READ,
+          TENANT_PERMISSIONS.TENANT_ASSIGN,
+          TENANT_PERMISSIONS.SELF_UPDATE,
+          TENANT_PERMISSIONS.SELF_READ,
+        ]
         : [];
 
       const permissionIds = tenantAdminPermissions

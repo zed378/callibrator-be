@@ -116,8 +116,8 @@ exports.deleteMenu = asyncHandler(async (req, res) => {
 
 exports.getAllPermissions = asyncHandler(async (req, res) => {
   const permissions = [
-    { permission_type: "read", description: "Read access" },
-    { permission_type: "write", description: "Write access" },
+    { permissionType: "read", description: "Read access" },
+    { permissionType: "write", description: "Write access" },
   ];
   return res.status(200).json({
     success: true,
@@ -132,11 +132,11 @@ exports.getAllPermissions = asyncHandler(async (req, res) => {
 
 exports.assignPermissionToRole = asyncHandler(async (req, res) => {
   const { roleId } = req.params;
-  const { menuGroupId, permission_type } = req.body;
+  const { menuGroupId, permissionType } = req.body;
   const permission = await rolesService.assignMenuToRole(
     roleId,
     menuGroupId,
-    permission_type || "read",
+    permissionType || "read",
   );
   return res.status(201).json({ success: true, data: permission });
 });

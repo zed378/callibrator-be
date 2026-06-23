@@ -21,7 +21,7 @@ const { AppError } = require("./appError");
  */
 const asyncHandler = (fn) => {
   return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch((error) => {
+    return Promise.resolve(fn(req, res, next)).catch((error) => {
       // Handle AppError instances properly
       if (error instanceof AppError) {
         const isDevelopment = process.env.NODE_ENV !== "production";
@@ -78,8 +78,8 @@ const asyncHandler = (fn) => {
  */
 const asyncHandlerWithMapping = (fn, errorMap = {}) => {
   return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch((error) => {
-      let statusCode = 500;
+    return Promise.resolve(fn(req, res, next)).catch((error) => {
+      let statusCode = error.status || error.statusCode || 500;
       const errorMessage = error.message || "Internal server error";
 
       // Map error message patterns to status codes
@@ -91,7 +91,7 @@ const asyncHandlerWithMapping = (fn, errorMap = {}) => {
       }
 
       const { error: sendError } = require("./response");
-      sendError(res, errorMessage, statusCode);
+      return sendError(res, errorMessage, statusCode);
     });
   };
 };

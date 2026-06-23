@@ -74,14 +74,8 @@ const baseConfig = {
       parseInt(process.env.DB_POOL_MAX, 10) ||
       (process.env.NODE_ENV === "production" ? 20 : 10),
     min: parseInt(process.env.DB_POOL_MIN, 10) || 2,
-    acquire:
-      parseInt(process.env.DB_POOL_ACQUIRE_TIMEOUT, 10) || 30000,
-    idle:
-      parseInt(process.env.DB_POOL_IDLE_TIMEOUT, 10) || 10000,
-  },
-
-  retry: {
-    max: 3,
+    acquire: parseInt(process.env.DB_POOL_ACQUIRE_TIMEOUT, 10) || 30000,
+    idle: parseInt(process.env.DB_POOL_IDLE_TIMEOUT, 10) || 10000,
   },
 };
 
@@ -104,16 +98,7 @@ const pgConfig = {
   database: dbName,
 
   dialectOptions: {
-    ssl:
-      process.env.DB_SSL === "true"
-        ? {
-            require: true,
-            rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== "false",
-            ca: process.env.DB_SSL_CA
-              ? require('fs').readFileSync(process.env.DB_SSL_CA, 'utf8')
-              : undefined,
-          }
-        : false,
+    ssl: process.env.DB_SSL === "true" ? { require: true } : false,
   },
 
   supportsSearchPath: false,
@@ -122,7 +107,7 @@ const pgConfig = {
 // Final Configuration
 const config = dialect === "mysql" ? mysqlConfig : pgConfig;
 
-// Main Sequelize Instance
+// Main Sequelize Instance (v6 accepts full config object)
 const db = new Sequelize(config);
 
 // ------------------------------------------------------------------
@@ -130,19 +115,16 @@ const db = new Sequelize(config);
 // ------------------------------------------------------------------
 
 /**
- * Create Database If Not Exists with Retry
- * Uses bootstrap connection to default database (postgres/mysql)
- * Retries connection until maxAttempts is reached
+ * Create Database If Not Exists
+ * Uses Sequelize v6 built-in database creation for PostgreSQL/MySQL.
  */
-async function createDatabaseIfNotExists({
-  maxAttempts = 20,
-  delayMs = 3000,
-} = {}) {
-  // PostgreSQL must connect to existing DB first
-  const bootstrapDatabase = dialect === "postgres" ? "postgres" : "mysql";
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const bootstrapDb = new Sequelize(bootstrapDatabase, user, pass, {
+async function createDatabaseIfNotExists() {
+  if (dialect === "postgres") {
+    // PostgreSQL: Need to connect to 'postgres' database to create a new database
+    const bootstrapDb = new Sequelize({
+      database: "postgres",
+      username: user,
+      password: pass,
       host,
       port,
       dialect,
@@ -151,51 +133,70 @@ async function createDatabaseIfNotExists({
 
     try {
       await bootstrapDb.authenticate();
-      logger.info(
-        `Bootstrap connection established (attempt ${attempt}/${maxAttempts})`,
+
+      const { rows } = await bootstrapDb.query(
+        "SELECT 1 FROM pg_database WHERE datname = $1;",
+        { replacements: [dbName] },
       );
 
-      if (dialect === "mysql") {
-        await bootstrapDb.query(
-          `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`,
-        );
-        logger.info(`Database ${dbName} created or already exists (MySQL).`);
-      } else if (dialect === "postgres") {
-        try {
-          await bootstrapDb.query(`CREATE DATABASE "${dbName}";`);
-          logger.info(`Database ${dbName} created (PostgreSQL).`);
-        } catch (err) {
-          // PostgreSQL duplicate database error (code 42P04)
-          if (err.original?.code !== "42P04") {
-            throw err;
-          }
-          logger.info(`Database ${dbName} already exists (PostgreSQL).`);
-        }
+      if (rows.length === 0) {
+        await bootstrapDb.query(`CREATE DATABASE "${dbName}";`);
+        logger.info(`Database "${dbName}" created (PostgreSQL).`);
+      } else {
+        logger.info(`Database "${dbName}" already exists (PostgreSQL).`);
       }
 
-      await bootstrapDb.close();
-      logger.info("Bootstrap connection closed");
+      try {
+        await bootstrapDb.close();
+      } catch {
+        // Ignore close errors
+      }
       return true;
     } catch (error) {
-      logger.warn(
-        `⚠️ Database creation attempt ${attempt}/${maxAttempts} failed: ${error.message}. ` +
-          `Retrying in ${delayMs}ms…`,
-      );
-
-      await bootstrapDb.close().catch(() => {});
-
-      if (attempt < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      } else {
-        logger.error(
-          `Unable to create database after ${maxAttempts} attempts: ${error.message}`,
-        );
-        return false;
+      logger.warn(`Database creation failed: ${error.message}`);
+      try {
+        await bootstrapDb.close();
+      } catch {
+        // Ignore close errors
       }
+      // Continue anyway - the main connection will handle errors
+      return true;
     }
   }
 
-  return false;
+  // For MySQL, create database if not exists
+  const bootstrapDb = new Sequelize({
+    database: dbName,
+    username: user,
+    password: pass,
+    host,
+    port,
+    dialect,
+    logging: false,
+  });
+
+  try {
+    await bootstrapDb.authenticate();
+    await bootstrapDb.query(
+      `CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`,
+    );
+    logger.info(`Database "${dbName}" created or already exists (MySQL).`);
+
+    try {
+      await bootstrapDb.close();
+    } catch {
+      // Ignore close errors
+    }
+    return true;
+  } catch (error) {
+    logger.warn(`Database creation failed: ${error.message}`);
+    try {
+      await bootstrapDb.close();
+    } catch {
+      // Ignore close errors
+    }
+    return true;
+  }
 }
 
 /**

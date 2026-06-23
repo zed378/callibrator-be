@@ -9,9 +9,9 @@ A production-ready Express.js API with PostgreSQL, JWT authentication, RBAC, mul
 | **Framework** | Express.js v5, Node.js 18+ |
 | **Database** | PostgreSQL 14+ via Sequelize ORM |
 | **Auth** | JWT access (15m) + refresh (7d) tokens |
-| **Authorization** | RBAC — Super Admin, Tenant Admin, User |
+| **Authorization** | Dynamic RBAC with Role-Permission Matrix |
 | **Multi-Tenancy** | Full isolation with feature flags per tenant |
-| **Caching** | Redis — user/tenant lookups, session cache |
+| **Caching** | Redis — RBAC permission matrix, tenant data, session cache |
 | **Rate Limiting** | Token bucket (in-memory default + Redis fallback) |
 | **Queue** | RabbitMQ — async email with DLQ, retry, exponential backoff |
 | **Distributed Locks** | Redis Lua scripts — race condition prevention |
@@ -176,7 +176,8 @@ callibrator-be/
 git clone https://github.com/zed378/callibrator-be.git
 cd callibrator-be
 npm install
-cp local.env .env
+cp .env.example .env
+# Edit .env to set required values (JWT secrets, etc.)
 npm run dev
 ```
 
@@ -225,15 +226,15 @@ services:
 | `npm start` | Production server |
 | `npm test` | Jest test suite |
 | `npm run swagger:generate` | Generate swagger.json |
-| `npm run build` | Package executable (pkg) |
+| `npm run build` | Package executable (Bun compiler) |
 
 ## Authentication Flow
 
-1. Login → receive access token (15m) + refresh token (7d)
-2. Every request sends `Authorization: Bearer <token>`
-3. Middleware validates JWT, fetches user with role, checks status
-4. RBAC middleware checks role level (Super Admin → Tenant Admin → User)
-5. Tenant scope middleware filters queries by `tenant_id`
+1. **Authentication**: Users authenticate and receive a short-lived access token (15m) and a secure refresh token (7d).
+2. **Request Context**: Every API request includes `Authorization: Bearer <token>`.
+3. **Middleware Chain**: The authentication middleware validates the JWT, loads user state, and enforces session validity.
+4. **Authorization (RBAC)**: The `dynamicAccess` or `rbac` middleware enforces boundary rules. Dynamic RBAC constructs a permission matrix that is heavily cached in Redis for O(1) route verification without N+1 query bottlenecks.
+5. **Tenant Isolation**: The multi-tenant architecture strictly enforces data isolation by bounding queries to the authenticated user's `tenant_id`.
 
 ## License
 

@@ -1,4 +1,5 @@
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 
 // ==========================================
 // ENV VALIDATION
@@ -27,16 +28,26 @@ if (!REFRESH_SECRET) {
 const generateAccessToken = (payload) => {
   return jwt.sign(payload, ACCESS_SECRET, {
     expiresIn: process.env.JWT_ACCESS_EXPIRED || "15m",
+    algorithm: "HS256",
   });
 };
 
 // ==========================================
-// REFRESH TOKEN
+// OPAQUE REFRESH TOKEN
+// ==========================================
+
+const generateOpaqueRefreshToken = () => {
+  return crypto.randomBytes(32).toString("hex");
+};
+
+// ==========================================
+// REFRESH TOKEN (legacy)
 // ==========================================
 
 const generateRefreshToken = (payload) => {
   return jwt.sign(payload, REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRED || "7d",
+    algorithm: "HS256",
   });
 };
 
@@ -45,7 +56,7 @@ const generateRefreshToken = (payload) => {
 // ==========================================
 
 const verifyAccessToken = (token) => {
-  return jwt.verify(token, ACCESS_SECRET);
+  return jwt.verify(token, ACCESS_SECRET, { algorithms: ["HS256"] });
 };
 
 // ==========================================
@@ -53,7 +64,7 @@ const verifyAccessToken = (token) => {
 // ==========================================
 
 const verifyRefreshToken = (token) => {
-  return jwt.verify(token, REFRESH_SECRET);
+  return jwt.verify(token, REFRESH_SECRET, { algorithms: ["HS256"] });
 };
 
 // ==========================================
@@ -66,6 +77,7 @@ const decodeToken = (token) => {
 
 module.exports = {
   generateAccessToken,
+  generateOpaqueRefreshToken,
   generateRefreshToken,
   verifyAccessToken,
   verifyRefreshToken,

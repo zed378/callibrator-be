@@ -280,7 +280,9 @@ router.post(
  *                   type: string
  *                   example: "Username is required"
  */
-router.post("/username-check", userController.checkUsernameAvailability);
+// Username availability check requires authentication to prevent user enumeration
+// See: commands-backend.md RBAC rules - every protected endpoint must verify valid auth token
+router.post("/username-check", auth, userController.checkUsernameAvailability);
 
 /* ------------------------------------------------------------------ */
 /* UPDATE USER ROLE                                                   */

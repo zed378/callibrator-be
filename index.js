@@ -1,10 +1,4 @@
 require("./src/utils/env");
-
-// debugging
-process.on("uncaughtException", console.error);
-
-process.on("unhandledRejection", console.error);
-
 const express = require("express");
 
 const compression = require("compression");
@@ -44,9 +38,11 @@ const { accessLog } = require("./src/middlewares/accessLog");
 
 const { activityLogger, logger } = require("./src/middlewares/activityLog");
 
+const { RATE_LIMIT } = require("./src/constants/appConstants");
+
 const storagePath = require("./src/utils/storagePath");
 
-const { seedMenuGroups } = require("./src/utils/seedMenuGroups");
+const migrationService = require("./src/services/migration.service");
 
 // ======================================================
 // INITIALIZATION
@@ -54,6 +50,18 @@ const { seedMenuGroups } = require("./src/utils/seedMenuGroups");
 
 // Ensure required folders exist
 ensureFolderExisted();
+
+// Error handlers - must be after logger import
+process.on("uncaughtException", (err) => {
+  logger?.error(`uncaughtException: ${err.stack || err.message}`, err) ??
+    console.error(err);
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger?.error(
+    `unhandledRejection: ${reason?.stack || JSON.stringify(reason)}`,
+  ) ?? console.error(reason);
+});
 
 // Initialize Express
 const app = express();
@@ -83,7 +91,10 @@ if (process.env.NODE_ENV !== "production") {
 app.use(compression());
 
 // HTTPS Redirect (production only — behind reverse proxy)
-if (process.env.NODE_ENV === "production" && process.env.FORCE_HTTPS === "true") {
+if (
+  process.env.NODE_ENV === "production" &&
+  process.env.FORCE_HTTPS === "true"
+) {
   app.use((req, res, next) => {
     if (!req.secure && req.get("X-Forwarded-Proto") !== "https") {
       // Redirect to HTTPS (preserves path + query)
@@ -122,12 +133,18 @@ app.use(
       }
 
       // Strict: only allow explicitly configured origins
-      if (allowedOrigins.includes(origin.trim()) || allowedOrigins.includes("*")) {
+      if (
+        allowedOrigins.includes(origin.trim()) ||
+        allowedOrigins.includes("*")
+      ) {
         return callback(null, true);
       }
 
       // Production default: reject if no origins configured
-      if (process.env.NODE_ENV === "production" && allowedOrigins.length === 0) {
+      if (
+        process.env.NODE_ENV === "production" &&
+        allowedOrigins.length === 0
+      ) {
         console.warn(
           `CORS error: "${origin}" rejected — no CORS_ORIGIN configured in production`,
         );
@@ -154,8 +171,8 @@ app.use(
 
 // Default rate limiter (applied to all routes)
 const defaultLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Default: 500 requests per 15 minutes
+  windowMs: RATE_LIMIT.STANDARD_WINDOW,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -166,8 +183,8 @@ const defaultLimiter = rateLimit({
 
 // Strict rate limiter for authentication endpoints
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // 20 requests per 15 minutes (prevents brute force)
+  windowMs: RATE_LIMIT.STANDARD_WINDOW,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -178,8 +195,8 @@ const authLimiter = rateLimit({
 
 // Strict rate limiter for OTP/Password reset endpoints
 const otpLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // 5 requests per hour
+  windowMs: RATE_LIMIT.HOUR_WINDOW,
+  max: 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
@@ -283,6 +300,11 @@ const tenantRoutes = require("./src/routes/api/tenant");
 const tenantBackupRoutes = require("./src/routes/api/tenantBackup");
 const rolesRoutes = require("./src/routes/api/roles");
 const sessionRoutes = require("./src/routes/api/session");
+const warehouseRoutes = require("./src/routes/api/warehouse");
+const stockRoutes = require("./src/routes/api/stock");
+const calibrationDevicesRoutes = require("./src/routes/api/calibrationDevices");
+const calibrationRecordsRoutes = require("./src/routes/api/calibrationRecords");
+const certificateRoutes = require("./src/routes/api/certificates");
 
 // ======================================================
 // ROUTES ENDPOINT
@@ -297,6 +319,11 @@ app.use("/api/v1/roles", rolesRoutes);
 app.use("/api/v1/tenants", tenantRoutes);
 app.use("/api/v1/tenants", tenantBackupRoutes);
 app.use("/api/v1/sessions", sessionRoutes);
+app.use("/api/v1/warehouses", warehouseRoutes);
+app.use("/api/v1/stocks", stockRoutes);
+app.use("/api/v1/calibration-devices", calibrationDevicesRoutes);
+app.use("/api/v1/calibration-records", calibrationRecordsRoutes);
+app.use("/api/v1/certificates", certificateRoutes);
 
 // ======================================================
 // HEALTHCHECK
@@ -420,15 +447,21 @@ async function startServer() {
     // Database Connection
     await Connection();
 
+    // Ensure ALL tables exist before seeding.
+    // Use alter mode to safely sync model definitions with the database
+    // (adds new columns/tables without dropping existing data).
+    await db.sync({ alter: true });
+    logger.info("All database tables synced (mode: alter)");
+
     // Redis Connection
     await initRedis();
 
-    // Seed Menu Groups
+    // Seed Database (Roles, Menu Groups, Permissions, and Default Users)
     try {
-      await seedMenuGroups();
-      logger.info("Menu groups seeded successfully");
+      await migrationService.seedAll();
+      logger.info("Database seeded successfully on startup");
     } catch (seedError) {
-      logger.error(`Failed to seed menu groups: ${seedError.message}`);
+      logger.error(`Failed to seed database on startup: ${seedError.message}`);
       // Don't fail startup if seeding fails
     }
 
@@ -445,8 +478,6 @@ async function startServer() {
       logger.info(`Server running on port ${port}`);
     });
   } catch (error) {
-    console.error("Failed to start server:", error.message);
-
     logger.error(`Failed to start server: ${error.message}`);
 
     process.exit(1);

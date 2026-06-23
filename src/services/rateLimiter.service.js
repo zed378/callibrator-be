@@ -28,11 +28,7 @@ const { generateAccessToken, verifyAccessToken } = require("../utils/jwt");
 // ==========================================
 // Using in-memory cache for fast lookups
 // In production, consider using Redis for distributed systems
-const rateLimitCache = process.env.REDIS_URL
-  ? {}
-  : process.env.REDIS_URL
-    ? {}
-    : new Map();
+const rateLimitCache = process.env.REDIS_URL ? new Map() : new Map();
 
 // Cache TTL settings (in milliseconds)
 const CACHE_TTL = {
@@ -94,10 +90,10 @@ function getRateLimitKey({
   endpoint = null,
 }) {
   const parts = [];
-  if (userId) parts.push(`user:${userId}`);
-  if (tokenHash) parts.push(`token:${tokenHash}`);
-  if (ip) parts.push(`ip:${ip}`);
-  if (endpoint) parts.push(`endpoint:${endpoint}`);
+  if (userId) {parts.push(`user:${userId}`);}
+  if (tokenHash) {parts.push(`token:${tokenHash}`);}
+  if (ip) {parts.push(`ip:${ip}`);}
+  if (endpoint) {parts.push(`endpoint:${endpoint}`);}
   return parts.join("|") || "unknown";
 }
 
@@ -179,14 +175,14 @@ async function recordFailedAttempt({
                 lockedUntil: new Date(userEntry.lockoutUntil),
               });
 
-              logger.warn(`User locked out due to rate limit`, {
+              logger.warn("User locked out due to rate limit", {
                 userId,
                 failedAttempts,
                 lockoutUntil: userEntry.lockoutUntil,
               });
             }
           } catch (error) {
-            logger.error(`Error updating user lockout:`, error);
+            logger.error("Error updating user lockout:", error);
           }
         }
       } else {
@@ -230,13 +226,13 @@ async function recordFailedAttempt({
             );
             if (revoked) {
               result.revokedToken = tokenHash;
-              logger.warn(`Token revoked due to brute force detection`, {
+              logger.warn("Token revoked due to brute force detection", {
                 tokenHash,
                 attempts: tokenEntry.count,
               });
             }
           } catch (error) {
-            logger.error(`Error revoking token:`, error);
+            logger.error("Error revoking token:", error);
           }
         }
 
@@ -332,7 +328,7 @@ async function resetFailedAttempts({
         { where: { id: userId } },
       );
     } catch (error) {
-      logger.error(`Error resetting user failed attempts:`, error);
+      logger.error("Error resetting user failed attempts:", error);
     }
   }
 
@@ -361,7 +357,7 @@ async function revokeTokenByHash(tokenHash, reason = "RATE_LIMIT_EXCEEDED") {
     );
     return affected[0] > 0;
   } catch (error) {
-    logger.error(`Error revoking token by hash:`, error);
+    logger.error("Error revoking token by hash:", error);
     return false;
   }
 }
@@ -386,7 +382,7 @@ async function revokeAllUserTokens(userId, reason = "SECURITY_REVOCATION") {
     logger.info(`Revoked ${affected} sessions for user ${userId}: ${reason}`);
     return affected;
   } catch (error) {
-    logger.error(`Error revoking user tokens:`, error);
+    logger.error("Error revoking user tokens:", error);
     return 0;
   }
 }
@@ -459,13 +455,13 @@ function getRateLimitStatus({
     const entry = rateLimitCache.get(userKey);
     status.user = entry
       ? {
-          count: entry.count,
-          expiresAt: new Date(entry.expiresAt),
-          isLocked:
+        count: entry.count,
+        expiresAt: new Date(entry.expiresAt),
+        isLocked:
             entry.count >=
             (RATE_LIMIT_CONFIG[endpoint] || RATE_LIMIT_CONFIG.default)
               .maxAttempts,
-        }
+      }
       : null;
   }
 
@@ -474,10 +470,10 @@ function getRateLimitStatus({
     const entry = rateLimitCache.get(tokenKey);
     status.token = entry
       ? {
-          count: entry.count,
-          expiresAt: new Date(entry.expiresAt),
-          isBlocked: entry.blocked,
-        }
+        count: entry.count,
+        expiresAt: new Date(entry.expiresAt),
+        isBlocked: entry.blocked,
+      }
       : null;
   }
 
@@ -486,9 +482,9 @@ function getRateLimitStatus({
     const entry = rateLimitCache.get(ipKey);
     status.ip = entry
       ? {
-          count: entry.count,
-          expiresAt: new Date(entry.expiresAt),
-        }
+        count: entry.count,
+        expiresAt: new Date(entry.expiresAt),
+      }
       : null;
   }
 
@@ -532,42 +528,42 @@ function authRateLimiter(endpointKey = "default", maxRequests, windowMs) {
     });
     const now = Date.now();
 
-    const entry = rateLimitCache.get(key);
+    let entry = rateLimitCache.get(key);
 
     if (entry) {
       // Check if window has expired
       if (now >= entry.expiresAt) {
         // Reset counter
-        rateLimitCache.set(key, {
+        entry = {
           count: 1,
           windowStart: now,
           expiresAt: now + window,
-        });
-        return next();
+        };
+        rateLimitCache.set(key, entry);
+      } else {
+        // Increment counter
+        entry.count++;
+
+        // Check if rate limit exceeded
+        if (entry.count > limit) {
+          return res.status(429).json({
+            success: false,
+            message: config.description
+              ? `Too many requests. ${config.description}`
+              : "Too many requests. Please try again later.",
+            retryAfter: Math.ceil((entry.expiresAt - now) / 1000),
+          });
+        }
+        rateLimitCache.set(key, entry);
       }
-
-      // Increment counter
-      entry.count++;
-
-      // Check if rate limit exceeded
-      if (entry.count > limit) {
-        return res.status(429).json({
-          success: false,
-          message: config.description
-            ? `Too many requests. ${config.description}`
-            : "Too many requests. Please try again later.",
-          retryAfter: Math.ceil((entry.expiresAt - now) / 1000),
-        });
-      }
-
-      rateLimitCache.set(key, entry);
     } else {
       // First request
-      rateLimitCache.set(key, {
+      entry = {
         count: 1,
         windowStart: now,
         expiresAt: now + window,
-      });
+      };
+      rateLimitCache.set(key, entry);
     }
 
     // Set rate limit headers

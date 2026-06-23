@@ -37,7 +37,8 @@ exports.createTenantSchema = Joi.object({
   status: Joi.string()
     .valid("ACTIVE", "INACTIVE", "SUSPENDED", "active", "inactive", "suspended")
     .default("ACTIVE")
-    .insensitive(),
+    .insensitive()
+    .allow(null),
   maxUsers: Joi.number().integer().min(1).default(10),
   createdBy: Joi.string().uuid().allow(null, ""),
   email: Joi.string().email().allow(null, ""),

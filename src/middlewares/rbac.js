@@ -71,8 +71,8 @@ exports.rbac = (requiredRoles = [], options = {}) => {
 
       // Determine status code based on message context
       let statusCode = 500;
-      if (message.includes("Unauthorized")) statusCode = 401;
-      if (message.includes("Forbidden")) statusCode = 403;
+      if (message.includes("Unauthorized")) {statusCode = 401;}
+      if (message.includes("Forbidden")) {statusCode = 403;}
 
       // Send error to the global error handler
       next({
@@ -106,8 +106,8 @@ exports.checkRoleLevel = (minLevel = 1) => {
     } catch (error) {
       const message = error.message || "Internal Server Error";
       let statusCode = 500;
-      if (message.includes("Unauthorized")) statusCode = 401;
-      if (message.includes("Forbidden")) statusCode = 403;
+      if (message.includes("Unauthorized")) {statusCode = 401;}
+      if (message.includes("Forbidden")) {statusCode = 403;}
 
       next({
         status: statusCode,
@@ -133,7 +133,7 @@ exports.notSuperAdmin = () => {
     } catch (error) {
       const message = error.message || "Internal Server Error";
       let statusCode = 500;
-      if (message.includes("Forbidden")) statusCode = 403;
+      if (message.includes("Forbidden")) {statusCode = 403;}
 
       next({
         status: statusCode,

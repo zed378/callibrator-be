@@ -5,9 +5,7 @@ const JSZip = require("jszip");
 const moment = require("moment");
 
 // Simplified tenant backup service - removed deprecated models (TenantSettings, TenantRoles, TenantFeatures, TenantAuditLog, UserPermissions)
-const { TenantBackup } = require("../models/tenant_backup");
-const { Tenant } = require("../models/index");
-const { Users } = require("../models/index");
+const { TenantBackup, Tenant, Users } = require("../models");
 const { logger } = require("../middlewares/activityLog");
 const { AppError, InternalServerError } = require("../utils/appError");
 const storagePath = require("../utils/storagePath");
@@ -89,7 +87,7 @@ async function exportTenantData(tenantId, backupType, models) {
     const users = await Users.findAll({
       where: { tenantId },
       attributes: {
-        exclude: ["password", "createdAt", "updatedAt", "deletedAt"],
+        exclude: ["password", "createdAt", "updatedAt", "deleted_at"],
       },
     });
     data.users = users.map((u) => u.toJSON());
@@ -352,7 +350,7 @@ async function restoreBackup({
     let recordsProcessed = 0;
 
     // Get the transaction from models parameter for consistency
-    const sequelize = models.Sequelize || require("sequelize");
+    const sequelize = models.sequelize || require("../models").sequelize;
 
     // Start transaction
     const transaction = await sequelize.transaction();
